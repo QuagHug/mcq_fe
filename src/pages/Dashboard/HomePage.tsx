@@ -19,7 +19,7 @@ const ECommerce = () => {
           >
             {/* Heading */}
             <h2 className="text-3xl font-bold text-white mb-4">
-              Welcome to MCQBK
+              Welcome to HCMUT MCQ
             </h2>
             {/* Paragraph */}
             <p className="text-white text-center mb-6">
