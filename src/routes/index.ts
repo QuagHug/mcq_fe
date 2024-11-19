@@ -1,6 +1,8 @@
 import { lazy } from 'react';
 
 const Calendar = lazy(() => import('../pages/Calendar'));
+const QuestionBank = lazy(() => import('../pages/QuestionBank'));
+const GenerateQuestion = lazy(() => import('../pages/GenerateQuestion'));
 const Chart = lazy(() => import('../pages/Chart'));
 const FormElements = lazy(() => import('../pages/Form/FormElements'));
 const FormLayout = lazy(() => import('../pages/Form/FormLayout'));
@@ -12,9 +14,14 @@ const Buttons = lazy(() => import('../pages/UiElements/Buttons'));
 
 const coreRoutes = [
   {
-    path: '/calendar',
-    title: 'Calender',
-    component: Calendar,
+    path: '/question-bank',
+    title: 'Question Bank',
+    component: QuestionBank,
+  },
+  {
+    path: '/generate-questions',
+    title: 'Generate Questions',
+    component: GenerateQuestion,
   },
   {
     path: '/profile',
