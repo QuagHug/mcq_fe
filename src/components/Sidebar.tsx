@@ -101,22 +101,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
             </h3>
 
             <ul className="mb-6 flex flex-col gap-1.5">
-              {/* <!-- Menu Item Question Bank --> */}
-              <li>
-                <NavLink
-                  to="/question-bank"
-                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes('question-bank') &&
-                    'bg-graydark dark:bg-meta-4'
-                    }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="1.5 3 20 20" strokeWidth={1.5} stroke="currentColor" className="size-6" width="18" height="18">
-                    <path d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" fill='' />
-                  </svg>
-                  Question Bank
-                </NavLink>
-              </li>
-              {/* <!-- Menu Item Question Bank --> */}
-
               {/* <!-- Menu Item Generate Question --> */}
               <li>
                 <NavLink
@@ -215,7 +199,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
               </SidebarLinkGroup>
               {/* <!-- Menu Item Add Question --> */}
 
-              {/* <!-- Menu Item Question Tags --> */}
+              {/* <!-- Menu Item Add Test --> */}
               <li>
                 <NavLink
                   to="#" /*/tables*/
@@ -223,13 +207,28 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                     }`}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="2 2 20 20" width="18" height="18" strokeWidth={1.5} stroke="currentColor" >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.615 20H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8m-3 5l2 2l4-4M9 8h4m-4 4h2" />
                   </svg>
-                  Add Question Tags
+                  Add Tests
                 </NavLink>
               </li>
-              {/* <!-- Menu Item Question Tags --> */}
+              {/* <!-- Menu Item Add Test --> */}
+
+              {/* <!-- Menu Item Question Bank --> */}
+              <li>
+                <NavLink
+                  to="/question-bank"
+                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes('question-bank') &&
+                    'bg-graydark dark:bg-meta-4'
+                    }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="1.5 3 20 20" strokeWidth={1.5} stroke="currentColor" className="size-6" width="18" height="18">
+                    <path d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" fill='' />
+                  </svg>
+                  Question Bank
+                </NavLink>
+              </li>
+              {/* <!-- Menu Item Question Bank --> */}
             </ul>
           </div>
 

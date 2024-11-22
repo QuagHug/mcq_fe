@@ -32,15 +32,15 @@ const ECommerce = () => {
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full px-4 sm:px-0 sm:justify-center">
               <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
                 text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
-                View Question
+                View Question Bank
               </button>
               <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
                 text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
-                Make New Questions
+                Generate Questions
               </button>
               <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
                 text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
-                Construct Test
+                Add Tests
               </button>
             </div>
           </div>
