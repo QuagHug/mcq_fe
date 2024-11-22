@@ -30,6 +30,10 @@
   }
 }
 
+
+  
+
+
 /* third-party libraries CSS */
 
 .tableCheckbox:checked ~ div span {
@@ -161,3 +165,4 @@ span.flatpickr-weekday,
 [x-cloak] {
   display: none !important;
 }
+
