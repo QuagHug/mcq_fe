@@ -1,10 +1,15 @@
+import { Link } from 'react-router-dom';
 import Breadcrumb from '../../components/Breadcrumb.tsx';
 import HomePage from '../../images/cover/homepage.jpg';
 
 const ECommerce = () => {
+  // Check if user is logged in by looking for the token cookie
+  const isLoggedIn = document.cookie.includes('token=');
+
   return (
     <>
-      <Breadcrumb pageName="Home Page" />
+      {!isLoggedIn && <Breadcrumb pageName="Welcome" />}
+      {isLoggedIn && <Breadcrumb pageName="Home Page" />}
       <div className="relative w-full h-[500px]">
         {/* Background Image */}
         <img
@@ -23,26 +28,47 @@ const ECommerce = () => {
             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2 sm:mb-4 text-center">
               Welcome to HCMUT MCQ
             </h2>
-            {/* Paragraph */}
-            <p className="text-sm sm:text-base text-white text-center mb-4 sm:mb-6 px-2 sm:px-4">
-              Join us to create multiple-choice tests to reinforce student
-              knowledge and improve their scores.
-            </p>
-            {/* Buttons in a responsive grid/flex layout */}
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full px-4 sm:px-0 sm:justify-center">
-              <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
-                text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
-                View Question Bank
-              </button>
-              <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
-                text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
-                Generate Questions
-              </button>
-              <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
-                text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
-                Add Tests
-              </button>
-            </div>
+            {/* Different content based on auth status */}
+            {isLoggedIn ? (
+              <>
+                {/* Logged in content */}
+                <p className="text-sm sm:text-base text-white text-center mb-4 sm:mb-6 px-2 sm:px-4">
+                  Join us to create multiple-choice tests to reinforce student
+                  knowledge and improve their scores.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full px-4 sm:px-0 sm:justify-center">
+                  <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                    text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
+                    View Question Bank
+                  </button>
+                  <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                    text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
+                    Generate Questions
+                  </button>
+                  <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                    text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
+                    Add Tests
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Non-logged in content */}
+                <p className="text-sm sm:text-base text-white text-center mb-4 sm:mb-6 px-2 sm:px-4">
+                  Create and manage multiple-choice tests efficiently with our advanced MCQ platform. 
+                  Sign in to access all features.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full px-4 sm:px-0 sm:justify-center">
+                  <Link 
+                    to="/auth/signin"
+                    className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                      text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors text-center"
+                  >
+                    Sign In
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
