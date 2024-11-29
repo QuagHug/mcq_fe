@@ -1,9 +1,7 @@
 import { lazy } from 'react';
 
-const Calendar = lazy(() => import('../pages/Calendar'));
-const QuestionBank = lazy(() => import('../pages/QuestionBank'));
-const QuestionBankDetail = lazy(() => import('../pages/QuestionBankDetail'));
 const GenerateQuestion = lazy(() => import('../pages/GenerateQuestion'));
+const Questions = lazy(() => import('../pages/Questions'));
 const Chart = lazy(() => import('../pages/Chart'));
 const FormElements = lazy(() => import('../pages/Form/FormElements'));
 const FormLayout = lazy(() => import('../pages/Form/FormLayout'));
@@ -14,17 +12,34 @@ const Alerts = lazy(() => import('../pages/UiElements/Alerts'));
 const Buttons = lazy(() => import('../pages/UiElements/Buttons'));
 const QuestionDetail = lazy(() => import('../pages/QuestionDetail'));
 const QuestionEdit = lazy(() => import('../pages/QuestionEdit'));
+const CoursesPage = lazy(() => import('../pages/Courses'));
+const QuestionBanks = lazy(() => import('../pages/QuestionBanks'));
 
 const coreRoutes = [
   {
-    path: '/question-bank',
-    title: 'Question Bank',
-    component: QuestionBank,
+    path: '/courses',
+    title: 'Courses',
+    component: CoursesPage,
   },
   {
-    path: '/question-bank/:id',
-    title: 'Question Bank Detail',
-    component: QuestionBankDetail,
+    path: '/courses/:courseId/question-banks',
+    title: 'Question Banks',
+    component: QuestionBanks,
+  },
+  {
+    path: '/courses/:courseId/question-banks/:chapterId',
+    title: 'Questions',
+    component: Questions,
+  },
+  {
+    path: '/courses/:courseId/question-banks/:chapterId/questions/:questionId',
+    title: 'Question Detail',
+    component: QuestionDetail,
+  },
+  {
+    path: '/courses/:courseId/question-banks/:chapterId/questions/:questionId/edit',
+    title: 'Edit Question',
+    component: QuestionEdit,
   },
   {
     path: '/generate-questions',
@@ -70,16 +85,6 @@ const coreRoutes = [
     path: '/ui/buttons',
     title: 'Buttons',
     component: Buttons,
-  },
-  {
-    path: '/question/:id',
-    title: 'Question Detail',
-    component: QuestionDetail,
-  },
-  {
-    path: '/question/:id/edit',
-    title: 'Edit Question',
-    component: QuestionEdit,
   },
 ];
 

@@ -23,9 +23,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
   return (
     <aside
       ref={sidebar}
-      className={`absolute left-0 top-0 z-9999 flex h-screen w-72.5 flex-col overflow-y-hidden bg-black duration-300 ease-linear dark:bg-boxdark lg:static lg:translate-x-0 ${
-        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}
+      className={`absolute left-0 top-0 z-9999 flex h-screen w-72.5 flex-col overflow-y-hidden bg-black duration-300 ease-linear dark:bg-boxdark lg:static lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
     >
       {/* <!-- SIDEBAR HEADER --> */}
       <div className="flex items-center justify-between gap-1 px-6 py-3 lg:py-4">
@@ -181,21 +180,20 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                 </li>
                 {/* <!-- Menu Item Add Test --> */}
 
-                {/* <!-- Menu Item Question Bank --> */}
+                {/* <!-- Menu Item Courses --> */}
                 <li>
                   <NavLink
-                    to="/question-bank"
-                    className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes('question-bank') &&
-                      'bg-graydark dark:bg-meta-4'
+                    to="/courses"
+                    className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes('courses') && 'bg-graydark dark:bg-meta-4'
                       }`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="1.5 3 20 20" strokeWidth={1.5} stroke="currentColor" className="size-6" width="18" height="18">
                       <path d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" fill='' />
                     </svg>
-                    Question Bank
+                    Courses
                   </NavLink>
                 </li>
-                {/* <!-- Menu Item Question Bank --> */}
+                {/* <!-- Menu Item Courses --> */}
               </ul>
             </div>
 
