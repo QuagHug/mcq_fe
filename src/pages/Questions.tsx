@@ -1,4 +1,5 @@
 import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 
 const Questions = () => {
     const { courseId, chapterId } = useParams();
@@ -7,7 +8,7 @@ const Questions = () => {
     const courseName = location.state?.courseName || "Computer Network";
     const chapterName = location.state?.chapterName || "Chapter 1";
 
-    // Helper function to truncate text
+
     const truncateText = (text: string, maxLength: number = 50) => {
         if (text.length <= maxLength) return text;
         return text.slice(0, maxLength) + '...';
@@ -17,18 +18,17 @@ const Questions = () => {
         {
             id: 'Q001',
             question: 'What is the OSI model and how does it function in computer networking? Explain the different layers and their purposes in detail.',
-            type: 'Multiple Choice',
-            difficulty: 'Medium',
+            type: 'One question',
+            difficulty: 'Understand',
             lastModified: '2024-03-20',
         },
         {
             id: 'Q002',
             question: 'Explain the difference between TCP and UDP protocols in terms of connection, reliability, and use cases.',
-            type: 'Essay',
-            difficulty: 'Hard',
+            type: 'Multiple questions',
+            difficulty: 'Apply',
             lastModified: '2024-03-19',
         },
-        // Add more questions as needed
     ];
 
     const handleQuestionClick = (questionId: string) => {
@@ -38,6 +38,14 @@ const Questions = () => {
                 chapterName: chapterName
             }
         });
+    };
+
+
+    const [currentPage, setCurrentPage] = useState(1);
+    const totalPages = 3;
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
     };
 
     return (
@@ -99,7 +107,7 @@ const Questions = () => {
                                     Type
                                 </th>
                                 <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
-                                    Difficulty
+                                    Bloom's Level
                                 </th>
                                 <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
                                     Last Modified
@@ -168,6 +176,37 @@ const Questions = () => {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* Pagination Component */}
+            <div className="flex justify-center items-center space-x-2 mt-4">
+                <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="hover:text-primary"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                    </svg>
+                </button>
+                {[...Array(totalPages)].map((_, index) => (
+                    <button
+                        key={index}
+                        onClick={() => handlePageChange(index + 1)}
+                        className={`px-2 py-1 ${currentPage === index + 1 ? 'text-primary' : 'hover:text-primary'}`}
+                    >
+                        {index + 1}
+                    </button>
+                ))}
+                <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="hover:text-primary"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5 15.75 12l-7.5 7.5" />
+                    </svg>
+                </button>
             </div>
         </div>
     );

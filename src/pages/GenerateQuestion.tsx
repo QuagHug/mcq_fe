@@ -1,10 +1,12 @@
-import { useState, useRef, DragEvent } from 'react';
+import React, { useState, useRef, DragEvent } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
+import { Menu, Transition } from '@headlessui/react';
 
 interface Answer {
     id: string;
     text: string;
     isCorrect: boolean;
+    explanation: string;
 }
 
 interface GeneratedQuestion {
@@ -24,15 +26,14 @@ const GenerateQuestion = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([
-        // Mock data - replace with actual generated questions
         {
             id: '1',
             question: 'What is Computer Network?',
             answers: [
-                { id: 'A', text: 'A collection of autonomous computers', isCorrect: false },
-                { id: 'B', text: 'A system of interconnected computers', isCorrect: true },
-                { id: 'C', text: 'A single computer with multiple processors', isCorrect: false },
-                { id: 'D', text: 'A software application for sharing files', isCorrect: false },
+                { id: 'A', text: 'A collection of autonomous computers', isCorrect: false, explanation: 'A computer network is a system of interconnected computers...' },
+                { id: 'B', text: 'A system of interconnected computers', isCorrect: true, explanation: 'Other options are incorrect because...' },
+                { id: 'C', text: 'A single computer with multiple processors', isCorrect: false, explanation: 'Other options are incorrect because...' },
+                { id: 'D', text: 'A software application for sharing files', isCorrect: false, explanation: 'Other options are incorrect because...' },
             ],
             explanation: {
                 correct: 'A computer network is a system of interconnected computers...',
@@ -40,7 +41,41 @@ const GenerateQuestion = () => {
             },
             similarity: 60
         },
-        // Add more mock questions as needed
+        {
+            id: '2',
+            question: 'What is the primary function of TCP/IP in computer networking?',
+            answers: [
+                {
+                    id: 'A',
+                    text: 'Transmission Control Protocol/Internet Protocol is responsible for data delivery between applications across diverse networks',
+                    explanation: 'TCP/IP is indeed the fundamental communication protocol of the Internet, handling how data is packaged, addressed, transmitted, routed, and received.',
+                    isCorrect: true
+                },
+                {
+                    id: 'B',
+                    text: "It's only used for web browsing",
+                    explanation: 'This is incorrect. TCP/IP is used for much more than just web browsing, including email, file transfer, and remote administration.',
+                    isCorrect: false
+                },
+                {
+                    id: 'C',
+                    text: "It's a programming language for network applications",
+                    explanation: 'This is incorrect. TCP/IP is a protocol suite, not a programming language.',
+                    isCorrect: false
+                },
+                {
+                    id: 'D',
+                    text: "It's a type of network cable",
+                    explanation: 'This is incorrect. TCP/IP is a protocol suite, not a physical component like a network cable.',
+                    isCorrect: false
+                }
+            ],
+            explanation: {
+                correct: 'TCP/IP is indeed the fundamental communication protocol of the Internet, handling how data is packaged, addressed, transmitted, routed, and received.',
+                incorrect: 'This is incorrect. TCP/IP is used for much more than just web browsing, including email, file transfer, and remote administration.'
+            },
+            similarity: 75
+        }
     ]);
     const [selectedQuestions, setSelectedQuestions] = useState<{ [key: string]: boolean }>(() => {
         const initialState: { [key: string]: boolean } = {};
@@ -50,6 +85,8 @@ const GenerateQuestion = () => {
         return initialState;
     });
     const [selectedQuestionBank, setSelectedQuestionBank] = useState('');
+    const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
+    const [allExpanded, setAllExpanded] = useState(false);
 
     const bloomsLevels = [
         'Remember',
@@ -95,6 +132,28 @@ const GenerateQuestion = () => {
         }));
     };
 
+    const toggleQuestionExpansion = (questionId: string) => {
+        setExpandedQuestionId(prev => (prev === questionId ? null : questionId));
+    };
+
+    const truncateText = (text: string, maxLength: number = 50) => {
+        if (text.length <= maxLength) return text;
+        return text.slice(0, maxLength) + '...';
+    };
+
+    const handleDuplicate = (questionId: string) => {
+        console.log(`Duplicate question with ID: ${questionId}`);
+    };
+
+    const handleDelete = (questionId: string) => {
+        console.log(`Delete question with ID: ${questionId}`);
+    };
+
+    const toggleAllQuestions = () => {
+        setAllExpanded(!allExpanded);
+        setExpandedQuestionId(allExpanded ? null : 'all');
+    };
+
     return (
         <div className="space-y-6">
             <Breadcrumb
@@ -111,9 +170,14 @@ const GenerateQuestion = () => {
                 <div className="p-6.5">
                     <div className="mb-4.5">
                         <div className="flex items-center justify-between mb-2.5">
-                            <label className="text-black dark:text-white">
-                                Prompting
-                            </label>
+                            <button
+                                onClick={() => {
+                                    // Add import logic here
+                                }}
+                                className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-4 text-center font-medium text-white hover:bg-opacity-90"
+                            >
+                                Import Questions
+                            </button>
                             <div className="flex items-center gap-2">
                                 <input
                                     type="file"
@@ -167,7 +231,7 @@ const GenerateQuestion = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-6">
+                    {/* <div className="grid grid-cols-3 gap-6">
                         <div className="mb-4.5">
                             <label className="mb-2.5 block text-black dark:text-white">
                                 Number of Questions
@@ -209,11 +273,11 @@ const GenerateQuestion = () => {
                                 ))}
                             </select>
                         </div>
-                    </div>
+                    </div> */}
 
                     <div className="flex justify-end">
                         <button className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90">
-                            Generate
+                            Generate Questions
                         </button>
                     </div>
                 </div>
@@ -225,6 +289,15 @@ const GenerateQuestion = () => {
             {/* Answer Block */}
             <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
                 <div className="p-6.5">
+                    <div className="flex justify-between mb-4">
+                        <label className="mb-2.5 text-black dark:text-white">Generated Questions</label>
+                        <button
+                            onClick={toggleAllQuestions}
+                            className="mb-2.5 text-black dark:text-white hover:text-primary"
+                        >
+                            {allExpanded ? 'Collapse all' : 'Expand all'}
+                        </button>
+                    </div>
                     {/* Individual Question Blocks */}
                     <div className="space-y-6">
                         {generatedQuestions.map((question) => (
@@ -232,109 +305,128 @@ const GenerateQuestion = () => {
                                 key={question.id}
                                 className="border border-stroke rounded-sm p-6 dark:border-strokedark"
                             >
-                                {/* Question */}
-                                <div className="mb-4">
-                                    <div className="group inline-flex items-center gap-2">
-                                        <h4 className="text-lg font-semibold text-black dark:text-white mb-2">
-                                            Question {question.id}
-                                        </h4>
-                                        <p className="text-body">{question.question}</p>
-                                        <button className="hidden group-hover:block hover:text-primary">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Answers */}
-                                <div className="mb-4 space-y-2">
-                                    {question.answers.map((answer) => (
-                                        <div
-                                            key={answer.id}
-                                            className={`group flex items-center justify-between p-3 rounded ${answer.isCorrect
-                                                ? 'bg-success bg-opacity-5 border border-success'
-                                                : 'bg-danger bg-opacity-5 border border-danger'
-                                                }`}
-                                        >
-                                            <div>
-                                                <span className="font-medium">{answer.id}.</span> {answer.text}
-                                            </div>
-                                            <button className="hidden group-hover:block hover:text-primary">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-lg font-semibold text-black dark:text-white mb-2">
+                                        {truncateText(question.question)}
+                                    </h4>
+                                    <div className="flex items-center space-x-2">
+                                        <Menu as="div" className="relative" onClick={(e) => e.stopPropagation()}>
+                                            <Menu.Button className="hover:text-primary">
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    strokeWidth={1.5}
+                                                    stroke="currentColor"
+                                                    className="w-5 h-5 mt-1"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5zm0 5.25a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5zm0 5.25a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5z" />
                                                 </svg>
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Explanation */}
-                                <div className="mb-4 space-y-2">
-                                    <div className="group">
-                                        <div className="flex items-center justify-between">
-                                            <h5 className="font-medium text-black dark:text-white">Correct Answer Explanation:</h5>
-                                            <button className="hidden group-hover:block hover:text-primary">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                        <p className="text-body">{question.explanation.correct}</p>
-                                    </div>
-                                    <div className="group">
-                                        <div className="flex items-center justify-between">
-                                            <h5 className="font-medium text-black dark:text-white">Incorrect Answers Explanation:</h5>
-                                            <button className="hidden group-hover:block hover:text-primary">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                        <p className="text-body">{question.explanation.incorrect}</p>
-                                    </div>
-                                </div>
-
-                                {/* Keep Question Checkbox & Learning Outcome */}
-                                <div className="flex items-center gap-8 mb-4">
-                                    <div className="relative flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            id={`keep-question-${question.id}`}
-                                            checked={selectedQuestions[question.id] || false}
-                                            onChange={() => toggleQuestionSelection(question.id)}
-                                            className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border-2 border-gray-400 bg-transparent transition-all checked:border-primary checked:bg-primary hover:border-primary dark:border-gray-500"
-                                        />
-                                        <div className="pointer-events-none absolute left-0 top-0 h-full w-full rounded-md peer-checked:border-none">
-                                            <svg
-                                                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100"
-                                                width="10"
-                                                height="8"
-                                                viewBox="0 0 10 8"
-                                                fill="none"
-                                                xmlns="http://www.w3.org/2000/svg"
+                                            </Menu.Button>
+                                            <Transition
+                                                as={React.Fragment}
+                                                enter="transition ease-out duration-100"
+                                                enterFrom="transform opacity-0 scale-95"
+                                                enterTo="transform opacity-100 scale-100"
+                                                leave="transition ease-in duration-75"
+                                                leaveFrom="transform opacity-100 scale-100"
+                                                leaveTo="transform opacity-0 scale-95"
                                             >
-                                                <path
-                                                    d="M9.44741 1.06097C9.70558 0.776188 9.67866 0.346597 9.38794 0.0884293C9.09721 -0.169739 8.65881 -0.143819 8.40064 0.140965L3.95458 5.05766L1.59936 2.43533C1.34119 2.15055 0.902789 2.12463 0.612064 2.38281C0.32134 2.64099 0.29542 3.07939 0.553595 3.37011L3.45121 6.60673C3.57638 6.74578 3.75415 6.82492 3.93853 6.82609C4.1229 6.82726 4.30169 6.75036 4.42836 6.61277L9.44741 1.06097Z"
-                                                    fill="currentColor"
-                                                />
-                                            </svg>
-                                        </div>
-                                        <label
-                                            htmlFor={`keep-question-${question.id}`}
-                                            className="cursor-pointer pl-3 text-body"
+                                                <Menu.Items className="absolute right-0 mt-2 w-32 origin-top-right bg-white dark:bg-boxdark divide-y divide-gray-100 rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                                    <div className="py-1">
+                                                        <Menu.Item>
+                                                            {({ active }) => (
+                                                                <button
+                                                                    onClick={() => handleDuplicate(question.id)}
+                                                                    className={`${active ? 'bg-gray-100 dark:bg-gray-700' : ''
+                                                                        } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
+                                                                >
+                                                                    Duplicate
+                                                                </button>
+                                                            )}
+                                                        </Menu.Item>
+                                                        <Menu.Item>
+                                                            {({ active }) => (
+                                                                <button
+                                                                    onClick={() => handleDelete(question.id)}
+                                                                    className={`${active ? 'bg-gray-100 dark:bg-gray-700' : ''
+                                                                        } group flex rounded-md items-center w-full px-2 py-2 text-sm`}
+                                                                >
+                                                                    Delete
+                                                                </button>
+                                                            )}
+                                                        </Menu.Item>
+                                                    </div>
+                                                </Menu.Items>
+                                            </Transition>
+                                        </Menu>
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            strokeWidth={1.5}
+                                            stroke="currentColor"
+                                            className={`w-5 h-5 transition-transform duration-200 cursor-pointer ${expandedQuestionId === question.id || allExpanded ? 'rotate-180' : ''}`}
+                                            onClick={() => toggleQuestionExpansion(question.id)}
                                         >
-                                            Would you like to keep this question?
-                                        </label>
-                                    </div>
-                                    <div className="flex-1">
-                                        <input
-                                            type="text"
-                                            placeholder="Enter learning outcome tag"
-                                            className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                                        />
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                                        </svg>
                                     </div>
                                 </div>
+
+                                {(expandedQuestionId === question.id || allExpanded) && (
+                                    <div className="mt-4">
+                                        <div className="mb-4 flex items-center">
+                                            <h3 className="text-2xl font-semibold text-black dark:text-white">Question</h3>
+                                            <div className="ml-4">
+                                                <span className="text-sm text-gray-500 dark:text-gray-400">Bloom's Level: </span>
+                                                <select
+                                                    value={bloomsLevel}
+                                                    onChange={(e) => setBloomsLevel(e.target.value)}
+                                                    className="text-sm text-gray-500 dark:text-gray-400 bg-transparent border-none focus:ring-0"
+                                                >
+                                                    <option value="">N/A</option>
+                                                    {bloomsLevels.map((level) => (
+                                                        <option key={level} value={level}>
+                                                            {level}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="mb-4">
+                                            <p className="text-body mt-2">{question.question}</p>
+                                        </div>
+                                        <div className="mb-4">
+                                            <h3 className="text-2xl font-semibold text-black dark:text-white">Answers</h3>
+                                            <div className="space-y-4 mt-2">
+                                                {question.answers.map((answer) => (
+                                                    <div
+                                                        key={answer.id}
+                                                        className={`border rounded-md p-4 transition-all duration-200 ${answer.isCorrect
+                                                            ? 'bg-success/10 border-success'
+                                                            : 'bg-danger/10 border-danger'
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center justify-between cursor-pointer">
+                                                            <div className="flex items-center gap-4">
+                                                                <span className={`font-semibold ${answer.isCorrect ? 'text-success' : 'text-danger'}`}>
+                                                                    {answer.id}.
+                                                                </span>
+                                                                <p className={`font-medium ${answer.isCorrect ? 'text-success' : 'text-danger'}`}>
+                                                                    {answer.text}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className={`mt-4 pl-8 text-sm border-t pt-4 ${answer.isCorrect ? 'text-success border-success' : 'text-danger border-danger'}`}>
+                                                            {answer.explanation}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>

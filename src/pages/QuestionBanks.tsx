@@ -1,11 +1,16 @@
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
 
 const QuestionBanks = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
     const courseName = location.state?.courseName || "Computer Network";
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const totalPages = 3; // Example total pages, adjust as needed
 
     const handleChapterClick = (chapterId: string, chapterName: string) => {
         navigate(`/courses/${courseId}/question-banks/${chapterId}`, {
@@ -30,6 +35,11 @@ const QuestionBanks = () => {
             lastModified: '2024-03-16'
         }
     ];
+
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+        // Add logic to fetch or display question banks for the selected page
+    };
 
     return (
         <div className="space-y-6">
@@ -130,6 +140,37 @@ const QuestionBanks = () => {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            {/* Pagination Component */}
+            <div className="flex justify-center items-center space-x-2 mt-4">
+                <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="hover:text-primary"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                    </svg>
+                </button>
+                {[...Array(totalPages)].map((_, index) => (
+                    <button
+                        key={index}
+                        onClick={() => handlePageChange(index + 1)}
+                        className={`px-2 py-1 ${currentPage === index + 1 ? 'text-primary' : 'hover:text-primary'}`}
+                    >
+                        {index + 1}
+                    </button>
+                ))}
+                <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="hover:text-primary"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5 15.75 12l-7.5 7.5" />
+                    </svg>
+                </button>
             </div>
         </div>
     );
