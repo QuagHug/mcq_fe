@@ -1,10 +1,11 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Breadcrumb from '../../components/Breadcrumb.tsx';
 import HomePage from '../../images/cover/homepage.jpg';
 
 const ECommerce = () => {
   // Check if user is logged in by looking for the token cookie
   const isLoggedIn = document.cookie.includes('token=');
+  const navigate = useNavigate();
 
   return (
     <>
@@ -37,12 +38,18 @@ const ECommerce = () => {
                   knowledge and improve their scores.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full px-4 sm:px-0 sm:justify-center">
-                  <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
-                    text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
-                    View Question Bank
+                  <button
+                    onClick={() => navigate('/courses')}
+                    className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                      text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors"
+                  >
+                    View Courses
                   </button>
-                  <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
-                    text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
+                  <button
+                    onClick={() => navigate('/generate-questions')}
+                    className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                      text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors"
+                  >
                     Generate Questions
                   </button>
                   <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
@@ -55,11 +62,11 @@ const ECommerce = () => {
               <>
                 {/* Non-logged in content */}
                 <p className="text-sm sm:text-base text-white text-center mb-4 sm:mb-6 px-2 sm:px-4">
-                  Create and manage multiple-choice tests efficiently with our advanced MCQ platform. 
+                  Create and manage multiple-choice tests efficiently with our advanced MCQ platform.
                   Sign in to access all features.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full px-4 sm:px-0 sm:justify-center">
-                  <Link 
+                  <Link
                     to="/auth/signin"
                     className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
                       text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors text-center"

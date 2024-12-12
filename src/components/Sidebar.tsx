@@ -67,6 +67,21 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
               </h3>
 
               <ul className="mb-6 flex flex-col gap-1.5">
+                {/* <!-- Menu Item Courses --> */}
+                <li>
+                  <NavLink
+                    to="/courses"
+                    className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes('courses') && 'bg-graydark dark:bg-meta-4'
+                      }`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="1.5 3 20 20" strokeWidth={1.5} stroke="currentColor" className="size-6" width="18" height="18">
+                      <path d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" fill='' />
+                    </svg>
+                    Courses
+                  </NavLink>
+                </li>
+                {/* <!-- Menu Item Courses --> */}
+
                 {/* <!-- Menu Item Generate Question --> */}
                 <li>
                   <NavLink
@@ -147,7 +162,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                             </li>
                             <li>
                               <NavLink
-                                to="/forms/form-layout"
+                                to="/add-many-questions"
                                 className={({ isActive }) =>
                                   'group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white ' +
                                   (isActive && '!text-white')
@@ -180,20 +195,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                 </li>
                 {/* <!-- Menu Item Add Test --> */}
 
-                {/* <!-- Menu Item Courses --> */}
-                <li>
-                  <NavLink
-                    to="/courses"
-                    className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes('courses') && 'bg-graydark dark:bg-meta-4'
-                      }`}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="1.5 3 20 20" strokeWidth={1.5} stroke="currentColor" className="size-6" width="18" height="18">
-                      <path d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" fill='' />
-                    </svg>
-                    Courses
-                  </NavLink>
-                </li>
-                {/* <!-- Menu Item Courses --> */}
+
               </ul>
             </div>
 

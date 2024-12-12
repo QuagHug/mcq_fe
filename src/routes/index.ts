@@ -13,6 +13,8 @@ const QuestionEdit = lazy(() => import('../pages/QuestionEdit'));
 const CoursesPage = lazy(() => import('../pages/Courses'));
 const QuestionBanks = lazy(() => import('../pages/QuestionBanks'));
 const AddOneQues = lazy(() => import('../pages/AddOneQues'));
+const ImportQuestions = lazy(() => import('../pages/ImportQuestions'));
+const AddManyQues = lazy(() => import('../pages/AddManyQues'));
 
 const coreRoutes = [
   {
@@ -74,6 +76,16 @@ const coreRoutes = [
     path: '/ui/buttons',
     title: 'Buttons',
     component: Buttons,
+  },
+  {
+    path: '/import-questions',
+    title: 'Import Questions',
+    component: ImportQuestions,
+  },
+  {
+    path: '/add-many-questions',
+    title: 'Add Multiple Questions',
+    component: AddManyQues,
   },
 ];
 

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
+import SimilarityDialog from '../components/SimilarityDialog';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 // Define a type for the expanded sections
 type ExpandedSections = {
@@ -30,9 +32,30 @@ const AddOneQues = () => {
     const [answers, setAnswers] = useState<Answer[]>([
         { id: 'A', text: '', explanation: '', grade: '0' },
         { id: 'B', text: '', explanation: '', grade: '0' },
+        { id: 'C', text: '', explanation: '', grade: '0' },
+        { id: 'D', text: '', explanation: '', grade: '0' },
     ]);
 
     const [selectedTags, setSelectedTags] = useState<SelectedTags>({});
+
+    const [isSimilarityDialogOpen, setIsSimilarityDialogOpen] = useState(false);
+    const [similarQuestions] = useState([
+        {
+            id: '1',
+            question: 'What is the primary purpose of TCP/IP in computer networking?',
+            similarity: 85,
+            questionBank: 'Networking Basics'
+        },
+        {
+            id: '2',
+            question: 'Explain the role of TCP/IP protocols in network communication.',
+            similarity: 75,
+            questionBank: 'Advanced Networking'
+        },
+        // Add more similar questions as needed
+    ]);
+
+    const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 
     const toggleSection = (section: string) => {
         setExpandedSections(prev => ({
@@ -62,6 +85,34 @@ const AddOneQues = () => {
             ...prevTags,
             [category]: value,
         }));
+    };
+
+    const handleDeleteAnswer = (id: string) => {
+        if (answers.length > 2) {  // Keep minimum 2 answers
+            setAnswers(prevAnswers => {
+                const filteredAnswers = prevAnswers.filter(answer => answer.id !== id);
+                // Reassign letters after deletion
+                return filteredAnswers.map((answer, index) => ({
+                    ...answer,
+                    id: String.fromCharCode(65 + index) // Convert 0 to 'A', 1 to 'B', etc.
+                }));
+            });
+        }
+    };
+
+    const resetForm = () => {
+        setAnswers([
+            { id: 'A', text: '', explanation: '', grade: '0' },
+            { id: 'B', text: '', explanation: '', grade: '0' },
+            { id: 'C', text: '', explanation: '', grade: '0' },
+            { id: 'D', text: '', explanation: '', grade: '0' },
+        ]);
+        setExpandedSections({
+            question: true,
+            answers: true,
+            tags: false,
+        });
+        setSelectedTags({});
     };
 
     return (
@@ -143,29 +194,44 @@ const AddOneQues = () => {
                     <div className="px-6.5 py-4 space-y-4">
                         {answers.map(answer => (
                             <div key={answer.id} className="rounded border border-stroke p-4 bg-white dark:bg-boxdark space-y-4">
-                                <div>
+                                <div className="flex justify-between items-center">
                                     <label className="font-medium text-black dark:text-white">Answer {answer.id}</label>
-                                    <Editor
-                                        apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
-                                        value={answer.text}
-                                        init={{
-                                            height: 100,
-                                            menubar: false,
-                                            plugins: [
-                                                'advlist', 'autolink', 'lists', 'link', 'image',
-                                                'charmap', 'preview', 'anchor', 'searchreplace',
-                                                'visualblocks', 'code', 'fullscreen', 'insertdatetime',
-                                                'media', 'table', 'code', 'help', 'wordcount', 'equation'
-                                            ],
-                                            toolbar: 'undo redo | formatselect | ' +
-                                                'bold italic forecolor | alignleft aligncenter ' +
-                                                'alignright alignjustify | bullist numlist outdent indent | ' +
-                                                'removeformat | equation | help',
-                                            content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
-                                        }}
-                                        onEditorChange={(content) => handleAnswerChange(answer.id, 'text', content)}
-                                    />
+                                    <button
+                                        onClick={() => handleDeleteAnswer(answer.id)}
+                                        className="text-gray-500 hover:text-red-500 transition-colors duration-200"
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            strokeWidth={1.5}
+                                            stroke="currentColor"
+                                            className="w-5 h-5"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
                                 </div>
+                                <Editor
+                                    apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                                    value={answer.text}
+                                    init={{
+                                        height: 100,
+                                        menubar: false,
+                                        plugins: [
+                                            'advlist', 'autolink', 'lists', 'link', 'image',
+                                            'charmap', 'preview', 'anchor', 'searchreplace',
+                                            'visualblocks', 'code', 'fullscreen', 'insertdatetime',
+                                            'media', 'table', 'code', 'help', 'wordcount', 'equation'
+                                        ],
+                                        toolbar: 'undo redo | formatselect | ' +
+                                            'bold italic forecolor | alignleft aligncenter ' +
+                                            'alignright alignjustify | bullist numlist outdent indent | ' +
+                                            'removeformat | equation | help',
+                                        content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
+                                    }}
+                                    onEditorChange={(content) => handleAnswerChange(answer.id, 'text', content)}
+                                />
 
                                 <div className="flex items-center gap-4">
                                     <label className="font-medium text-black dark:text-white">Grade</label>
@@ -278,21 +344,74 @@ const AddOneQues = () => {
                 )}
             </div>
 
+            <div className="flex justify-between items-center mt-4">
+                {/* Similarity Note and Button */}
+                <div className="flex items-center gap-4">
+                    <p className="text-body">
+                        <span className="text-danger font-medium">NOTE:</span> There are questions in your bank that are similar.
+                    </p>
+                    <button
+                        onClick={() => setIsSimilarityDialogOpen(true)}
+                        className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
+                    >
+                        View similarity
+                    </button>
+                </div>
 
-            <div className="flex justify-end mt-4 space-x-4">
-                <select
-                    className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                >
-                    <option value="bank1">Choose Question Bank</option>
-                    <option value="bank2">Question Bank 1</option>
-                    <option value="bank3">History</option>
-                </select>
-                <button
-                    className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark transition"
-                >
-                    Add to bank
-                </button>
+                {/* Question Bank Selection and Add Button */}
+                <div className="flex items-center gap-4">
+                    <select
+                        className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                    >
+                        <option value="">Choose Question Bank</option>
+                        <optgroup label="Networking">
+                            <option value="networking-ch1">Chapter 1: Introduction to Networks</option>
+                            <option value="networking-ch2">Chapter 2: Network Protocols</option>
+                            <option value="networking-ch3">Chapter 3: Network Security</option>
+                        </optgroup>
+                        <optgroup label="Database">
+                            <option value="database-ch1">Chapter 1: Database Fundamentals</option>
+                            <option value="database-ch2">Chapter 2: SQL and Queries</option>
+                        </optgroup>
+                        <optgroup label="PPL">
+                            <option value="ppl-ch1">Chapter 1: Programming Concepts</option>
+                            <option value="ppl-ch2">Chapter 2: Language Paradigms</option>
+                            <option value="ppl-ch3">Chapter 3: Language Processing</option>
+                        </optgroup>
+                    </select>
+                    <div className="flex flex-col gap-2">
+                        <button
+                            className="px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90 transition"
+                        >
+                            Add to bank
+                        </button>
+                    </div>
+                </div>
+                <div className="flex justify-end">
+                    <button
+                        onClick={() => setIsConfirmDialogOpen(true)}
+                        className="px-4 py-2 bg-danger text-white rounded hover:bg-opacity-90 transition"
+                    >
+                        Cancel
+                    </button>
+                </div>
             </div>
+
+            <SimilarityDialog
+                isOpen={isSimilarityDialogOpen}
+                onClose={() => setIsSimilarityDialogOpen(false)}
+                similarQuestions={similarQuestions}
+            />
+
+            <ConfirmDialog
+                isOpen={isConfirmDialogOpen}
+                onClose={() => setIsConfirmDialogOpen(false)}
+                onConfirm={() => {
+                    resetForm();
+                    setIsConfirmDialogOpen(false);
+                }}
+                message="Are you sure you want to discard these changes?"
+            />
         </div>
     );
 };

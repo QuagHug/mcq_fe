@@ -1,6 +1,7 @@
 import React, { useState, useRef, DragEvent } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { Menu, Transition } from '@headlessui/react';
+import SimilarityDialog from '../components/SimilarityDialog';
 
 interface Answer {
     id: string;
@@ -87,6 +88,7 @@ const GenerateQuestion = () => {
     const [selectedQuestionBank, setSelectedQuestionBank] = useState('');
     const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
     const [allExpanded, setAllExpanded] = useState(false);
+    const [isSimilarityDialogOpen, setIsSimilarityDialogOpen] = useState(false);
 
     const bloomsLevels = [
         'Remember',
@@ -170,14 +172,7 @@ const GenerateQuestion = () => {
                 <div className="p-6.5">
                     <div className="mb-4.5">
                         <div className="flex items-center justify-between mb-2.5">
-                            <button
-                                onClick={() => {
-                                    // Add import logic here
-                                }}
-                                className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-4 text-center font-medium text-white hover:bg-opacity-90"
-                            >
-                                Import Questions
-                            </button>
+                            <div className="w-[120px]"></div>
                             <div className="flex items-center gap-2">
                                 <input
                                     type="file"
@@ -425,6 +420,35 @@ const GenerateQuestion = () => {
                                                 ))}
                                             </div>
                                         </div>
+                                        <div className="flex justify-end items-center gap-4 mt-4 pt-4 border-t border-stroke dark:border-strokedark">
+                                            <select
+                                                value={selectedQuestionBank}
+                                                onChange={(e) => setSelectedQuestionBank(e.target.value)}
+                                                className="rounded border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                            >
+                                                <option value="">Select Question Bank</option>
+                                                <optgroup label="Networking">
+                                                    <option value="networking-ch1">Chapter 1: Introduction to Networks</option>
+                                                    <option value="networking-ch2">Chapter 2: Network Protocols</option>
+                                                    <option value="networking-ch3">Chapter 3: Network Security</option>
+                                                </optgroup>
+                                                <optgroup label="Database">
+                                                    <option value="database-ch1">Chapter 1: Database Fundamentals</option>
+                                                    <option value="database-ch2">Chapter 2: SQL and Queries</option>
+                                                </optgroup>
+                                                <optgroup label="PPL">
+                                                    <option value="ppl-ch1">Chapter 1: Programming Concepts</option>
+                                                    <option value="ppl-ch2">Chapter 2: Language Paradigms</option>
+                                                    <option value="ppl-ch3">Chapter 3: Language Processing</option>
+                                                </optgroup>
+                                            </select>
+                                            <button
+                                                className={`inline-flex items-center justify-center rounded-md py-2 px-6 text-center font-medium text-white hover:bg-opacity-90 min-w-[100px] ${selectedQuestions[question.id] ? 'bg-primary' : 'bg-danger'
+                                                    }`}
+                                            >
+                                                {selectedQuestions[question.id] ? 'Add' : 'Delete'}
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -435,39 +459,40 @@ const GenerateQuestion = () => {
                     <div className="mt-6 flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <p className="text-body">
-                                <span className="text-danger font-medium">NOTE:</span> There are questions in your bank that has {generatedQuestions[0]?.similarity}% similarity
+                                <span className="text-danger font-medium">NOTE:</span> There are questions in your bank that are similar.
                             </p>
-                            <button className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90">
+                            <button
+                                onClick={() => setIsSimilarityDialogOpen(true)}
+                                className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
+                            >
                                 View similarity
                             </button>
                         </div>
                         <div className="flex items-center gap-4">
-                            {Object.values(selectedQuestions).some(value => value) && (
-                                <div className="flex items-center gap-2">
-                                    <select
-                                        value={selectedQuestionBank}
-                                        onChange={(e) => setSelectedQuestionBank(e.target.value)}
-                                        className="rounded border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                                    >
-                                        <option value="">Select Question Bank</option>
-                                        <option value="networking">Networking</option>
-                                        <option value="database">Database</option>
-                                        <option value="ppl">PPL</option>
-                                    </select>
-                                </div>
-                            )}
-                            <button
-                                className={`inline-flex items-center justify-center rounded-md py-2 px-6 text-center font-medium text-white hover:bg-opacity-90 min-w-[100px] ${Object.values(selectedQuestions).some(value => value)
-                                    ? 'bg-primary'
-                                    : 'bg-danger'
-                                    }`}
-                            >
-                                {Object.values(selectedQuestions).some(value => value) ? 'Add' : 'Delete'}
-                            </button>
+
                         </div>
                     </div>
                 </div>
             </div>
+
+            <SimilarityDialog
+                isOpen={isSimilarityDialogOpen}
+                onClose={() => setIsSimilarityDialogOpen(false)}
+                similarQuestions={[
+                    {
+                        id: '1',
+                        question: 'What is the primary purpose of TCP/IP in computer networking?',
+                        similarity: 85,
+                        questionBank: 'Networking Basics'
+                    },
+                    {
+                        id: '2',
+                        question: 'Explain the role of TCP/IP protocols in network communication.',
+                        similarity: 75,
+                        questionBank: 'Advanced Networking'
+                    }
+                ]}
+            />
         </div>
     );
 };
