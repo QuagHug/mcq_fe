@@ -1,46 +1,52 @@
-import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useParams, Link, useLocation } from 'react-router-dom';
+import { fetchQuestionDetail } from '../services/api';
 import Breadcrumb from '../components/Breadcrumb';
 
-const MOCK_QUESTION_DATA = {
-    question: "What is the primary function of TCP/IP in computer networking?",
-    answers: [
-        {
-            id: "A",
-            text: "Transmission Control Protocol/Internet Protocol is responsible for data delivery between applications across diverse networks",
-            explanation: "TCP/IP is indeed the fundamental communication protocol of the Internet, handling how data is packaged, addressed, transmitted, routed, and received.",
-            isCorrect: true
-        },
-        {
-            id: "B",
-            text: "It's only used for web browsing",
-            explanation: "This is incorrect. TCP/IP is used for much more than just web browsing, including email, file transfer, and remote administration.",
-            isCorrect: false
-        },
-        {
-            id: "C",
-            text: "It's a programming language for network applications",
-            explanation: "This is incorrect. TCP/IP is a protocol suite, not a programming language.",
-            isCorrect: false
-        },
-        {
-            id: "D",
-            text: "It's a type of network cable",
-            explanation: "This is incorrect. TCP/IP is a protocol suite, not a physical component like a network cable.",
-            isCorrect: false
-        }
-    ]
-};
+interface Answer {
+    id: number;
+    answer_text: string;
+    is_correct: boolean;
+    explanation: string;
+}
+
+interface QuestionData {
+    id: number;
+    question_text: string;
+    image_url: string | null;
+    answers: Answer[];
+}
 
 const QuestionDetail = () => {
-    const [questionData] = useState(MOCK_QUESTION_DATA);
-    const [expandedAnswers, setExpandedAnswers] = useState<string[]>([]);
     const { courseId, chapterId, questionId } = useParams();
     const location = useLocation();
-    const courseName = location.state?.courseName || "Computer Network";
-    const chapterName = location.state?.chapterName || `Chapter ${chapterId}`;
+    const [questionData, setQuestionData] = useState<QuestionData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [expandedAnswers, setExpandedAnswers] = useState<number[]>([]);
 
-    const toggleExplanation = (answerId: string) => {
+    const courseName = location.state?.courseName;
+    const chapterName = location.state?.chapterName;
+
+    useEffect(() => {
+        const loadQuestionDetail = async () => {
+            if (!questionId || !chapterId) return;
+            try {
+                const data = await fetchQuestionDetail(chapterId, questionId);
+                console.log('Fetched question data:', data);
+                setQuestionData(data);
+            } catch (err) {
+                console.error('Error loading question:', err);
+                setError('Failed to load question details');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadQuestionDetail();
+    }, [questionId, chapterId]);
+
+    const toggleExplanation = (answerId: number) => {
         setExpandedAnswers(prev =>
             prev.includes(answerId)
                 ? prev.filter(id => id !== answerId)
@@ -48,156 +54,128 @@ const QuestionDetail = () => {
         );
     };
 
-    const handleExpandCollapseAll = () => {
-        if (expandedAnswers.length === questionData.answers.length) {
-            setExpandedAnswers([]);
-        } else {
-            setExpandedAnswers(questionData.answers.map(answer => answer.id));
-        }
-    };
+    if (loading) return <div>Loading...</div>;
+    if (error) return <div className="text-danger">{error}</div>;
+    if (!questionData) return <div>Question not found</div>;
 
     return (
-        <div className="space-y-6">
-            <Breadcrumb
-                pageName=""
-                parentPath="/"
-                parentName="Home Page"
-                parentPath2="/courses"
-                parentName2="Courses"
-                parentPath3={`/courses/${courseId}/question-banks`}
-                parentName3={courseName}
-                parentPath4={`/courses/${courseId}/question-banks/${chapterId}`}
-                parentName4={chapterName}
-                currentName={`Question ${questionId}`}
-            />
+        <>
+            <Breadcrumb pageName="Question Detail" />
+            
+            <div className="flex flex-col gap-5">
+                <Link
+                    to={`/courses/${courseId}/question-banks/${chapterId}`}
+                    state={{ courseName, chapterName }}
+                    className="inline-flex items-center gap-2 text-primary hover:underline"
+                >
+                    ← Back to Questions
+                </Link>
 
-            <Link
-                to={`/courses/${courseId}/question-banks/${chapterId}`}
-                state={{
-                    courseName: courseName,
-                    chapterName: chapterName
-                }}
-            >
-                {/* ... */}
-            </Link>
-
-            {/* Question Section */}
-            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-                <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                    <h3 className="text-2xl font-semibold text-black dark:text-white">
-                        Question
-                    </h3>
-                </div>
-                <div className="px-6.5 py-4">
-                    <p>{questionData.question}</p>
-                </div>
-            </div>
-
-            {/* Answer Section */}
-            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-                <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark flex justify-between items-center">
-                    <h3 className="text-2xl font-semibold text-black dark:text-white">
-                        Answers
-                    </h3>
-                    <button
-                        onClick={handleExpandCollapseAll}
-                        className="flex items-center gap-2 text-sm font-medium text-black hover:text-primary dark:text-white"
-                    >
-                        {expandedAnswers.length === questionData.answers.length ? (
-                            <>
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    strokeWidth={1.5}
-                                    stroke="currentColor"
-                                    className="w-5 h-5"
-                                >
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
-                                </svg>
-                                Collapse All
-                            </>
-                        ) : (
-                            <>
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    strokeWidth={1.5}
-                                    stroke="currentColor"
-                                    className="w-5 h-5"
-                                >
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                                </svg>
-                                Expand All
-                            </>
+                {/* Question Section */}
+                <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+                    <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
+                        <h3 className="text-2xl font-semibold text-black dark:text-white">
+                            Question
+                        </h3>
+                    </div>
+                    <div className="px-6.5 py-4">
+                        <p>{questionData.question_text}</p>
+                        {questionData.image_url && (
+                            <img 
+                                src={questionData.image_url} 
+                                alt="Question" 
+                                className="mt-4 max-w-full h-auto"
+                            />
                         )}
-                    </button>
+                    </div>
                 </div>
-                <div className="p-6.5">
-                    <div className="space-y-4">
-                        {questionData.answers.map((answer) => (
-                            <div
-                                key={answer.id}
-                                className={`border rounded-md p-4 transition-all duration-200 ${answer.isCorrect
-                                    ? 'bg-success/10 border-success'
-                                    : 'bg-danger/10 border-danger'
-                                    }`}
-                            >
-                                <div
-                                    className="flex items-center justify-between cursor-pointer"
-                                    onClick={() => toggleExplanation(answer.id)}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <span className={`font-semibold ${answer.isCorrect ? 'text-success' : 'text-danger'
-                                            }`}>
-                                            {answer.id}.
-                                        </span>
-                                        <p className={`font-medium ${answer.isCorrect ? 'text-success' : 'text-danger'
-                                            }`}>
-                                            {answer.text}
-                                        </p>
-                                    </div>
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        strokeWidth={2}
-                                        stroke="currentColor"
-                                        className={`w-5 h-5 transition-transform duration-200 ${expandedAnswers.includes(answer.id) ? 'rotate-180' : ''
-                                            } ${answer.isCorrect ? 'text-success' : 'text-danger'
-                                            }`}
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="m19.5 8.25-7.5 7.5-7.5-7.5"
-                                        />
-                                    </svg>
-                                </div>
 
-                                {expandedAnswers.includes(answer.id) && (
-                                    <div className={`mt-4 pl-8 text-sm border-t pt-4 ${answer.isCorrect ? 'text-success border-success' : 'text-danger border-danger'
-                                        }`}>
-                                        {answer.explanation}
+                {/* Answers Section */}
+                <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+                    <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
+                        <h3 className="text-2xl font-semibold text-black dark:text-white">
+                            Answers
+                        </h3>
+                    </div>
+                    <div className="px-6.5 py-4">
+                        {questionData?.answers?.map((answer, index) => (
+                            <div 
+                                key={answer.id}
+                                className={`p-4 mb-3 rounded-lg ${
+                                    answer.is_correct 
+                                        ? 'bg-meta-3 bg-opacity-10 border border-meta-3'
+                                        : 'bg-gray-2 dark:bg-boxdark'
+                                }`}
+                            >
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex items-start gap-2">
+                                            <span className="font-medium">
+                                                {String.fromCharCode(65 + index)}.
+                                            </span>
+                                            <p>{answer.answer_text}</p>
+                                        </div>
+                                        {answer.explanation && (
+                                            <button
+                                                onClick={() => toggleExplanation(answer.id)}
+                                                className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary"
+                                            >
+                                                {expandedAnswers.includes(answer.id) ? (
+                                                    <>
+                                                        <span>Hide Explanation</span>
+                                                        <svg
+                                                            className="fill-current"
+                                                            width="20"
+                                                            height="20"
+                                                            viewBox="0 0 20 20"
+                                                            fill="none"
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                        >
+                                                            <path
+                                                                fillRule="evenodd"
+                                                                clipRule="evenodd"
+                                                                d="M14.7071 7.29289C14.3166 6.90237 13.6834 6.90237 13.2929 7.29289L10 10.5858L6.70711 7.29289C6.31658 6.90237 5.68342 6.90237 5.29289 7.29289C4.90237 7.68342 4.90237 8.31658 5.29289 8.70711L9.29289 12.7071C9.68342 13.0976 10.3166 13.0976 10.7071 12.7071L14.7071 8.70711C15.0976 8.31658 15.0976 7.68342 14.7071 7.29289Z"
+                                                                fill=""
+                                                            ></path>
+                                                        </svg>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <span>Show Explanation</span>
+                                                        <svg
+                                                            className="fill-current"
+                                                            width="20"
+                                                            height="20"
+                                                            viewBox="0 0 20 20"
+                                                            fill="none"
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                        >
+                                                            <path
+                                                                fillRule="evenodd"
+                                                                clipRule="evenodd"
+                                                                d="M5.29289 7.29289C5.68342 6.90237 6.31658 6.90237 6.70711 7.29289L10 10.5858L13.2929 7.29289C13.6834 6.90237 14.3166 6.90237 14.7071 7.29289C15.0976 7.68342 15.0976 8.31658 14.7071 8.70711L10.7071 12.7071C10.3166 13.0976 9.68342 13.0976 9.29289 12.7071L5.29289 8.70711C4.90237 8.31658 4.90237 7.68342 5.29289 7.29289Z"
+                                                                fill=""
+                                                            ></path>
+                                                        </svg>
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
-                                )}
+                                    {answer.explanation && expandedAnswers.includes(answer.id) && (
+                                        <div className="mt-2 pl-6 text-sm text-gray-600 dark:text-gray-400">
+                                            <span className="font-medium">Explanation: </span>
+                                            {answer.explanation}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </div>
                 </div>
             </div>
-
-            <div className="flex items-center gap-4">
-                <p className="text-body">
-                    <span className="text-danger font-medium">NOTE:</span> There are questions in the bank that has 60% similarity
-                </p>
-                <button className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90">
-                    View similarity
-                </button>
-            </div>
-        </div>
+        </>
     );
 };
 
-export default QuestionDetail; 
+export default QuestionDetail;

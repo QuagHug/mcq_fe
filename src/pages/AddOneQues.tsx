@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
+import { useNavigate } from 'react-router-dom';
+import { addQuestion, getQuestionBanks } from '../services/api';
 
 // Define a type for the expanded sections
 type ExpandedSections = {
@@ -21,6 +23,7 @@ type SelectedTags = {
 };
 
 const AddOneQues = () => {
+    const navigate = useNavigate();
     const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
         question: true,
         answers: true,
@@ -33,6 +36,35 @@ const AddOneQues = () => {
     ]);
 
     const [selectedTags, setSelectedTags] = useState<SelectedTags>({});
+    const [questionType, setQuestionType] = useState('one');
+    const [shuffle, setShuffle] = useState(false);
+    const [questionContent, setQuestionContent] = useState('');
+    const [selectedBank, setSelectedBank] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [banks, setBanks] = useState<Array<{ id: string, name: string }>>([]);
+    const [loadingBanks, setLoadingBanks] = useState(true);
+    const [bankError, setBankError] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchBanks = async () => {
+            try {
+                setLoadingBanks(true);
+                setBankError(null);
+                // You might want to get the courseId from URL params or props
+                const courseId = "1"; // Replace with actual courseId source
+                const data = await getQuestionBanks(courseId);
+                setBanks(data);
+            } catch (err) {
+                setBankError('Failed to load question banks');
+                console.error('Error loading banks:', err);
+            } finally {
+                setLoadingBanks(false);
+            }
+        };
+
+        fetchBanks();
+    }, []);
 
     const toggleSection = (section: string) => {
         setExpandedSections(prev => ({
@@ -62,6 +94,50 @@ const AddOneQues = () => {
             ...prevTags,
             [category]: value,
         }));
+    };
+
+    const handleSubmit = async () => {
+        if (!selectedBank) {
+            setError('Please select a question bank');
+            return;
+        }
+
+        if (!questionContent) {
+            setError('Please enter question content');
+            return;
+        }
+
+        if (answers.some(answer => !answer.text)) {
+            setError('Please fill in all answer texts');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const questionData = {
+                question_text: questionContent,
+                type: questionType,
+                shuffle: shuffle,
+                answers: answers.map(answer => ({
+                    text: answer.text,
+                    explanation: answer.explanation,
+                    grade: answer.grade
+                }))
+            };
+
+            await addQuestion(selectedBank, questionData);
+            navigate(`/question-banks/${selectedBank}`);
+        } catch (err) {
+            setError('Failed to add question');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleQuestionChange = (content: string) => {
+        setQuestionContent(content);
     };
 
     return (
@@ -103,19 +179,31 @@ const AddOneQues = () => {
                                     'removeformat | equation | help',
                                 content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
                             }}
+                            value={questionContent}
+                            onEditorChange={handleQuestionChange}
                         />
 
                         <div className="flex flex-col gap-4">
                             <div className="flex items-center gap-4">
                                 <label className="font-medium text-black dark:text-white">One or Multiple answers?</label>
-                                <select className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary">
+                                <select
+                                    value={questionType}
+                                    onChange={(e) => setQuestionType(e.target.value)}
+                                    className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                >
                                     <option value="one">One answer only</option>
                                     <option value="multiple">Multiple answers allowed</option>
                                 </select>
                             </div>
 
                             <div className="flex items-center gap-4">
-                                <input type="checkbox" id="shuffle" className="form-checkbox" />
+                                <input
+                                    type="checkbox"
+                                    id="shuffle"
+                                    checked={shuffle}
+                                    onChange={(e) => setShuffle(e.target.checked)}
+                                    className="form-checkbox"
+                                />
                                 <label htmlFor="shuffle" className="font-medium text-black dark:text-white">Shuffle the choices?</label>
                             </div>
                         </div>
@@ -278,21 +366,46 @@ const AddOneQues = () => {
                 )}
             </div>
 
-
             <div className="flex justify-end mt-4 space-x-4">
                 <select
-                    className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                    value={selectedBank}
+                    onChange={(e) => setSelectedBank(e.target.value)}
+                    disabled={loadingBanks}
+                    className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary disabled:opacity-50"
                 >
-                    <option value="bank1">Choose Question Bank</option>
-                    <option value="bank2">Question Bank 1</option>
-                    <option value="bank3">History</option>
+                    <option value="">
+                        {loadingBanks 
+                            ? 'Loading banks...' 
+                            : 'Choose Question Bank'
+                        }
+                    </option>
+                    {banks.map(bank => (
+                        <option key={bank.id} value={bank.id}>
+                            {bank.name}
+                        </option>
+                    ))}
                 </select>
+
+                {bankError && (
+                    <div className="text-danger text-sm">
+                        {bankError}
+                    </div>
+                )}
+
                 <button
-                    className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark transition"
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className="px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90 transition disabled:opacity-50"
                 >
-                    Add to bank
+                    {loading ? 'Adding...' : 'Add to bank'}
                 </button>
             </div>
+
+            {error && (
+                <div className="mt-4 text-danger">
+                    {error}
+                </div>
+            )}
         </div>
     );
 };
