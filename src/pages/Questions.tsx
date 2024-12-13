@@ -56,9 +56,7 @@ const Questions = () => {
                         {chapterName}
                     </h2>
 
-                    <button className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90">
-                        Pagination
-                    </button>
+
                 </div>
 
                 <nav>

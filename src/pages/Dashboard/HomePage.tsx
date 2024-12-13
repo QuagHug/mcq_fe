@@ -27,7 +27,7 @@ const ECommerce = () => {
           >
             {/* Heading */}
             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2 sm:mb-4 text-center">
-              Welcome to HCMUT MCQ
+              Welcome to QuizEase
             </h2>
             {/* Different content based on auth status */}
             {isLoggedIn ? (
