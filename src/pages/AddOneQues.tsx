@@ -154,7 +154,11 @@ const AddOneQues = () => {
     };
 
     const handleSubmit = async () => {
-        if (!selectedBank || !courseId) {
+        console.log('Selected Course:', selectedCourse);
+        console.log('Selected Bank:', selectedBank);
+        console.log('Course ID from params:', courseId);
+
+        if (!selectedBank || !selectedCourse) {
             setError('Please select a question bank and ensure course ID is available');
             return;
         }
@@ -173,19 +177,19 @@ const AddOneQues = () => {
         setError(null);
 
         try {
+            // Format the data according to the backend models
             const questionData = {
+                question_bank: selectedBank,
                 question_text: questionContent,
-                type: questionType,
-                shuffle: shuffle,
                 answers: answers.map(answer => ({
-                    text: answer.text,
-                    explanation: answer.explanation,
-                    grade: answer.grade
+                    answer_text: answer.text,
+                    is_correct: answer.grade === "100", // Convert grade to boolean
+                    explanation: answer.explanation || ""  // Use empty string if no explanation
                 }))
             };
 
-            await addQuestion(courseId, selectedBank, questionData);
-            navigate(`/courses/${courseId}/question-banks/${selectedBank}`);
+            await addQuestion(selectedCourse, selectedBank, questionData);
+            navigate(`/courses/${selectedCourse}/question-banks/${selectedBank}`);
         } catch (err) {
             setError('Failed to add question');
         } finally {
@@ -198,10 +202,12 @@ const AddOneQues = () => {
     };
 
     const handleCourseChange = async (courseId: string) => {
+        console.log('Changing course to:', courseId);
         setSelectedCourse(courseId);
         try {
             const banksData = await fetchQuestionBanks(courseId);
             setBanks(banksData);
+            setSelectedBank(''); // Reset bank selection when course changes
         } catch (err) {
             console.error('Failed to fetch question banks:', err);
             setError('Failed to load question banks');

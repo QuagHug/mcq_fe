@@ -85,28 +85,25 @@ export const deleteQuestion = async (courseId: string, chapterId: string, questi
     }
 };
 
-export const addQuestion = async (courseId: string, bankId: string, questionData: {
-    question_text: string,
-    type: string,
-    shuffle: boolean,
-    answers: Array<{
-        text: string,
-        explanation: string,
-        grade: string
-    }>
-}) => {
+type QuestionData = {
+    question_bank: string;
+    question_text: string;
+    answers: {
+        answer_text: string;
+        is_correct: boolean;
+        explanation: string;
+    }[];
+}
+
+export const addQuestion = async (courseId: string, bankId: string, questionData: QuestionData) => {
     const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/questions/`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(questionData)
     });
     if (!response.ok) throw new Error('Failed to add question');
     return response.json();
 };
-
 export const getQuestionBanks = async (courseId: string) => {
     try {
         const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/`, {
