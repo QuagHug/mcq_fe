@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 import SimilarityDialog from '../components/SimilarityDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { useNavigate, useParams } from 'react-router-dom';
+import { addQuestion, getQuestionBanks, fetchQuestionBanks, fetchCourses } from '../services/api';
 
 // Define a type for the expanded sections
 type ExpandedSections = {
@@ -23,6 +25,11 @@ type SelectedTags = {
 };
 
 const AddOneQues = () => {
+    const navigate = useNavigate();
+    const { courseId } = useParams();
+    const [error, setError] = useState<string | null>(null);
+
+    // Reuse existing state from original component
     const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
         question: true,
         answers: true,
@@ -56,6 +63,37 @@ const AddOneQues = () => {
     ]);
 
     const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+    const [questionType, setQuestionType] = useState('one');
+    const [shuffle, setShuffle] = useState(false);
+    const [questionContent, setQuestionContent] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [selectedBank, setSelectedBank] = useState('');
+
+    const [banks, setBanks] = useState<Array<{ id: string, name: string, subject: string }>>([]);
+    const [courses, setCourses] = useState<Array<{ id: string, name: string }>>([]);
+    const [selectedCourse, setSelectedCourse] = useState('');
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // First fetch courses
+                const coursesData = await fetchCourses();
+                setCourses(coursesData);
+
+                // If courseId is provided (from URL params), fetch its question banks
+                if (courseId) {
+                    setSelectedCourse(courseId);
+                    const banksData = await fetchQuestionBanks(courseId);
+                    setBanks(banksData);
+                }
+            } catch (err) {
+                console.error('Failed to fetch data:', err);
+                setError('Failed to load courses and question banks');
+            }
+        };
+
+        fetchData();
+    }, [courseId]);
 
     const toggleSection = (section: string) => {
         setExpandedSections(prev => ({
@@ -115,10 +153,63 @@ const AddOneQues = () => {
         setSelectedTags({});
     };
 
-    return (
-        <div className="p-6 space-y-6">
-            <h1 className="text-3xl font-bold text-black dark:text-white">Add One Question</h1>
+    const handleSubmit = async () => {
+        if (!selectedBank || !courseId) {
+            setError('Please select a question bank and ensure course ID is available');
+            return;
+        }
 
+        if (!questionContent) {
+            setError('Please enter question content');
+            return;
+        }
+
+        if (answers.some(answer => !answer.text)) {
+            setError('Please fill in all answer texts');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const questionData = {
+                question_text: questionContent,
+                type: questionType,
+                shuffle: shuffle,
+                answers: answers.map(answer => ({
+                    text: answer.text,
+                    explanation: answer.explanation,
+                    grade: answer.grade
+                }))
+            };
+
+            await addQuestion(courseId, selectedBank, questionData);
+            navigate(`/courses/${courseId}/question-banks/${selectedBank}`);
+        } catch (err) {
+            setError('Failed to add question');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleQuestionChange = (content: string) => {
+        setQuestionContent(content);
+    };
+
+    const handleCourseChange = async (courseId: string) => {
+        setSelectedCourse(courseId);
+        try {
+            const banksData = await fetchQuestionBanks(courseId);
+            setBanks(banksData);
+        } catch (err) {
+            console.error('Failed to fetch question banks:', err);
+            setError('Failed to load question banks');
+        }
+    };
+
+    return (
+        <div className="space-y-6">
             {/* Question Block */}
             <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
                 <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark flex justify-between items-center">
@@ -154,19 +245,31 @@ const AddOneQues = () => {
                                     'removeformat | equation | help',
                                 content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
                             }}
+                            value={questionContent}
+                            onEditorChange={handleQuestionChange}
                         />
 
                         <div className="flex flex-col gap-4">
                             <div className="flex items-center gap-4">
                                 <label className="font-medium text-black dark:text-white">One or Multiple answers?</label>
-                                <select className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary">
+                                <select
+                                    value={questionType}
+                                    onChange={(e) => setQuestionType(e.target.value)}
+                                    className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                >
                                     <option value="one">One answer only</option>
                                     <option value="multiple">Multiple answers allowed</option>
                                 </select>
                             </div>
 
                             <div className="flex items-center gap-4">
-                                <input type="checkbox" id="shuffle" className="form-checkbox" />
+                                <input
+                                    type="checkbox"
+                                    id="shuffle"
+                                    checked={shuffle}
+                                    onChange={(e) => setShuffle(e.target.checked)}
+                                    className="form-checkbox"
+                                />
                                 <label htmlFor="shuffle" className="font-medium text-black dark:text-white">Shuffle the choices?</label>
                             </div>
                         </div>
@@ -276,7 +379,7 @@ const AddOneQues = () => {
                         <div className="flex justify-center mt-4">
                             <button
                                 onClick={addNewAnswer}
-                                className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark transition"
+                                className="px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90 transition"
                             >
                                 Add more answers
                             </button>
@@ -361,30 +464,49 @@ const AddOneQues = () => {
                 {/* Question Bank Selection and Add Button */}
                 <div className="flex items-center gap-4">
                     <select
-                        className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                        value={selectedCourse}
+                        onChange={(e) => handleCourseChange(e.target.value)}
+                        className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none"
+                    >
+                        <option value="">Choose Course</option>
+                        {courses.map(course => (
+                            <option key={course.id} value={course.id}>{course.name}</option>
+                        ))}
+                    </select>
+
+                    <select
+                        value={selectedBank}
+                        onChange={(e) => setSelectedBank(e.target.value)}
+                        className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none"
+                        disabled={!selectedCourse}
                     >
                         <option value="">Choose Question Bank</option>
-                        <optgroup label="Networking">
-                            <option value="networking-ch1">Chapter 1: Introduction to Networks</option>
-                            <option value="networking-ch2">Chapter 2: Network Protocols</option>
-                            <option value="networking-ch3">Chapter 3: Network Security</option>
-                        </optgroup>
-                        <optgroup label="Database">
-                            <option value="database-ch1">Chapter 1: Database Fundamentals</option>
-                            <option value="database-ch2">Chapter 2: SQL and Queries</option>
-                        </optgroup>
-                        <optgroup label="PPL">
-                            <option value="ppl-ch1">Chapter 1: Programming Concepts</option>
-                            <option value="ppl-ch2">Chapter 2: Language Paradigms</option>
-                            <option value="ppl-ch3">Chapter 3: Language Processing</option>
-                        </optgroup>
+                        {Object.entries(
+                            banks.reduce((groups, bank) => {
+                                const subject = bank.subject;
+                                if (!groups[subject]) {
+                                    groups[subject] = [];
+                                }
+                                groups[subject].push(bank);
+                                return groups;
+                            }, {} as { [key: string]: typeof banks })
+                        ).map(([subject, banks]) => (
+                            <optgroup key={subject} label={subject}>
+                                {banks.map(bank => (
+                                    <option key={bank.id} value={bank.id}>{bank.name}</option>
+                                ))}
+                            </optgroup>
+                        ))}
                     </select>
                     <div className="flex flex-col gap-2">
                         <button
-                            className="px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90 transition"
+                            onClick={handleSubmit}
+                            disabled={loading}
+                            className="px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90 transition disabled:opacity-50"
                         >
-                            Add to bank
+                            {loading ? 'Adding...' : 'Add to bank'}
                         </button>
+                        {error && <p className="text-danger text-sm">{error}</p>}
                     </div>
                 </div>
                 <div className="flex justify-end">
