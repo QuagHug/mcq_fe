@@ -2,8 +2,6 @@ import { lazy } from 'react';
 
 const GenerateQuestion = lazy(() => import('../pages/GenerateQuestion'));
 const Questions = lazy(() => import('../pages/Questions'));
-const FormElements = lazy(() => import('../pages/Form/FormElements'));
-const FormLayout = lazy(() => import('../pages/Form/FormLayout'));
 const Profile = lazy(() => import('../pages/Profile'));
 const Settings = lazy(() => import('../pages/Settings'));
 const Alerts = lazy(() => import('../pages/UiElements/Alerts'));
@@ -56,11 +54,6 @@ const coreRoutes = [
     path: '/add-one-question',
     title: 'Add One Question',
     component: AddOneQues,
-  },
-  {
-    path: '/forms/form-layout',
-    title: 'Form Layouts',
-    component: FormLayout,
   },
   {
     path: '/settings',

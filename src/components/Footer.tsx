@@ -7,7 +7,7 @@ const Footer = () => {
             <a
                 className="text-neutral-800 dark:text-neutral-400"
                 href="https://tw-elements.com/"
-            > HCMUT MCQ</a>
+            > QuizEase</a>
         </div>
     )
 }
