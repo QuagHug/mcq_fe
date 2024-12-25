@@ -1,14 +1,26 @@
 import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { fetchQuestions, deleteQuestion } from '../services/api';
+import { fetchQuestions, deleteQuestion, bulkCreateQuestions } from '../services/api';
+import { saveAs } from 'file-saver';
 
 interface Question {
     id: number;
     question_text: string;
     image_url: string | null;
     type: string;
-    difficulty: string;
-    lastModified: string;
+    updated_at: string;
+    taxonomies: Array<{
+        id: number;
+        taxonomy: {
+        id: number;
+            name: string;
+            description: string;
+            category: string;
+            levels: string[];
+        };
+        level: string;
+        difficulty: string;
+    }>;
     answers: Array<{
         id: number;
         answer_text: string;
@@ -32,9 +44,9 @@ const Questions = () => {
 
     useEffect(() => {
         const loadQuestions = async () => {
-            if (!chapterId) return;
+            if (!courseId || !chapterId) return;
             try {
-                const data = await fetchQuestions(chapterId);
+                const data = await fetchQuestions(courseId, chapterId);
                 setQuestions(data);
             } catch (err) {
                 setError('Failed to load questions');
@@ -44,12 +56,17 @@ const Questions = () => {
         };
         
         loadQuestions();
-    }, [chapterId]);
+    }, [courseId, chapterId]);
 
-    // Helper function to truncate text
+    // Helper function to truncate text and strip HTML tags
     const truncateText = (text: string, maxLength: number = 50) => {
-        if (text.length <= maxLength) return text;
-        return text.slice(0, maxLength) + '...';
+        // Create a temporary div to parse HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = text;
+        const textContent = tempDiv.textContent || tempDiv.innerText || '';
+        
+        if (textContent.length <= maxLength) return textContent;
+        return textContent.slice(0, maxLength) + '...';
     };
 
     const handleQuestionClick = (questionId: string) => {
@@ -79,6 +96,48 @@ const Questions = () => {
         }
     };
 
+    const handleExport = () => {
+        const exportData = questions.map(q => ({
+            question_text: q.question_text,
+            image_url: q.image_url,
+            answers: q.answers.map(a => ({
+                answer_text: a.answer_text,
+                is_correct: a.is_correct,
+                explanation: a.explanation
+            })),
+            taxonomies: q.taxonomies.map(t => ({
+                taxonomy_id: t.taxonomy.id,
+                level: t.level,
+                difficulty: t.difficulty
+            }))
+        }));
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const sanitizedBankName = chapterName.replace(/[^a-zA-Z0-9-_]/g, '_');
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        saveAs(blob, `${sanitizedBankName}-${timestamp}.json`);
+    };
+
+    const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !courseId || !chapterId) return;
+
+        try {
+            const text = await file.text();
+            const importedQuestions = JSON.parse(text);
+            
+            await bulkCreateQuestions(courseId, chapterId, importedQuestions);
+            
+            // Refresh questions list
+            const data = await fetchQuestions(courseId, chapterId);
+            setQuestions(data);
+            
+            event.target.value = '';
+        } catch (err) {
+            setError('Failed to import questions');
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -87,7 +146,23 @@ const Questions = () => {
                         {chapterName}
                     </h2>
 
-
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={handleExport}
+                            className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
+                        >
+                            Export Questions
+                        </button>
+                        <label className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90 cursor-pointer">
+                            Import Questions
+                            <input
+                                type="file"
+                                accept=".json"
+                                onChange={handleImport}
+                                className="hidden"
+                            />
+                        </label>
+                    </div>
                 </div>
 
                 <nav>
@@ -133,7 +208,7 @@ const Questions = () => {
                                     Question
                                 </th>
                                 <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
-                                    Type
+                                    Difficulty
                                 </th>
                                 <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
                                     Bloom's Level
@@ -168,13 +243,20 @@ const Questions = () => {
                                         </Link>
                                     </td>
                                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                        {question.type}
+                                        {question.taxonomies?.[0]?.difficulty.charAt(0).toUpperCase() + 
+                                         question.taxonomies?.[0]?.difficulty.slice(1) || 'N/A'}
                                     </td>
                                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                        {question.difficulty}
+                                        {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
                                     </td>
                                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                        {question.lastModified}
+                                        {new Date(question.updated_at).toLocaleDateString('en-US', {
+                                            year: 'numeric',
+                                            month: 'short',
+                                            day: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}
                                     </td>
                                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                                         <div className="flex items-center space-x-3.5">

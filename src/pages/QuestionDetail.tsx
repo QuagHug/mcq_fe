@@ -30,9 +30,9 @@ const QuestionDetail = () => {
 
     useEffect(() => {
         const loadQuestionDetail = async () => {
-            if (!questionId || !chapterId) return;
+            if (!courseId || !chapterId || !questionId) return;
             try {
-                const data = await fetchQuestionDetail(chapterId, questionId);
+                const data = await fetchQuestionDetail(courseId, chapterId, questionId);
                 console.log('Fetched question data:', data);
                 setQuestionData(data);
             } catch (err) {
@@ -44,7 +44,7 @@ const QuestionDetail = () => {
         };
 
         loadQuestionDetail();
-    }, [questionId, chapterId]);
+    }, [courseId, chapterId, questionId]);
 
     const toggleExplanation = (answerId: number) => {
         setExpandedAnswers(prev =>
@@ -79,7 +79,7 @@ const QuestionDetail = () => {
                         </h3>
                     </div>
                     <div className="px-6.5 py-4">
-                        <p>{questionData.question_text}</p>
+                        <div dangerouslySetInnerHTML={{ __html: questionData.question_text }} />
                         {questionData.image_url && (
                             <img 
                                 src={questionData.image_url} 
@@ -103,22 +103,31 @@ const QuestionDetail = () => {
                                 key={answer.id}
                                 className={`p-4 mb-3 rounded-lg ${
                                     answer.is_correct 
-                                        ? 'bg-meta-3 bg-opacity-10 border border-meta-3'
-                                        : 'bg-gray-2 dark:bg-boxdark'
+                                        ? 'bg-success/10 border border-success'
+                                        : 'bg-danger/10 border border-danger'
                                 }`}
                             >
                                 <div className="flex flex-col gap-2">
                                     <div className="flex items-start justify-between">
                                         <div className="flex items-start gap-2">
-                                            <span className="font-medium">
+                                            <span className={`font-medium ${
+                                                answer.is_correct ? 'text-success' : 'text-danger'
+                                            }`}>
                                                 {String.fromCharCode(65 + index)}.
                                             </span>
-                                            <p>{answer.answer_text}</p>
+                                            <div 
+                                                className={`${
+                                                    answer.is_correct ? 'text-success' : 'text-danger'
+                                                }`}
+                                                dangerouslySetInnerHTML={{ __html: answer.answer_text }} 
+                                            />
                                         </div>
                                         {answer.explanation && (
                                             <button
                                                 onClick={() => toggleExplanation(answer.id)}
-                                                className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary"
+                                                className={`flex items-center gap-2 text-sm hover:text-primary ${
+                                                    answer.is_correct ? 'text-success' : 'text-danger'
+                                                }`}
                                             >
                                                 {expandedAnswers.includes(answer.id) ? (
                                                     <>
@@ -163,9 +172,11 @@ const QuestionDetail = () => {
                                         )}
                                     </div>
                                     {answer.explanation && expandedAnswers.includes(answer.id) && (
-                                        <div className="mt-2 pl-6 text-sm text-gray-600 dark:text-gray-400">
+                                        <div className={`mt-2 pl-6 text-sm ${
+                                            answer.is_correct ? 'text-success' : 'text-danger'
+                                        }`}>
                                             <span className="font-medium">Explanation: </span>
-                                            {answer.explanation}
+                                            <div dangerouslySetInnerHTML={{ __html: answer.explanation }} />
                                         </div>
                                     )}
                                 </div>

@@ -3,6 +3,7 @@ import Logo from '../../images/logo/logo.svg';
 import LoginImage from '../../images/cover/login.png';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { setTokens } from '../../utils/auth';
 
 const SignIn = () => {
   const [email, setEmail] = useState('');
@@ -25,19 +26,16 @@ const SignIn = () => {
         body: JSON.stringify({ username: email, password: password }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.message || 'Sign in failed');
+        throw new Error('Login failed');
       }
 
-      // Store token in cookie instead of localStorage
-      document.cookie = `token=${data.access}; path=/; secure; samesite=strict`;
-      
+      const { access, refresh } = await response.json();
+      setTokens(access, refresh);
       navigate('/');
-      
-    } catch (err: any) {
-      setError(err.message);
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('Login failed');
     } finally {
       setLoading(false);
     }

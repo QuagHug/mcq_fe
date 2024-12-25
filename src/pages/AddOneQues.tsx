@@ -487,21 +487,8 @@ const AddOneQues = () => {
                         disabled={!selectedCourse}
                     >
                         <option value="">Choose Question Bank</option>
-                        {Object.entries(
-                            banks.reduce((groups, bank) => {
-                                const subject = bank.subject;
-                                if (!groups[subject]) {
-                                    groups[subject] = [];
-                                }
-                                groups[subject].push(bank);
-                                return groups;
-                            }, {} as { [key: string]: typeof banks })
-                        ).map(([subject, banks]) => (
-                            <optgroup key={subject} label={subject}>
-                                {banks.map(bank => (
-                                    <option key={bank.id} value={bank.id}>{bank.name}</option>
-                                ))}
-                            </optgroup>
+                        {banks.map(bank => (
+                            <option key={bank.id} value={bank.id}>{bank.name}</option>
                         ))}
                     </select>
                     <div className="flex flex-col gap-2">

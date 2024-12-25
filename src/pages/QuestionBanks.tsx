@@ -6,8 +6,8 @@ import { fetchQuestionBanks, deleteQuestionBank, createQuestionBank } from '../s
 interface QuestionBank {
     id: string;
     name: string;
-    questionCount: number;
-    lastModified: string;
+    question_count: number;
+    last_modified: string;
 }
 
 const QuestionBanks = () => {
@@ -172,10 +172,18 @@ const QuestionBanks = () => {
                                         </Link>
                                     </td>
                                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                        {bank.questionCount}
+                                        <div className="inline-flex items-center justify-center rounded-full bg-meta-3 bg-opacity-10 py-1 px-3 text-sm font-medium text-meta-3">
+                                            {bank.question_count} Questions
+                                        </div>
                                     </td>
                                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                        {bank.lastModified}
+                                        {new Date(bank.last_modified).toLocaleDateString('en-US', {
+                                            year: 'numeric',
+                                            month: 'short',
+                                            day: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}
                                     </td>
                                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                                         <div className="flex items-center space-x-3.5">

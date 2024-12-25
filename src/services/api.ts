@@ -1,9 +1,68 @@
+import { getRefreshToken } from "../utils/auth";
+
 const API_BASE_URL = 'http://localhost:8000/api';
 
+// Add helper function to handle token management
+const getValidToken = async () => {
+  console.warn('All cookies at start of getValidToken:', document.cookie); // Debug log
+  
+  // Improved cookie parsing
+  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+    const [key, value] = cookie.trim().split('=');
+    acc[key] = value;
+    return acc;
+  }, {} as { [key: string]: string });
+
+  const token = cookies['token'];
+  
+  console.log('Current token:', token); // Debug log
+
+  if (!token) throw new Error('No token found');
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const isExpired = payload.exp * 1000 < Date.now();
+    console.log('Token expired?', isExpired); // Debug log
+
+    if (isExpired) {
+      const refreshToken = cookies['refresh_token'];
+      console.log('Using refresh token:', refreshToken); // Debug log
+      if (!refreshToken) throw new Error('No refresh token found');
+
+      const csrfToken = cookies['csrftoken'];
+      console.log('Using CSRF token:', csrfToken); // Debug log
+
+      const response = await fetch(`${API_BASE_URL}/token/refresh/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          refresh: refreshToken
+        }),
+        credentials: 'include',
+      });
+      
+      if (!response.ok) throw new Error('Failed to refresh token');
+      
+      const { access } = await response.json();
+      console.log('New access token received:', access); // Debug log
+      document.cookie = `token=${access}; path=/; secure; samesite=strict`;
+      return access;
+    }
+  } catch (error) {
+    console.error('Error handling token:', error);
+    throw error;
+  }
+
+  return token;
+};
+
 export const fetchQuestionBanks = async (courseId: string) => {
+  const token = await getValidToken();
   const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/`, {
     headers: {
-      'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
+      'Authorization': `Bearer ${token}`
     }
   });
   if (!response.ok) throw new Error('Failed to fetch question banks');
@@ -11,11 +70,12 @@ export const fetchQuestionBanks = async (courseId: string) => {
 };
 
 export const createQuestionBank = async (courseId: string, bankData: { name: string }) => {
+  const token = await getValidToken();
   const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
+      'Authorization': `Bearer ${token}`
     },
     body: JSON.stringify(bankData)
   });
@@ -24,9 +84,10 @@ export const createQuestionBank = async (courseId: string, bankData: { name: str
 };
 
 export const fetchQuestions = async (courseId: string, bankId: string) => {
+  const token = await getValidToken();
   const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/questions/`, {
     headers: {
-      'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
+      'Authorization': `Bearer ${token}`
     }
   });
   if (!response.ok) throw new Error('Failed to fetch questions');
@@ -34,9 +95,10 @@ export const fetchQuestions = async (courseId: string, bankId: string) => {
 };
 
 export const fetchQuestionDetail = async (courseId: string, bankId: string, questionId: string) => {
+  const token = await getValidToken();
   const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/questions/${questionId}/`, {
     headers: {
-      'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
+      'Authorization': `Bearer ${token}`
     }
   });
   if (!response.ok) throw new Error('Failed to fetch question detail');
@@ -96,14 +158,19 @@ type QuestionData = {
 }
 
 export const addQuestion = async (courseId: string, bankId: string, questionData: QuestionData) => {
+    const token = await getValidToken();
     const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/questions/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(questionData)
     });
     if (!response.ok) throw new Error('Failed to add question');
     return response.json();
 };
+
 export const getQuestionBanks = async (courseId: string) => {
     try {
         const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/`, {
@@ -124,11 +191,30 @@ export const getQuestionBanks = async (courseId: string) => {
 };
 
 export const fetchCourses = async () => {
-    const response = await fetch(`${API_BASE_URL}/courses/`, {
+  const token = await getValidToken();  
+  const response = await fetch(`${API_BASE_URL}/courses/`, {
         headers: {
-            'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
+            'Authorization': `Bearer ${token}`
         }
     });
     if (!response.ok) throw new Error('Failed to fetch courses');
+    return response.json();
+};
+
+export const bulkCreateQuestions = async (courseId: string, chapterId: string, questions: any[]) => {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${chapterId}/questions/bulk/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(questions)
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to bulk import questions');
+    }
+
     return response.json();
 }; 

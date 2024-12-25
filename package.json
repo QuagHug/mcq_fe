@@ -16,7 +16,9 @@
   "dependencies": {
     "@headlessui/react": "^2.2.0",
     "@tinymce/tinymce-react": "^5.1.1",
+    "@types/file-saver": "^2.0.7",
     "apexcharts": "^3.41.0",
+    "file-saver": "^2.0.5",
     "headlessui": "^0.0.0",
     "jsvectormap": "^1.5.3",
     "match-sorter": "^6.3.1",
