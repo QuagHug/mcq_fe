@@ -217,4 +217,21 @@ export const bulkCreateQuestions = async (courseId: string, chapterId: string, q
     }
 
     return response.json();
+};
+
+export const generateQuestions = async (context: string) => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/generate-questions/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            context
+        })
+    });
+
+    if (!response.ok) throw new Error('Failed to generate questions');
+    return response.json();
 }; 
