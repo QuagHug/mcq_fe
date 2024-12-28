@@ -9,8 +9,20 @@ const ECommerce = () => {
 
   return (
     <>
-      {!isLoggedIn && <Breadcrumb pageName="Welcome" />}
-      {isLoggedIn && <Breadcrumb pageName="Home Page" />}
+      {!isLoggedIn && (
+        <Breadcrumb
+          pageName="Welcome"
+          currentName="Welcome"
+          breadcrumbItems={[{ name: "Welcome", path: "#" }]}
+        />
+      )}
+      {isLoggedIn && (
+        <Breadcrumb
+          pageName="Home Page"
+          currentName="Home"
+          breadcrumbItems={[{ name: "Home Page", path: "#" }]}
+        />
+      )}
       <div className="relative w-full h-[500px]">
         {/* Background Image */}
         <img

@@ -5,7 +5,7 @@ const API_BASE_URL = 'http://localhost:8000/api';
 // Add helper function to handle token management
 const getValidToken = async () => {
   console.warn('All cookies at start of getValidToken:', document.cookie); // Debug log
-  
+
   // Improved cookie parsing
   const cookies = document.cookie.split(';').reduce((acc, cookie) => {
     const [key, value] = cookie.trim().split('=');
@@ -14,7 +14,7 @@ const getValidToken = async () => {
   }, {} as { [key: string]: string });
 
   const token = cookies['token'];
-  
+
   console.log('Current token:', token); // Debug log
 
   if (!token) throw new Error('No token found');
@@ -42,9 +42,9 @@ const getValidToken = async () => {
         }),
         credentials: 'include',
       });
-      
+
       if (!response.ok) throw new Error('Failed to refresh token');
-      
+
       const { access } = await response.json();
       console.log('New access token received:', access); // Debug log
       document.cookie = `token=${access}; path=/; secure; samesite=strict`;
@@ -106,132 +106,142 @@ export const fetchQuestionDetail = async (courseId: string, bankId: string, ques
 };
 
 export const deleteQuestionBank = async (courseId: string, bankId: string) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to delete question bank');
-        }
-
-        return true;
-    } catch (error) {
-        console.error('Error deleting question bank:', error);
-        throw error;
-    }
-};
-
-export const deleteQuestion = async (courseId: string, chapterId: string, questionId: string) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/question-banks/${chapterId}/questions/${questionId}/`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
-            },
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to delete question');
-        }
-
-        return true;
-    } catch (error) {
-        console.error('Error deleting question:', error);
-        throw error;
-    }
-};
-
-type QuestionData = {
-    question_bank: string;
-    question_text: string;
-    answers: {
-        answer_text: string;
-        is_correct: boolean;
-        explanation: string;
-    }[];
-}
-
-export const addQuestion = async (courseId: string, bankId: string, questionData: QuestionData) => {
-    const token = await getValidToken();
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/questions/`, {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(questionData)
-    });
-    if (!response.ok) throw new Error('Failed to add question');
-    return response.json();
-};
-
-export const getQuestionBanks = async (courseId: string) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/`, {
-            headers: {
-                'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch question banks');
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error('Error fetching question banks:', error);
-        throw error;
-    }
-};
-
-export const fetchCourses = async () => {
-  const token = await getValidToken();  
-  const response = await fetch(`${API_BASE_URL}/courses/`, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    });
-    if (!response.ok) throw new Error('Failed to fetch courses');
-    return response.json();
-};
-
-export const bulkCreateQuestions = async (courseId: string, chapterId: string, questions: any[]) => {
-    const token = await getValidToken();
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${chapterId}/questions/bulk/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(questions)
+  try {
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
+      },
     });
 
     if (!response.ok) {
-        throw new Error('Failed to bulk import questions');
+      throw new Error('Failed to delete question bank');
     }
 
-    return response.json();
+    return true;
+  } catch (error) {
+    console.error('Error deleting question bank:', error);
+    throw error;
+  }
+};
+
+export const deleteQuestion = async (courseId: string, chapterId: string, questionId: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/question-banks/${chapterId}/questions/${questionId}/`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete question');
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting question:', error);
+    throw error;
+  }
+};
+
+type QuestionData = {
+  question_bank: string;
+  question_text: string;
+  answers: {
+    answer_text: string;
+    is_correct: boolean;
+    explanation: string;
+  }[];
+}
+
+export const addQuestion = async (courseId: string, bankId: string, questionData: QuestionData) => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/questions/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(questionData)
+  });
+  if (!response.ok) throw new Error('Failed to add question');
+  return response.json();
+};
+
+export const getQuestionBanks = async (courseId: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/`, {
+      headers: {
+        'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch question banks');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching question banks:', error);
+    throw error;
+  }
+};
+
+export const fetchCourses = async () => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  if (!response.ok) throw new Error('Failed to fetch courses');
+  return response.json();
+};
+
+export const bulkCreateQuestions = async (courseId: string, chapterId: string, questions: any[]) => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${chapterId}/questions/bulk/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(questions)
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to bulk import questions');
+  }
+
+  return response.json();
 };
 
 export const generateQuestions = async (context: string) => {
-  const token = await getValidToken();
-  const response = await fetch(`${API_BASE_URL}/generate-questions/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-            context
-        })
+  try {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/generate-questions/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        context
+      })
     });
 
-    if (!response.ok) throw new Error('Failed to generate questions');
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Generate questions error:', errorData);
+      throw new Error(`Failed to generate questions: ${response.status}`);
+    }
+
     return response.json();
+  } catch (error) {
+    console.error('Generate questions error:', error);
+    throw error;
+  }
 }; 

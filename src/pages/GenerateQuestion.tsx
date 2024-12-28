@@ -115,7 +115,7 @@ const GenerateQuestion = () => {
         setLoading(true);
         try {
             // Format all settings into a single context string
-            const settingsText = contextSettings.map(setting => 
+            const settingsText = contextSettings.map(setting =>
                 `Generate ${setting.numQuestions} questions at ${setting.level} level with ${setting.difficulty} difficulty.`
             ).join('\n');
 
@@ -123,14 +123,14 @@ const GenerateQuestion = () => {
             const context = `${prompt}\n\nRequirements:\n${settingsText}`;
 
             const questions = await generateQuestions(context);
-            
+
             const formattedQuestions = questions.map((q: any, index: number) => ({
                 id: String(index + 1),
                 question_text: q.question_text,
                 answers: q.answers,
                 taxonomies: q.taxonomies
             }));
-            
+
             setGeneratedQuestions(formattedQuestions);
             setError(null);
         } catch (err) {
@@ -266,7 +266,7 @@ const GenerateQuestion = () => {
 
     const handleSaveEdit = () => {
         if (!editingQuestion) return;
-        
+
         setEditedQuestions(prev => ({
             ...prev,
             [editingQuestion.id]: editingQuestion
@@ -280,10 +280,10 @@ const GenerateQuestion = () => {
             <Breadcrumb
                 pageName="Generate Questions"
                 currentName="Generate Questions"
-                parentPath=""
-                parentName=""
-                parentPath2=""
-                parentName2=""
+                breadcrumbItems={[
+                    { name: "Home Page", path: "/" },
+                    { name: "Generate Questions", path: "#" }
+                ]}
             />
 
             {error && (
@@ -402,7 +402,7 @@ const GenerateQuestion = () => {
                                         </select>
                                     </div>
                                 </div>
-                                
+
                                 {contextSettings.length > 1 && (
                                     <button
                                         onClick={() => removeSetting(index)}
@@ -415,7 +415,7 @@ const GenerateQuestion = () => {
                                 )}
                             </div>
                         ))}
-                        
+
                         <button
                             onClick={addNewSetting}
                             className="text-primary hover:text-primary/80 flex items-center gap-2"
@@ -431,9 +431,8 @@ const GenerateQuestion = () => {
                         <button
                             onClick={handleGenerate}
                             disabled={loading}
-                            className={`inline-flex items-center justify-center rounded-md py-2 px-6 text-center font-medium text-white hover:bg-opacity-90 ${
-                                loading ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary'
-                            }`}
+                            className={`inline-flex items-center justify-center rounded-md py-2 px-6 text-center font-medium text-white hover:bg-opacity-90 ${loading ? 'bg-primary/50 cursor-not-allowed' : 'bg-primary'
+                                }`}
                         >
                             {loading ? (
                                 <>
@@ -542,9 +541,8 @@ const GenerateQuestion = () => {
                                                 viewBox="0 0 24 24"
                                                 strokeWidth={1.5}
                                                 stroke="currentColor"
-                                                className={`w-5 h-5 transition-transform duration-200 ${
-                                                    expandedQuestionId === question.id || allExpanded ? 'rotate-180' : ''
-                                                }`}
+                                                className={`w-5 h-5 transition-transform duration-200 ${expandedQuestionId === question.id || allExpanded ? 'rotate-180' : ''
+                                                    }`}
                                             >
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                                             </svg>
@@ -558,9 +556,8 @@ const GenerateQuestion = () => {
                                         {question.answers.map((answer, index) => (
                                             <div
                                                 key={index}
-                                                className={`border rounded-md p-4 transition-all duration-200 ${
-                                                    answer.is_correct ? 'bg-success/10 border-success' : 'bg-danger/10 border-danger'
-                                                }`}
+                                                className={`border rounded-md p-4 transition-all duration-200 ${answer.is_correct ? 'bg-success/10 border-success' : 'bg-danger/10 border-danger'
+                                                    }`}
                                             >
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-4">

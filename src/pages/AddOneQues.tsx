@@ -119,10 +119,18 @@ const AddOneQues = () => {
     };
 
     const handleTagChange = (category: keyof SelectedTags, value: string) => {
-        setSelectedTags(prevTags => ({
-            ...prevTags,
-            [category]: value,
-        }));
+        setSelectedTags(prevTags => {
+            if (!value) {
+                // If value is empty, create new object without the category
+                const { [category]: removed, ...rest } = prevTags;
+                return rest;
+            }
+            // Otherwise, add/update the tag
+            return {
+                ...prevTags,
+                [category]: value,
+            };
+        });
     };
 
     const handleDeleteAnswer = (id: string) => {
@@ -237,7 +245,7 @@ const AddOneQues = () => {
                         <Editor
                             apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
                             init={{
-                                height: 200,
+                                height: 250,
                                 menubar: false,
                                 plugins: [
                                     'advlist', 'autolink', 'lists', 'link', 'image',
@@ -325,7 +333,7 @@ const AddOneQues = () => {
                                     apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
                                     value={answer.text}
                                     init={{
-                                        height: 100,
+                                        height: 250,
                                         menubar: false,
                                         plugins: [
                                             'advlist', 'autolink', 'lists', 'link', 'image',
@@ -363,7 +371,7 @@ const AddOneQues = () => {
                                         apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
                                         value={answer.explanation}
                                         init={{
-                                            height: 200,
+                                            height: 250,
                                             menubar: false,
                                             plugins: [
                                                 'advlist', 'autolink', 'lists', 'link', 'image',
@@ -412,7 +420,6 @@ const AddOneQues = () => {
                 </div>
                 {expandedSections.tags && (
                     <div className="px-6.5 py-4">
-                        <label className="font-medium text-black dark:text-white">Tags</label>
                         <select
                             onChange={(e) => {
                                 const value = e.target.value;
@@ -424,14 +431,14 @@ const AddOneQues = () => {
                             className="w-full rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                         >
                             <optgroup label="Subject">
-                                <option value="math">none</option>
-                                <option value="science">Science</option>
-                                <option value="history">History</option>
+                                <option value="None">None</option>
+                                <option value="Science">Science</option>
+                                <option value="History">History</option>
                             </optgroup>
                             <optgroup label="Bloom's Level">
-                                <option value="remember">Remember</option>
-                                <option value="understand">Understand</option>
-                                <option value="apply">Apply</option>
+                                <option value="Remember">Remember</option>
+                                <option value="Understand">Understand</option>
+                                <option value="Apply">Apply</option>
                             </optgroup>
                         </select>
                         <div className="mt-2">
@@ -453,26 +460,27 @@ const AddOneQues = () => {
                 )}
             </div>
 
+            {/* Upper block: Similarity Note + Course Selection */}
             <div className="flex justify-between items-center mt-4">
-                {/* Similarity Note and Button */}
+                {/* Left side: Note and View Similarity */}
                 <div className="flex items-center gap-4">
                     <p className="text-body">
                         <span className="text-danger font-medium">NOTE:</span> There are questions in your bank that are similar.
                     </p>
                     <button
                         onClick={() => setIsSimilarityDialogOpen(true)}
-                        className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
+                        className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-2.5 text-center font-medium text-white hover:bg-opacity-90"
                     >
                         View similarity
                     </button>
                 </div>
 
-                {/* Question Bank Selection and Add Button */}
+                {/* Right side: Course and Bank Selection */}
                 <div className="flex items-center gap-4">
                     <select
                         value={selectedCourse}
                         onChange={(e) => handleCourseChange(e.target.value)}
-                        className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none"
+                        className="rounded border border-stroke bg-transparent py-2.5 px-3 font-medium outline-none"
                     >
                         <option value="">Choose Course</option>
                         {courses.map(course => (
@@ -483,7 +491,7 @@ const AddOneQues = () => {
                     <select
                         value={selectedBank}
                         onChange={(e) => setSelectedBank(e.target.value)}
-                        className="rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none"
+                        className="rounded border border-stroke bg-transparent py-2.5 px-3 font-medium outline-none"
                         disabled={!selectedCourse}
                     >
                         <option value="">Choose Question Bank</option>
@@ -491,25 +499,34 @@ const AddOneQues = () => {
                             <option key={bank.id} value={bank.id}>{bank.name}</option>
                         ))}
                     </select>
-                    <div className="flex flex-col gap-2">
-                        <button
-                            onClick={handleSubmit}
-                            disabled={loading}
-                            className="px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90 transition disabled:opacity-50"
-                        >
-                            {loading ? 'Adding...' : 'Add to bank'}
-                        </button>
-                        {error && <p className="text-danger text-sm">{error}</p>}
-                    </div>
                 </div>
-                <div className="flex justify-end">
+            </div>
+
+            {/* Lower block: Action Buttons and Error Message */}
+            <div className="mt-4">
+                {/* Buttons container */}
+                <div className="flex justify-end items-center gap-4">
+                    <button
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        className="px-6 py-2.5 bg-primary text-white rounded hover:bg-opacity-90 transition disabled:opacity-50"
+                    >
+                        {loading ? 'Adding...' : 'Add to bank'}
+                    </button>
                     <button
                         onClick={() => setIsConfirmDialogOpen(true)}
-                        className="px-4 py-2 bg-danger text-white rounded hover:bg-opacity-90 transition"
+                        className="px-6 py-2.5 bg-danger text-white rounded hover:bg-opacity-90 transition"
                     >
                         Cancel
                     </button>
                 </div>
+
+                {/* Error message container */}
+                {error && (
+                    <div className="flex justify-end mt-2">
+                        <p className="text-danger text-sm">{error}</p>
+                    </div>
+                )}
             </div>
 
             <SimilarityDialog

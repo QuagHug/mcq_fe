@@ -37,12 +37,18 @@ const QuestionBanks = () => {
                 setLoading(false);
             }
         };
-        
+
         loadQuestionBanks();
     }, [courseId]);
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [newBankName, setNewBankName] = useState('');
+
+    const generateBankName = (baseName: string) => {
+        // Get the next chapter number from existing banks
+        const nextChapterNum = questionBanks.length + 1;
+        return `Chapter ${nextChapterNum}: ${baseName}`;
+    };
 
     const handleChapterClick = (chapterId: string, chapterName: string) => {
         navigate(`/courses/${courseId}/question-banks/${chapterId}`, {
@@ -65,7 +71,9 @@ const QuestionBanks = () => {
 
         try {
             setLoading(true);
-            const newBank = await createQuestionBank(courseId, { name: newBankName });
+            // Generate the full bank name with chapter number
+            const fullBankName = generateBankName(newBankName);
+            const newBank = await createQuestionBank(courseId, { name: fullBankName });
             setQuestionBanks(prev => [...prev, newBank]);
             setNewBankName('');
             setIsDialogOpen(false);
@@ -83,7 +91,7 @@ const QuestionBanks = () => {
 
     const handleConfirmDelete = async () => {
         if (!bankToDelete || !courseId) return;
-        
+
         try {
             await deleteQuestionBank(courseId, bankToDelete.id);
             setQuestionBanks(questionBanks.filter(bank => bank.id !== bankToDelete.id));
@@ -204,7 +212,7 @@ const QuestionBanks = () => {
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
                                                 </svg>
                                             </Link>
-                                            <button 
+                                            <button
                                                 className="hover:text-danger"
                                                 onClick={() => handleDeleteClick(bank.id, bank.name)}
                                             >
@@ -310,24 +318,27 @@ const QuestionBanks = () => {
             )}
             {/* Delete Confirmation Modal */}
             {showDeleteModal && (
-                <div className="fixed inset-0 z-999 flex items-center justify-center bg-black bg-opacity-40">
-                    <div className="w-full max-w-md rounded-sm border border-stroke bg-white p-6 dark:border-strokedark dark:bg-boxdark">
+                <div className="fixed inset-0 z-999999 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black bg-opacity-50">
+                    <div className="w-full max-w-md rounded-sm border border-stroke bg-white p-6 shadow-default dark:border-strokedark dark:bg-boxdark">
                         <h3 className="mb-4 text-xl font-semibold text-black dark:text-white">
                             Delete Question Bank
                         </h3>
-                        <p className="mb-6 text-body">
+                        <p className="mb-6 text-base text-body-color dark:text-body-color-dark">
                             Are you sure you want to delete "{bankToDelete?.name}"? This action cannot be undone.
                         </p>
-                        <div className="flex items-center justify-end gap-4">
+                        <div className="flex justify-end gap-4">
                             <button
-                                className="inline-flex items-center justify-center rounded-md border border-stroke py-2 px-6 text-center font-medium hover:bg-opacity-90 dark:border-strokedark"
-                                onClick={() => setShowDeleteModal(false)}
+                                onClick={() => {
+                                    setShowDeleteModal(false);
+                                    setBankToDelete(null);
+                                }}
+                                className="rounded border border-stroke py-2 px-6 text-base font-medium text-black hover:border-primary hover:bg-primary/5 dark:border-strokedark dark:text-white"
                             >
                                 Cancel
                             </button>
                             <button
-                                className="inline-flex items-center justify-center rounded-md bg-danger py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
                                 onClick={handleConfirmDelete}
+                                className="rounded bg-danger py-2 px-6 text-base font-medium text-white hover:bg-opacity-90"
                             >
                                 Delete
                             </button>

@@ -1,11 +1,10 @@
 import { lazy } from 'react';
 
 const GenerateQuestion = lazy(() => import('../pages/GenerateQuestion'));
+const HomePage = lazy(() => import('../pages/Dashboard/HomePage'));
 const Questions = lazy(() => import('../pages/Questions'));
 const Profile = lazy(() => import('../pages/Profile'));
 const Settings = lazy(() => import('../pages/Settings'));
-const Alerts = lazy(() => import('../pages/UiElements/Alerts'));
-const Buttons = lazy(() => import('../pages/UiElements/Buttons'));
 const QuestionDetail = lazy(() => import('../pages/QuestionDetail'));
 const QuestionEdit = lazy(() => import('../pages/QuestionEdit'));
 const CoursesPage = lazy(() => import('../pages/Courses'));
@@ -15,6 +14,11 @@ const ImportQuestions = lazy(() => import('../pages/ImportQuestions'));
 const AddManyQues = lazy(() => import('../pages/AddManyQues'));
 
 const coreRoutes = [
+  {
+    path: '/',
+    title: 'Home',
+    component: HomePage,
+  },
   {
     path: '/courses',
     title: 'Courses',
@@ -61,16 +65,6 @@ const coreRoutes = [
     component: Settings,
   },
   {
-    path: '/ui/alerts',
-    title: 'Alerts',
-    component: Alerts,
-  },
-  {
-    path: '/ui/buttons',
-    title: 'Buttons',
-    component: Buttons,
-  },
-  {
     path: '/import-questions',
     title: 'Import Questions',
     component: ImportQuestions,
@@ -83,4 +77,11 @@ const coreRoutes = [
 ];
 
 const routes = [...coreRoutes];
+
+routes.push({
+  path: '*',
+  title: 'Not Found',
+  component: HomePage
+});
+
 export default routes;
