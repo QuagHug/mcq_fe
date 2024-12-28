@@ -248,7 +248,7 @@ const GenerateQuestion = () => {
             setShowBankSelection(false);
             setSelectedQuestionsForBank({});
             setEditedQuestions({});
-            
+
             // Show success message
             setSuccessMessage(`Successfully added ${selectedQuestions.length} questions to the bank`);
             // Auto-hide after 3 seconds
@@ -274,10 +274,28 @@ const GenerateQuestion = () => {
     const handleSaveEdit = () => {
         if (!editingQuestion) return;
 
+        // Update the generated questions with edited content
+        setGeneratedQuestions(prev => prev.map(q => {
+            if (q.id === editingQuestion.id) {
+                return {
+                    ...q,
+                    question_text: editingQuestion.question_text,
+                    answers: editingQuestion.answers.map(a => ({
+                        answer_text: a.answer_text,
+                        is_correct: a.is_correct,
+                        explanation: a.explanation
+                    }))
+                };
+            }
+            return q;
+        }));
+
+        // Update edited questions record
         setEditedQuestions(prev => ({
             ...prev,
             [editingQuestion.id]: editingQuestion
         }));
+
         setIsEditModalOpen(false);
         setEditingQuestion(null);
     };
@@ -719,7 +737,10 @@ const GenerateQuestion = () => {
                                                                         answers: newAnswers
                                                                     });
                                                                 }}
-                                                                className="flex-1 rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                                                className={`flex-1 rounded border-[1.5px] ${answer.is_correct
+                                                                        ? 'border-success bg-success/10'
+                                                                        : 'border-danger bg-danger/10'
+                                                                    } bg-transparent py-2 px-4 font-medium outline-none transition`}
                                                                 rows={2}
                                                             />
                                                         </div>
@@ -737,7 +758,10 @@ const GenerateQuestion = () => {
                                                                 });
                                                             }}
                                                             placeholder="Explanation"
-                                                            className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                                            className={`w-full rounded border-[1.5px] ${answer.is_correct
+                                                                    ? 'border-success bg-success/10'
+                                                                    : 'border-danger bg-danger/10'
+                                                                } bg-transparent py-2 px-4 font-medium outline-none transition`}
                                                             rows={2}
                                                         />
                                                     </div>
