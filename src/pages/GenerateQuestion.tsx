@@ -69,6 +69,7 @@ const GenerateQuestion = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingQuestion, setEditingQuestion] = useState<EditingQuestion | null>(null);
     const [editedQuestions, setEditedQuestions] = useState<{ [key: string]: EditingQuestion }>({});
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const bloomsLevels = [
         'Remember',
@@ -247,7 +248,13 @@ const GenerateQuestion = () => {
             setShowBankSelection(false);
             setSelectedQuestionsForBank({});
             setEditedQuestions({});
-            // Optional: Show success message
+            
+            // Show success message
+            setSuccessMessage(`Successfully added ${selectedQuestions.length} questions to the bank`);
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                setSuccessMessage(null);
+            }, 3000);
         } catch (err) {
             setError('Failed to add questions to bank');
         } finally {
@@ -505,6 +512,18 @@ const GenerateQuestion = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* Error and Success Messages */}
+                    {error && (
+                        <div className="mb-4 rounded-lg bg-danger/10 px-4 py-3 text-danger">
+                            {error}
+                        </div>
+                    )}
+                    {successMessage && (
+                        <div className="mb-4 rounded-lg bg-success/10 px-4 py-3 text-success animate-fade-in-down">
+                            {successMessage}
+                        </div>
+                    )}
 
                     {/* Questions List */}
                     <div className="space-y-4">

@@ -126,13 +126,14 @@ export const deleteQuestionBank = async (courseId: string, bankId: string) => {
   }
 };
 
-export const deleteQuestion = async (courseId: string, chapterId: string, questionId: string) => {
+export const deleteQuestion = async (courseId: string, bankId: string, questionId: string) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/question-banks/${chapterId}/questions/${questionId}/`, {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/questions/${questionId}/`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
+        'Authorization': `Bearer ${token}`
       },
     });
 
