@@ -159,7 +159,7 @@ const AddManyQues = () => {
                 {expandedSections.context && (
                     <div className="px-6.5 py-4">
                         <Editor
-                            apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                            apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
                             value={context}
                             onEditorChange={setContext}
                             init={{
@@ -210,7 +210,7 @@ const AddManyQues = () => {
                                     {/* Question Text Editor */}
                                     <div className="mb-4">
                                         <Editor
-                                            apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                                            apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
                                             value={question.questionText}
                                             onEditorChange={(content) => {
                                                 const newQuestions = [...questions];
@@ -295,7 +295,7 @@ const AddManyQues = () => {
 
                                                 {/* Answer Text Editor */}
                                                 <Editor
-                                                    apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                                                    apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
                                                     value={answer.text}
                                                     onEditorChange={(content) => handleAnswerChange(qIndex, answer.id, 'text', content)}
                                                     init={{
@@ -321,7 +321,7 @@ const AddManyQues = () => {
                                                         Explanation
                                                     </label>
                                                     <Editor
-                                                        apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                                                        apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
                                                         value={answer.explanation}
                                                         onEditorChange={(content) => handleAnswerChange(qIndex, answer.id, 'explanation', content)}
                                                         init={{
@@ -394,8 +394,8 @@ const AddManyQues = () => {
                         >
                             <optgroup label="Subject">
                                 <option value="None">None</option>
-                                <option value="Science">Science</option>
-                                <option value="History">History</option>
+                                <option value="DSA">DSA</option>
+                                <option value="PPL">PPL</option>
                             </optgroup>
                             <optgroup label="Bloom's Level">
                                 <option value="Remember">Remember</option>

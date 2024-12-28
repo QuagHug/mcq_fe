@@ -243,7 +243,7 @@ const AddOneQues = () => {
                 {expandedSections.question && (
                     <div className="px-6.5 py-4 space-y-4">
                         <Editor
-                            apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                            apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
                             init={{
                                 height: 250,
                                 menubar: false,
@@ -330,7 +330,7 @@ const AddOneQues = () => {
                                     </button>
                                 </div>
                                 <Editor
-                                    apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                                    apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
                                     value={answer.text}
                                     init={{
                                         height: 250,
@@ -368,7 +368,7 @@ const AddOneQues = () => {
                                 <div>
                                     <label className="mb-2.5 block font-medium text-black dark:text-white">Explanation</label>
                                     <Editor
-                                        apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                                        apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
                                         value={answer.explanation}
                                         init={{
                                             height: 250,
@@ -432,8 +432,8 @@ const AddOneQues = () => {
                         >
                             <optgroup label="Subject">
                                 <option value="None">None</option>
-                                <option value="Science">Science</option>
-                                <option value="History">History</option>
+                                <option value="DSA">DSA</option>
+                                <option value="PPL">PPL</option>
                             </optgroup>
                             <optgroup label="Bloom's Level">
                                 <option value="Remember">Remember</option>

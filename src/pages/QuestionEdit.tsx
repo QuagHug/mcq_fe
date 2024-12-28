@@ -1,7 +1,8 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { Editor } from '@tinymce/tinymce-react';
+import { fetchQuestionDetail, editQuestion } from '../services/api';
 
 const MOCK_QUESTION_DATA = {
     question: "What is the primary function of TCP/IP in computer networking?",
@@ -50,6 +51,29 @@ const QuestionEdit = () => {
         explanation: answer.explanation,
         grade: answer.isCorrect ? '100' : '0'
     })));
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const loadQuestion = async () => {
+            if (!courseId || !chapterId || !questionId) return;
+            try {
+                const data = await fetchQuestionDetail(courseId, chapterId, questionId);
+                setQuestionContent(data.question_text);
+                setAnswers(data.answers.map((answer: any) => ({
+                    id: answer.id,
+                    text: answer.answer_text,
+                    explanation: answer.explanation,
+                    grade: answer.is_correct ? '100' : '0'
+                })));
+            } catch (error) {
+                console.error('Error loading question:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadQuestion();
+    }, [courseId, chapterId, questionId]);
 
     const handleGoBack = () => {
         if (returnPath) {
@@ -99,19 +123,46 @@ const QuestionEdit = () => {
         ));
     };
 
+    const handleSave = async () => {
+        if (!courseId || !chapterId || !questionId) return;
+
+        try {
+            // Create a temporary div to parse HTML
+            const sanitizeHtml = (html: string) => {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                return tempDiv.innerHTML;
+            };
+
+            const questionData = {
+                question_text: sanitizeHtml(questionContent),
+                answers: answers.map(answer => ({
+                    answer_text: sanitizeHtml(answer.text),
+                    explanation: sanitizeHtml(answer.explanation),
+                    is_correct: answer.grade === '100',
+                    ...(answer.id ? { id: answer.id } : {})
+                }))
+            };
+
+            console.log('Sending data:', questionData); // Debug log
+            await editQuestion(courseId, chapterId, questionId, questionData);
+            handleGoBack();
+        } catch (error) {
+            console.error('Error saving question:', error);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <Breadcrumb
                 pageName=""
-                parentPath="/"
-                parentName="Home Page"
-                parentPath2="/courses"
-                parentName2="Courses"
-                parentPath3={`/courses/${courseId}/question-banks`}
-                parentName3={courseName}
-                parentPath4={`/courses/${courseId}/question-banks/${chapterId}`}
-                parentName4={chapterName}
                 currentName={`Question ${questionId}`}
+                breadcrumbItems={[
+                    { name: "Home Page", path: "/" },
+                    { name: "Courses", path: "/courses" },
+                    { name: courseName, path: `/courses/${courseId}/question-banks`, state: { courseName } },
+                    { name: chapterName, path: `/courses/${courseId}/question-banks/${chapterId}`, state: { courseName, chapterName } }
+                ]}
             />
 
             {/* Question Section */}
@@ -123,10 +174,10 @@ const QuestionEdit = () => {
                 </div>
                 <div className="px-6.5 py-4">
                     <Editor
-                        apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                        apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
                         value={questionContent}
                         init={{
-                            height: 300,
+                            height: 250,
                             menubar: true,
                             plugins: [
                                 'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
@@ -154,14 +205,14 @@ const QuestionEdit = () => {
                 </div>
                 <div className="p-6.5">
                     <div className="space-y-4">
-                        {answers.map((answer) => (
+                        {answers.map((answer, index) => (
                             <div
                                 key={answer.id}
                                 className="border rounded-md p-4 transition-all duration-200 bg-white dark:bg-boxdark"
                             >
                                 <div className="flex items-center gap-4 mb-4">
                                     <span className="font-semibold text-black dark:text-white">
-                                        {answer.id}.
+                                        {String.fromCharCode(65 + index)}.
                                     </span>
                                 </div>
 
@@ -171,10 +222,10 @@ const QuestionEdit = () => {
                                         Answer Text
                                     </label>
                                     <Editor
-                                        apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                                        apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
                                         value={answer.text}
                                         init={{
-                                            height: 200,
+                                            height: 250,
                                             menubar: false,
                                             plugins: [
                                                 'advlist', 'autolink', 'lists', 'link', 'image',
@@ -216,10 +267,10 @@ const QuestionEdit = () => {
                                         Explanation
                                     </label>
                                     <Editor
-                                        apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
+                                        apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
                                         value={answer.explanation}
                                         init={{
-                                            height: 200,
+                                            height: 250,
                                             menubar: false,
                                             plugins: [
                                                 'advlist', 'autolink', 'lists', 'link', 'image',
@@ -248,7 +299,10 @@ const QuestionEdit = () => {
                     Paraphrase
                 </button>
 
-                <button className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90">
+                <button
+                    onClick={handleSave}
+                    className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
+                >
                     Save edits
                 </button>
             </div>

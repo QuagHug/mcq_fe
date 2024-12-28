@@ -105,6 +105,27 @@ export const fetchQuestionDetail = async (courseId: string, bankId: string, ques
   return response.json();
 };
 
+export const editQuestion = async (courseId: string, bankId: string, questionId: string, questionData: any) => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/questions/${questionId}/`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(questionData),
+    credentials: 'include'
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('Server error:', errorData);
+    throw new Error(`Failed to update question: ${response.status}`);
+  }
+
+  return response.json();
+};
+
 export const deleteQuestionBank = async (courseId: string, bankId: string) => {
   try {
     const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/`, {
