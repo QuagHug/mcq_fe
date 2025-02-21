@@ -12,6 +12,8 @@ const QuestionBanks = lazy(() => import('../pages/QuestionBanks'));
 const AddOneQues = lazy(() => import('../pages/AddOneQues'));
 const ImportQuestions = lazy(() => import('../pages/ImportQuestions'));
 const AddManyQues = lazy(() => import('../pages/AddManyQues'));
+const CreateTest = lazy(() => import('../pages/CreateTest'));
+const CreateTestAuto = lazy(() => import('../pages/CreateTestAuto'));
 
 const coreRoutes = [
   {
@@ -73,6 +75,16 @@ const coreRoutes = [
     path: '/add-many-questions',
     title: 'Add Multiple Questions',
     component: AddManyQues,
+  },
+  {
+    path: '/create-test-manual',
+    title: 'Create Test Manually',
+    component: CreateTest,
+  },
+  {
+    path: '/create-test-auto',
+    title: 'Create Test Automatically',
+    component: CreateTestAuto,
   },
 ];
 

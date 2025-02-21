@@ -66,7 +66,7 @@ const ECommerce = () => {
                   </button>
                   <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
                     text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
-                    Add Tests
+                    Create Tests
                   </button>
                 </div>
               </>
