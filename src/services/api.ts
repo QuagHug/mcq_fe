@@ -266,4 +266,28 @@ export const generateQuestions = async (context: string) => {
     console.error('Generate questions error:', error);
     throw error;
   }
+};
+
+interface Question {
+    id: number;
+    question_text: string;
+    marks: number;
+}
+
+export const createTest = async (courseId: string, testData: {
+    title: string;
+    description: string;
+    questions: Question[];
+}) => {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(testData)
+    });
+    if (!response.ok) throw new Error('Failed to create test');
+    return response.json();
 }; 
