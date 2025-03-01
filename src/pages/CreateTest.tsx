@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Editor } from '@tinymce/tinymce-react';
 import { fetchQuestionBanks, fetchCourses } from '../services/api';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
@@ -24,6 +24,7 @@ interface QuestionBank {
 
 const CreateTest = () => {
     const { courseId } = useParams();
+    const navigate = useNavigate();
     const [courses, setCourses] = useState<Array<{ id: string, name: string }>>([]);
     const [selectedCourse, setSelectedCourse] = useState('');
     const [testData, setTestData] = useState({
@@ -198,7 +199,7 @@ const CreateTest = () => {
                         }),
 
                         // Answers
-                        ...(question.answers?.map((answer, ansIndex) => 
+                        ...(question.answers?.map((answer, ansIndex) =>
                             new Paragraph({
                                 children: [
                                     new TextRun({
@@ -316,6 +317,10 @@ const CreateTest = () => {
         }
     };
 
+    const handleCancel = () => {
+        navigate('/');
+    };
+
     return (
         <div className="mx-auto max-w-270">
             <Breadcrumb
@@ -342,7 +347,7 @@ const CreateTest = () => {
 
             {loading && <div>Loading question banks...</div>}
             {error && <div className="text-danger">{error}</div>}
-            
+
             {selectedCourse && !loading && (
                 <>
                     {/* Test Details Block */}
@@ -635,6 +640,12 @@ const CreateTest = () => {
                             disabled={selectedQuestions.length === 0}
                         >
                             Export to Word
+                        </button>
+                        <button
+                            onClick={handleCancel}
+                            className="flex w-full justify-center rounded bg-danger p-3 font-medium text-gray hover:bg-opacity-90"
+                        >
+                            Cancel
                         </button>
                     </div>
                 </>

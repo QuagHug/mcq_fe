@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 
 const GenerateQuestion = lazy(() => import('../pages/GenerateQuestion'));
+const GenerateDistractors = lazy(() => import('../pages/GenerateDistractors'));
 const HomePage = lazy(() => import('../pages/Dashboard/HomePage'));
 const Questions = lazy(() => import('../pages/Questions'));
 const Profile = lazy(() => import('../pages/Profile'));
@@ -50,6 +51,11 @@ const coreRoutes = [
     path: '/generate-questions',
     title: 'Generate Questions',
     component: GenerateQuestion,
+  },
+  {
+    path: '/generate-distractors',
+    title: 'Generate Distractors',
+    component: GenerateDistractors,
   },
   {
     path: '/profile',
