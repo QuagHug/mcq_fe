@@ -208,9 +208,6 @@ const Questions = () => {
                                     Question
                                 </th>
                                 <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
-                                    Difficulty
-                                </th>
-                                <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
                                     Bloom's Level
                                 </th>
                                 <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
@@ -241,10 +238,6 @@ const Questions = () => {
                                         >
                                             {truncateText(question.question_text)}
                                         </Link>
-                                    </td>
-                                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                        {question.taxonomies?.[0]?.difficulty.charAt(0).toUpperCase() + 
-                                         question.taxonomies?.[0]?.difficulty.slice(1) || 'N/A'}
                                     </td>
                                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                                         {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
