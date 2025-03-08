@@ -1,6 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { Editor } from '@tinymce/tinymce-react';
+import { fetchQuestionBanks, fetchCourses } from '../services/api';
+
+interface QuestionBank {
+    id: number;
+    name: string;
+    questions: any[];
+}
 
 interface TestCombination {
     numberOfQuestions: number;
@@ -21,16 +28,22 @@ const CreateTestAuto: React.FC = () => {
         title: '',
         description: '',
         combinations: [{
-            numberOfQuestions: 5,
-            taxonomyLevel: 'understand',
-            difficulty: 'medium',
+            numberOfQuestions: 1,
+            taxonomyLevel: 'remember',
+            difficulty: 'easy',
             learningOutcome: 'lo1'
         }],
         topics: []
     });
 
+    const [courses, setCourses] = useState<Array<{ id: string, name: string }>>([]);
+    const [selectedCourse, setSelectedCourse] = useState('');
+    const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
+    const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
     const [isTestDetailsExpanded, setIsTestDetailsExpanded] = useState(true);
     const [showTopics, setShowTopics] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const topics = [
         'PPL', 'DSA', 'Discrete Math', 'Dynamic Programming', 'Math'
@@ -56,9 +69,9 @@ const CreateTestAuto: React.FC = () => {
         setTestData(prev => ({
             ...prev,
             combinations: [...prev.combinations, {
-                numberOfQuestions: 5,
-                taxonomyLevel: '',
-                difficulty: '',
+                numberOfQuestions: 1,
+                taxonomyLevel: 'remember',
+                difficulty: 'easy',
                 learningOutcome: 'lo1'
             }]
         }));
@@ -88,6 +101,37 @@ const CreateTestAuto: React.FC = () => {
             console.log('Submitting test data:', testData);
         } catch (error) {
             console.error('Error submitting test:', error);
+        }
+    };
+
+    // Fetch courses on component mount
+    useEffect(() => {
+        const loadCourses = async () => {
+            try {
+                const coursesData = await fetchCourses();
+                setCourses(coursesData);
+            } catch (err) {
+                setError('Failed to load courses');
+            }
+        };
+        loadCourses();
+    }, []);
+
+    // Handle course selection and fetch question banks
+    const handleCourseChange = async (courseId: string) => {
+        setSelectedCourse(courseId);
+        if (courseId) {
+            try {
+                setLoading(true);
+                const data = await fetchQuestionBanks(courseId);
+                setQuestionBanks(data);
+            } catch (err) {
+                setError('Failed to load question banks');
+            } finally {
+                setLoading(false);
+            }
+        } else {
+            setQuestionBanks([]);
         }
     };
 
@@ -139,7 +183,7 @@ const CreateTestAuto: React.FC = () => {
                             />
                         </div>
                         <div>
-                            <Editor
+                            {/* <Editor
                                 apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
                                 init={{
                                     height: 250,
@@ -177,7 +221,7 @@ const CreateTestAuto: React.FC = () => {
                                 }}
                                 value={testData.description}
                                 onEditorChange={handleDescriptionChange}
-                            />
+                            /> */}
                         </div>
                     </div>
                 )}
@@ -191,47 +235,7 @@ const CreateTestAuto: React.FC = () => {
                     </h3>
                 </div>
                 <div className="p-6.5">
-                    <div className="mb-4.5">
-                        <Editor
-                            apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
-                            init={{
-                                height: 250,
-                                menubar: false,
-                                plugins: [
-                                    'advlist', 'autolink', 'lists', 'link', 'image',
-                                    'charmap', 'preview', 'anchor', 'searchreplace',
-                                    'visualblocks', 'code', 'fullscreen', 'insertdatetime',
-                                    'media', 'table', 'code', 'help', 'wordcount', 'equation',
-                                    'placeholder'
-                                ],
-                                toolbar: 'undo redo | formatselect | ' +
-                                    'bold italic forecolor | alignleft aligncenter ' +
-                                    'alignright alignjustify | bullist numlist outdent indent | ' +
-                                    'removeformat | equation | help',
-                                content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
-                                placeholder: 'Enter your prompt here',
-                                setup: (editor) => {
-                                    editor.on('init', () => {
-                                        const editorElement = editor.getContainer();
-                                        if (editorElement) {
-                                            const iframe = editorElement.querySelector('iframe');
-                                            if (iframe) {
-                                                const iframeDocument = iframe.contentDocument;
-                                                if (iframeDocument) {
-                                                    const body = iframeDocument.body;
-                                                    if (!body.textContent?.trim()) {
-                                                        body.setAttribute('data-mce-placeholder', 'Enter your prompt here');
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    });
-                                }
-                            }}
-                            value={testData.description}
-                            onEditorChange={handleDescriptionChange}
-                        />
-                    </div>
+
 
                     {/* Parameters Row */}
                     {testData.combinations.map((combination, index) => (
@@ -321,6 +325,29 @@ const CreateTestAuto: React.FC = () => {
                         </svg>
                         Add another combination
                     </button>
+
+                    {/* Course and Test Bank Selection */}
+                    <div className="mt-6 space-y-4">
+                        {loading && <div>Loading question banks...</div>}
+                        {error && <div className="text-danger">{error}</div>}
+
+                        <div>
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Add to Test Bank
+                            </label>
+                            <select
+                                value={selectedBankId || ''}
+                                onChange={(e) => setSelectedBankId(Number(e.target.value))}
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                disabled={!selectedCourse}
+                            >
+                                <option value="">Select a test bank</option>
+                                {questionBanks.map(bank => (
+                                    <option key={bank.id} value={bank.id}>{bank.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -330,7 +357,7 @@ const CreateTestAuto: React.FC = () => {
                     onClick={handleSubmit}
                     className="flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90"
                 >
-                    Generate Test
+                    Save
                 </button>
             </div>
         </div>

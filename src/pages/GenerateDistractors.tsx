@@ -1,7 +1,22 @@
-import { useState, useRef, DragEvent } from 'react';
+import { useState, useRef, DragEvent, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { Editor } from '@tinymce/tinymce-react';
 import ConfirmDialog from '../components/ConfirmDialog';
+import { fetchQuestionBanks } from '../services/api';
+import SimilarityDialog from '../components/SimilarityDialog';
+
+interface QuestionBank {
+    id: number;
+    name: string;
+    questions: Question[];
+    subBanks?: QuestionBank[];
+}
+
+interface Question {
+    id: number;
+    question_text: string;
+    answers?: { answer_text: string; is_correct: boolean }[];
+}
 
 const GenerateDistractors = () => {
     const [question, setQuestion] = useState('');
@@ -19,10 +34,61 @@ const GenerateDistractors = () => {
         level: string;
         difficulty: string;
     }>>([{
-        numQuestions: 5,
+        numQuestions: 1,
         level: '',
-        difficulty: ''
+        difficulty: 'easy'
     }]);
+
+    // New state for bank selection
+    const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
+    const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
+    const [selectedSubBankId, setSelectedSubBankId] = useState<number | null>(null);
+    const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null);
+    const [bankLoading, setBankLoading] = useState(false);
+
+    // New state for similarity dialog
+    const [isSimilarityDialogOpen, setIsSimilarityDialogOpen] = useState(false);
+
+    // Fetch question banks on component mount
+    useEffect(() => {
+        const loadQuestionBanks = async () => {
+            try {
+                setBankLoading(true);
+                const data = await fetchQuestionBanks('default');
+                setQuestionBanks(data);
+            } catch (err) {
+                setError('Failed to load question banks');
+            } finally {
+                setBankLoading(false);
+            }
+        };
+        loadQuestionBanks();
+    }, []);
+
+    // Get current selected bank, sub-bank, and questions
+    const selectedBank = questionBanks.find(bank => bank.id === selectedBankId);
+    const selectedSubBank = selectedBank?.subBanks?.find(bank => bank.id === selectedSubBankId);
+    const availableQuestions = selectedSubBank?.questions || [];
+
+    // Reset dependent selections when parent selection changes
+    const handleBankChange = (bankId: number) => {
+        setSelectedBankId(bankId);
+        setSelectedSubBankId(null);
+        setSelectedQuestionId(null);
+    };
+
+    const handleSubBankChange = (subBankId: number) => {
+        setSelectedSubBankId(subBankId);
+        setSelectedQuestionId(null);
+    };
+
+    const handleQuestionChange = (questionId: number) => {
+        setSelectedQuestionId(questionId);
+        const question = availableQuestions.find(q => q.id === questionId);
+        if (question) {
+            setCorrectAnswer(question.question_text);
+        }
+    };
 
     const handleGenerate = async () => {
         if (!question || !correctAnswer) {
@@ -91,9 +157,9 @@ const GenerateDistractors = () => {
         setContextSettings([
             ...contextSettings,
             {
-                numQuestions: 5,
+                numQuestions: 1,
                 level: '',
-                difficulty: ''
+                difficulty: 'easy'
             }
         ]);
     };
@@ -129,6 +195,80 @@ const GenerateDistractors = () => {
                     {error}
                 </div>
             )}
+
+            {/* Place to Save Block */}
+            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+                <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
+                    <h3 className="font-medium text-black dark:text-white">
+                        Place to Save
+                    </h3>
+                </div>
+                <div className="p-6.5">
+                    <div className="grid grid-cols-3 gap-6">
+                        {/* Subject (Bank) Selection */}
+                        <div className="mb-4.5">
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Subject
+                            </label>
+                            <select
+                                value={selectedBankId || ''}
+                                onChange={(e) => handleBankChange(Number(e.target.value))}
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                            >
+                                <option value="">Select Subject</option>
+                                {questionBanks.map(bank => (
+                                    <option key={bank.id} value={bank.id}>{bank.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Chapter (Sub-bank) Selection */}
+                        <div className="mb-4.5">
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Chapter
+                            </label>
+                            <select
+                                value={selectedSubBankId || ''}
+                                onChange={(e) => handleSubBankChange(Number(e.target.value))}
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                disabled={!selectedBankId}
+                            >
+                                <option value="">Select Chapter</option>
+                                {selectedBank?.subBanks?.map(subBank => (
+                                    <option key={subBank.id} value={subBank.id}>{subBank.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Question Selection */}
+                        <div className="mb-4.5">
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Question
+                            </label>
+                            <select
+                                value={selectedQuestionId || ''}
+                                onChange={(e) => handleQuestionChange(Number(e.target.value))}
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                disabled={!selectedSubBankId}
+                            >
+                                <option value="">Select Question</option>
+                                {availableQuestions.map(question => (
+                                    <option key={question.id} value={question.id}>{question.question_text}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {bankLoading && (
+                        <div className="flex items-center justify-center py-4">
+                            <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {/* Input Block */}
             <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
@@ -282,18 +422,6 @@ const GenerateDistractors = () => {
                         <h2 className="text-title-md2 font-semibold text-black dark:text-white">
                             Generated Distractors
                         </h2>
-                        <div className="flex items-center gap-4">
-                            <select
-                                value={correctAnswer}
-                                onChange={(e) => setCorrectAnswer(e.target.value)}
-                                className="rounded border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none"
-                            >
-                                <option value="">Select Question</option>
-                                {/* TODO: Add questions from your question bank */}
-                                <option value="sample1">Sample Question 1</option>
-                                <option value="sample2">Sample Question 2</option>
-                            </select>
-                        </div>
                     </div>
 
                     {/* Generated Distractors List */}
@@ -327,13 +455,46 @@ const GenerateDistractors = () => {
                                         Generating distractors...
                                     </div>
                                 ) : (
-                                    'No distractors generated yet. Enter a question and correct answer above to generate distractors.'
+                                    ''
                                 )}
                             </div>
                         )}
                     </div>
+
+                    {/* Similarity Note */}
+                    <div className="mt-6 flex items-center gap-4">
+                        <p className="text-body">
+                            <span className="text-danger font-medium">NOTE:</span> There are distractors in your question that are similar.
+                        </p>
+                        <button
+                            onClick={() => setIsSimilarityDialogOpen(true)}
+                            className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
+                        >
+                            View similarity
+                        </button>
+                    </div>
                 </div>
             </div>
+
+            {/* Similarity Dialog */}
+            <SimilarityDialog
+                isOpen={isSimilarityDialogOpen}
+                onClose={() => setIsSimilarityDialogOpen(false)}
+                similarQuestions={[
+                    {
+                        id: '1',
+                        question: 'Sample distractor 1',
+                        similarity: 85,
+                        questionBank: 'DSA Bank'
+                    },
+                    {
+                        id: '2',
+                        question: 'Sample distractor 2',
+                        similarity: 75,
+                        questionBank: 'PPL Bank'
+                    }
+                ]}
+            />
 
             {/* Confirmation Dialog */}
             <ConfirmDialog
