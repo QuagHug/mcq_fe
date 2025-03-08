@@ -15,6 +15,7 @@ const ImportQuestions = lazy(() => import('../pages/ImportQuestions'));
 const AddManyQues = lazy(() => import('../pages/AddManyQues'));
 const CreateTest = lazy(() => import('../pages/CreateTest'));
 const CreateTestAuto = lazy(() => import('../pages/CreateTestAuto'));
+const TestResults = lazy(() => import('../pages/TestResults'));
 
 const coreRoutes = [
   {
@@ -91,6 +92,11 @@ const coreRoutes = [
     path: '/create-test-auto',
     title: 'Create Test Automatically',
     component: CreateTestAuto,
+  },
+  {
+    path: '/test-results',
+    title: 'Test Results',
+    component: TestResults,
   },
 ];
 

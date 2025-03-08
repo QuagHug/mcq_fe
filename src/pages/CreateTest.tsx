@@ -14,6 +14,7 @@ interface Question {
     marks: number;
     selected?: boolean;
     answers?: { answer_text: string; is_correct: boolean }[];
+    taxonomies?: { taxonomy: { name: string }; level: string }[];
 }
 
 interface QuestionBank {
@@ -44,6 +45,15 @@ const CreateTest = () => {
     const [filteredQuestions, setFilteredQuestions] = useState<Question[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Replace topics with Bloom's levels
+    const bloomsLevels = [
+        'Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'
+    ];
+
+    // Update state name for clarity
+    const [showBloomsLevels, setShowBloomsLevels] = useState(false);
+    const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
 
     // Fetch courses on component mount
     useEffect(() => {
@@ -88,12 +98,17 @@ const CreateTest = () => {
         const filtered = allQuestions.filter(question => {
             const matchesSearch = question.question_text.toLowerCase()
                 .includes(searchQuery.toLowerCase());
-            const matchesTags = selectedTopics.length === 0 ||
-                selectedTopics.some(topic => question.question_text.includes(topic));
-            return matchesSearch && matchesTags;
+            const matchesLevels = selectedLevels.length === 0 ||
+                selectedLevels.some(level => 
+                    question.taxonomies?.some(tax => 
+                        tax.taxonomy.name === "Bloom's Taxonomy" && 
+                        tax.level === level
+                    )
+                );
+            return matchesSearch && matchesLevels;
         });
         setFilteredQuestions(filtered);
-    }, [searchQuery, selectedTopics, questionBanks]);
+    }, [searchQuery, selectedLevels, questionBanks]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -129,15 +144,11 @@ const CreateTest = () => {
         });
     };
 
-    const topics = [
-        'PPL', 'DSA', 'Discrete Math', 'Dynamic Programming', 'Math'
-    ];
-
-    const toggleTopic = (topic: string) => {
-        setSelectedTopics(prev =>
-            prev.includes(topic)
-                ? prev.filter(t => t !== topic)
-                : [...prev, topic]
+    const toggleLevel = (level: string) => {
+        setSelectedLevels(prev =>
+            prev.includes(level)
+                ? prev.filter(l => l !== level)
+                : [...prev, level]
         );
     };
 
@@ -457,13 +468,12 @@ const CreateTest = () => {
                                     </button>
                                     <div className="relative">
                                         <button
-                                            onClick={() => setShowTopics(!showTopics)}
+                                            onClick={() => setShowBloomsLevels(!showBloomsLevels)}
                                             className="inline-flex items-center justify-center gap-2 rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
                                         >
-                                            <span>Tags</span>
+                                            <span>Bloom's Levels</span>
                                             <svg
-                                                className={`w-4 h-4 transform transition-transform duration-200 ${showTopics ? 'rotate-180' : ''
-                                                    }`}
+                                                className={`w-4 h-4 transform transition-transform duration-200 ${showBloomsLevels ? 'rotate-180' : ''}`}
                                                 fill="none"
                                                 stroke="currentColor"
                                                 viewBox="0 0 24 24"
@@ -477,19 +487,20 @@ const CreateTest = () => {
                                             </svg>
                                         </button>
 
-                                        {showTopics && (
+                                        {showBloomsLevels && (
                                             <div className="absolute top-full right-0 mt-2 w-80 bg-[#C0C0C0] dark:bg-boxdark rounded-sm shadow-lg z-50 p-4">
                                                 <div className="flex flex-wrap gap-2">
-                                                    {topics.map(topic => (
+                                                    {bloomsLevels.map(level => (
                                                         <button
-                                                            key={topic}
-                                                            onClick={() => toggleTopic(topic)}
-                                                            className={`px-3 py-1 rounded-full text-sm ${selectedTopics.includes(topic)
-                                                                ? 'bg-primary text-white'
-                                                                : 'bg-white dark:bg-meta-4 hover:bg-gray-100 dark:hover:bg-meta-3'
-                                                                }`}
+                                                            key={level}
+                                                            onClick={() => toggleLevel(level)}
+                                                            className={`px-3 py-1 rounded-full text-sm ${
+                                                                selectedLevels.includes(level)
+                                                                    ? 'bg-primary text-white'
+                                                                    : 'bg-white dark:bg-meta-4 hover:bg-gray-100 dark:hover:bg-meta-3'
+                                                            }`}
                                                         >
-                                                            {topic}
+                                                            {level}
                                                         </button>
                                                     ))}
                                                 </div>
