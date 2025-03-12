@@ -49,24 +49,38 @@ const ECommerce = () => {
                   Join us to create multiple-choice tests to reinforce student
                   knowledge and improve their scores.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full px-4 sm:px-0 sm:justify-center">
+                <div className="flex flex-wrap gap-4 w-full px-4 sm:px-0 justify-center">
                   <button
                     onClick={() => navigate('/courses')}
-                    className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                    className="w-full sm:w-36 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
                       text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors"
                   >
                     View Courses
                   </button>
                   <button
                     onClick={() => navigate('/generate-questions')}
-                    className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                    className="w-full sm:w-36 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
                       text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors"
                   >
                     Generate Questions
                   </button>
-                  <button className="w-full sm:w-40 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
-                    text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors">
+                  <button
+                    className="w-full sm:w-36 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                      text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors"
+                  >
                     Create Tests
+                  </button>
+                  <button
+                    className="w-full sm:w-36 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                      text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors"
+                  >
+                    Recommend
+                  </button>
+                  <button
+                    className="w-full sm:w-36 px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base 
+                      text-white rounded-lg bg-[#1488DB] hover:bg-[#126fb5] transition-colors"
+                  >
+                    Analyze Results
                   </button>
                 </div>
               </>
