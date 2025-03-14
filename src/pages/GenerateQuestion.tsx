@@ -60,9 +60,9 @@ const GenerateQuestion = () => {
         level: string;
         difficulty: string;
     }>>([{
-        numQuestions: 5,
-        level: '',
-        difficulty: ''
+        numQuestions: 1,
+        level: 'remember',
+        difficulty: 'easy'
     }]);
     const [selectedQuestionsForBank, setSelectedQuestionsForBank] = useState<{ [key: string]: boolean }>({});
     const [showBankSelection, setShowBankSelection] = useState(false);
@@ -204,9 +204,9 @@ const GenerateQuestion = () => {
         setContextSettings([
             ...contextSettings,
             {
-                numQuestions: 5,
-                level: '',
-                difficulty: ''
+                numQuestions: 1,
+                level: 'remember',
+                difficulty: 'easy'
             }
         ]);
     };
@@ -404,7 +404,6 @@ const GenerateQuestion = () => {
                                             onChange={(e) => updateSetting(index, 'level', e.target.value)}
                                             className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                                         >
-                                            <option value="">Select Level</option>
                                             {bloomsLevels.map(level => (
                                                 <option key={level} value={level}>{level}</option>
                                             ))}
@@ -738,8 +737,8 @@ const GenerateQuestion = () => {
                                                                     });
                                                                 }}
                                                                 className={`flex-1 rounded border-[1.5px] ${answer.is_correct
-                                                                        ? 'border-success bg-success/10'
-                                                                        : 'border-danger bg-danger/10'
+                                                                    ? 'border-success bg-success/10'
+                                                                    : 'border-danger bg-danger/10'
                                                                     } bg-transparent py-2 px-4 font-medium outline-none transition`}
                                                                 rows={2}
                                                             />
@@ -759,8 +758,8 @@ const GenerateQuestion = () => {
                                                             }}
                                                             placeholder="Explanation"
                                                             className={`w-full rounded border-[1.5px] ${answer.is_correct
-                                                                    ? 'border-success bg-success/10'
-                                                                    : 'border-danger bg-danger/10'
+                                                                ? 'border-success bg-success/10'
+                                                                : 'border-danger bg-danger/10'
                                                                 } bg-transparent py-2 px-4 font-medium outline-none transition`}
                                                             rows={2}
                                                         />

@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
+import Pagination from '../components/Pagination';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { Editor } from '@tinymce/tinymce-react';
 import { fetchQuestionBanks, fetchCourses } from '../services/api';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { Dialog } from '@headlessui/react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
@@ -53,6 +51,23 @@ interface AnswerFormat {
 // Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend);
 
+// Add new interface for edited answer visibility
+interface EditedQuestion extends Question {
+    hiddenAnswers?: boolean[];
+}
+
+// Update the truncateText function
+const truncateText = (text: string, maxLength: number = 50) => {
+    // First remove any HTML tags
+    const cleanText = text.replace(/<[^>]+>/g, '');
+    if (cleanText.length <= maxLength) return cleanText;
+    // Find the last space before maxLength to avoid cutting words in the middle
+    const lastSpace = cleanText.substring(0, maxLength).lastIndexOf(' ');
+    // If no space found, just cut at maxLength
+    const truncateAt = lastSpace > 0 ? lastSpace : maxLength;
+    return cleanText.substring(0, truncateAt) + '...';
+};
+
 const CreateTest = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
@@ -84,6 +99,14 @@ const CreateTest = () => {
         case: 'uppercase',
         separator: ')',
     });
+
+    // Update state type
+    const [editedQuestions, setEditedQuestions] = useState<{ [key: number]: EditedQuestion }>({});
+    const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: boolean[] }>({});
+
+    // Add these new state variables at the top with other state declarations
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const subjectLOs: SubjectLOs = {
         'DSA': [
@@ -135,22 +158,20 @@ const CreateTest = () => {
         }
     };
 
-    // Combine all questions from all banks into one array
     useEffect(() => {
         const allQuestions = questionBanks.flatMap(bank => bank.questions);
         setFilteredQuestions(allQuestions);
     }, [questionBanks]);
 
-    // Filter questions based on search query and selected topics
     useEffect(() => {
         const allQuestions = questionBanks.flatMap(bank => bank.questions);
         const filtered = allQuestions.filter(question => {
             const matchesSearch = question.question_text.toLowerCase()
                 .includes(searchQuery.toLowerCase());
             const matchesLevels = selectedLevels.length === 0 ||
-                selectedLevels.some(level => 
-                    question.taxonomies?.some(tax => 
-                        tax.taxonomy.name === "Bloom's Taxonomy" && 
+                selectedLevels.some(level =>
+                    question.taxonomies?.some(tax =>
+                        tax.taxonomy.name === "Bloom's Taxonomy" &&
                         tax.level === level
                     )
                 );
@@ -176,13 +197,6 @@ const CreateTest = () => {
         } else {
             setSelectedQuestions(prev => [...prev, question]);
         }
-    };
-
-    const handleDescriptionChange = (content: string) => {
-        setTestData(prev => ({
-            ...prev,
-            description: content
-        }));
     };
 
     const handleShuffle = () => {
@@ -222,7 +236,6 @@ const CreateTest = () => {
             sections: [{
                 properties: {},
                 children: [
-                    // Title
                     new Paragraph({
                         children: [
                             new TextRun({
@@ -236,7 +249,6 @@ const CreateTest = () => {
                         },
                     }),
 
-                    // Description (if exists)
                     ...(testData.description ? [
                         new Paragraph({
                             children: [
@@ -250,7 +262,6 @@ const CreateTest = () => {
                         }),
                     ] : []),
 
-                    // Questions and Answers
                     ...selectedQuestions.flatMap((question, index) => [
                         // Question text
                         new Paragraph({
@@ -269,7 +280,6 @@ const CreateTest = () => {
                             },
                         }),
 
-                        // Answers
                         ...(question.answers?.map((answer, ansIndex) =>
                             new Paragraph({
                                 children: [
@@ -284,12 +294,12 @@ const CreateTest = () => {
                                         new TextRun({
                                             text: ' ✓',
                                             bold: true,
-                                            color: '008000', // Green color for correct answers
+                                            color: '008000',
                                         }),
                                     ] : []),
                                 ],
                                 indent: {
-                                    left: 720, // 0.5 inch indent
+                                    left: 720,
                                 },
                                 spacing: {
                                     before: 100,
@@ -298,7 +308,6 @@ const CreateTest = () => {
                             })
                         ) || []),
 
-                        // Add a blank line after each question
                         new Paragraph({
                             spacing: {
                                 after: 200,
@@ -309,7 +318,6 @@ const CreateTest = () => {
             }],
         });
 
-        // Generate and save the document
         try {
             const blob = await Packer.toBlob(doc);
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -317,74 +325,6 @@ const CreateTest = () => {
         } catch (err) {
             console.error('Error generating document:', err);
             setError('Failed to generate document');
-        }
-    };
-
-    const exportToPDF = async () => {
-        if (!testData.title || selectedQuestions.length === 0) {
-            setError('Please add a title and select questions before exporting');
-            return;
-        }
-
-        try {
-            // Create a temporary div to render the content
-            const content = document.createElement('div');
-            content.innerHTML = `
-                <div style="padding: 20px; font-family: Arial, sans-serif;">
-                    <h1 style="font-size: 24px; margin-bottom: 20px;">${testData.title}</h1>
-                    ${testData.description ? `<div style="margin-bottom: 20px;">${testData.description}</div>` : ''}
-                    ${selectedQuestions.map((question, index) => `
-                        <div style="margin-bottom: 20px;">
-                            <div style="margin-bottom: 10px;">
-                                <strong>Question ${index + 1}:</strong> ${question.question_text}
-                            </div>
-                            ${question.answers?.map((answer, ansIndex) => `
-                                <div style="margin-left: 20px; margin-bottom: 5px;">
-                                    ${String.fromCharCode(65 + ansIndex)}) ${answer.answer_text}
-                                    ${answer.is_correct ? ' ✓' : ''}
-                                </div>
-                            `).join('')}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-            document.body.appendChild(content);
-
-            // Convert to PDF
-            const pdf = new jsPDF('p', 'pt', 'a4');
-            const canvas = await html2canvas(content, {
-                scale: 2,
-                useCORS: true,
-                logging: false
-            });
-
-            // Remove the temporary element
-            document.body.removeChild(content);
-
-            const imgData = canvas.toDataURL('image/png');
-            const imgWidth = 595.28; // A4 width in points
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            let heightLeft = imgHeight;
-            let position = 0;
-
-            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= 841.89; // A4 height in points
-
-            // Add new pages if content overflows
-            while (heightLeft >= 0) {
-                position = heightLeft - imgHeight;
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                heightLeft -= 841.89;
-            }
-
-            // Save the PDF
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            pdf.save(`${testData.title.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.pdf`);
-
-        } catch (err) {
-            console.error('Error generating PDF:', err);
-            setError('Failed to generate PDF');
         }
     };
 
@@ -397,27 +337,119 @@ const CreateTest = () => {
         setIsQuestionDialogOpen(true);
     };
 
-    // Add this helper function at the top of your component
     const sanitizeHtml = (html: string) => {
         return html.replace(/<\/?[^>]+(>|$)/g, '');
     };
 
-    // Add this helper function to calculate L.O. statistics
-    const calculateLOStats = (questions: Question[], selectedTopics: string[]) => {
-        const stats = selectedTopics.reduce((acc, topic) => {
-            acc[topic] = 0;
+    const calculateLOStats = (questions: Question[], selectedLOs: string[]) => {
+        const stats = selectedLOs.reduce((acc, lo) => {
+            acc[lo] = 0;
             return acc;
         }, {} as Record<string, number>);
 
         questions.forEach(question => {
-            // You'll need to add L.O. information to your questions
-            // This is just an example - adjust according to your data structure
             if (question.learningObjective) {
                 stats[question.learningObjective]++;
             }
         });
 
         return stats;
+    };
+
+    const toggleAnswer = (questionId: number, answerIndex: number) => {
+        setSelectedAnswers(prev => ({
+            ...prev,
+            [questionId]: prev[questionId]?.map((selected, idx) =>
+                idx === answerIndex ? !selected : selected
+            ) || []
+        }));
+    };
+
+    const handleSaveChanges = async (overwrite: boolean) => {
+        if (!selectedQuestionDetail) return;
+
+        const selectedAnswersList = selectedAnswers[selectedQuestionDetail.id] || [];
+
+        const updatedQuestion = {
+            ...selectedQuestionDetail,
+            hiddenAnswers: selectedAnswersList.map(selected => !selected)
+        };
+
+        if (overwrite) {
+            try {
+                console.log('Updating question in bank:', updatedQuestion);
+            } catch (error) {
+                console.error('Failed to update question in bank:', error);
+                return;
+            }
+        }
+
+        setEditedQuestions(prev => ({
+            ...prev,
+            [updatedQuestion.id]: updatedQuestion
+        }));
+
+        setSelectedQuestions(prev =>
+            prev.map(q => q.id === updatedQuestion.id ? updatedQuestion : q)
+        );
+
+        setIsQuestionDialogOpen(false);
+    };
+
+    useEffect(() => {
+        if (selectedQuestionDetail) {
+            const existingQuestion = editedQuestions[selectedQuestionDetail.id];
+            const initialAnswerStates = selectedQuestionDetail.answers?.map(() => true) || [];
+            if (existingQuestion?.hiddenAnswers) {
+                existingQuestion.hiddenAnswers.forEach((isHidden, index) => {
+                    if (isHidden) {
+                        initialAnswerStates[index] = false;
+                    }
+                });
+            }
+
+            setSelectedAnswers(prev => ({
+                ...prev,
+                [selectedQuestionDetail.id]: initialAnswerStates
+            }));
+        }
+    }, [selectedQuestionDetail, editedQuestions]);
+
+    // Add helper function to check if a question is in the test
+    const isQuestionInTest = (questionId: number) => {
+        return selectedQuestions.some(q => q.id === questionId);
+    };
+
+    // Add shuffle answers function
+    const shuffleAnswers = (questionId: number) => {
+        if (!selectedQuestionDetail?.answers) return;
+
+        // Create a copy of the current answers array
+        const currentAnswers = [...selectedQuestionDetail.answers];
+        const currentSelected = selectedAnswers[questionId] || currentAnswers.map(() => true);
+
+        // Create array of indices and shuffle them
+        const indices = currentAnswers.map((_, index) => index);
+        for (let i = indices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [indices[i], indices[j]] = [indices[j], indices[i]];
+        }
+
+        // Reorder answers and selected states based on shuffled indices
+        const shuffledAnswers = indices.map(i => currentAnswers[i]);
+        const shuffledSelected = indices.map(i => currentSelected[i]);
+
+        // Update the question with shuffled answers
+        setSelectedQuestionDetail({
+            ...selectedQuestionDetail,
+            answers: shuffledAnswers
+        });
+
+        // Update selected answers state
+        setSelectedAnswers(prev => ({
+            ...prev,
+            [questionId]: shuffledSelected
+        }));
     };
 
     return (
@@ -541,24 +573,58 @@ const CreateTest = () => {
                                     </h3>
                                 </div>
                                 <div className="flex gap-4 items-center">
-                                    <div className="flex items-center gap-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Search questions..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
-                                        />
-                                        <div className="relative">
-                                            <button
-                                                onClick={() => setShowBloomsLevels(!showBloomsLevels)}
-                                                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
+                                    <input
+                                        type="text"
+                                        placeholder="Search questions..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
+                                    />
+                                    <button
+                                        onClick={handleShuffle}
+                                        className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
+                                    >
+                                        Shuffle Questions
+                                    </button>
+                                    <div className="relative">
+                                        <button
+                                            onClick={() => setShowBloomsLevels(!showBloomsLevels)}
+                                            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
+                                        >
+                                            <span>Bloom's Levels</span>
+                                            <svg
+                                                className={`w-4 h-4 transform transition-transform duration-200 ${showBloomsLevels ? 'rotate-180' : ''}`}
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
                                             >
-                                                <span>Bloom's Levels</span>
-                                                <svg className={`w-4 h-4 transform ${showBloomsLevels ? 'rotate-180' : ''}`} /* ... */ />
-                                            </button>
-                                            {/* Existing Bloom's dropdown content */}
-                                        </div>
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth="2"
+                                                    d="M19 9l-7 7-7-7"
+                                                />
+                                            </svg>
+                                        </button>
+
+                                        {showBloomsLevels && (
+                                            <div className="absolute top-full right-0 mt-2 w-80 bg-[#C0C0C0] dark:bg-boxdark rounded-sm shadow-lg z-50 p-4">
+                                                <div className="flex flex-wrap gap-2">
+                                                    {bloomsLevels.map(level => (
+                                                        <button
+                                                            key={level}
+                                                            onClick={() => toggleLevel(level)}
+                                                            className={`px-3 py-1 rounded-full text-sm ${selectedLevels.includes(level)
+                                                                ? 'bg-primary text-white'
+                                                                : 'bg-white dark:bg-meta-4 hover:bg-gray-100 dark:hover:bg-meta-3'
+                                                                }`}
+                                                        >
+                                                            {level}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="relative">
                                         <select
@@ -606,38 +672,54 @@ const CreateTest = () => {
                                     Questions in Test
                                 </h4>
                                 <div className="space-y-4">
-                                    {selectedQuestions.map((question, index) => (
-                                        <div
-                                            key={question.id}
-                                            className="p-4 border rounded-sm dark:border-strokedark"
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex gap-4">
-                                                    <span className="text-gray-500">{index + 1}.</span>
-                                                    <div className="flex-1">
-                                                        <div
-                                                            className="cursor-pointer hover:text-primary"
-                                                            onClick={() => handleQuestionClick(question)}
-                                                            dangerouslySetInnerHTML={{ __html: question.question_text }}
-                                                        />
+                                    {selectedQuestions
+                                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                        .map((question, index) => {
+                                            const questionNumber = (currentPage - 1) * itemsPerPage + index + 1;
+                                            return (
+                                                <div
+                                                    key={question.id}
+                                                    className="p-4 border rounded-sm dark:border-strokedark"
+                                                >
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="flex gap-4">
+                                                            <span className="text-gray-500">{questionNumber}.</span>
+                                                            <div className="flex-1">
+                                                                <div
+                                                                    className="cursor-pointer hover:text-primary"
+                                                                    onClick={() => handleQuestionClick(question)}
+                                                                    dangerouslySetInnerHTML={{ __html: question.question_text }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-sm text-gray-500"></span>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    toggleQuestionSelection(question);
+                                                                }}
+                                                                className="text-danger hover:text-meta-1"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-sm text-gray-500"></span>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            toggleQuestionSelection(question);
-                                                        }}
-                                                        className="text-danger hover:text-meta-1"
-                                                    >
-                                                        Remove
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                            );
+                                        })}
                                 </div>
+
+                                <Pagination
+                                    totalItems={selectedQuestions.length}
+                                    itemsPerPage={itemsPerPage}
+                                    currentPage={currentPage}
+                                    onPageChange={(page) => setCurrentPage(page)}
+                                    onItemsPerPageChange={(items) => {
+                                        setItemsPerPage(items);
+                                        setCurrentPage(1);
+                                    }}
+                                />
                             </div>
                         )}
 
@@ -647,35 +729,52 @@ const CreateTest = () => {
                                 Available Questions
                             </h4>
                             <div className="space-y-4">
-                                {filteredQuestions.map(question => {
-                                    const isSelected = selectedQuestions.some(q => q.id === question.id);
-                                    if (isSelected) return null;
-                                    return (
-                                        <div
-                                            key={question.id}
-                                            className="p-4 border rounded-sm dark:border-strokedark"
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex-1">
-                                                    <span
-                                                        className="cursor-pointer hover:text-primary inline"
-                                                        onClick={() => handleQuestionClick(question)}
-                                                        dangerouslySetInnerHTML={{ __html: question.question_text }}
-                                                    />
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <button
-                                                        onClick={() => toggleQuestionSelection(question)}
-                                                        className="text-success hover:text-meta-3"
-                                                    >
-                                                        Add
-                                                    </button>
+                                {filteredQuestions
+                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                    .map((question, index) => {
+                                        const isSelected = selectedQuestions.some(q => q.id === question.id);
+                                        if (isSelected) return null;
+                                        const questionNumber = (currentPage - 1) * itemsPerPage + index + 1;
+                                        return (
+                                            <div
+                                                key={question.id}
+                                                className="p-4 border rounded-sm dark:border-strokedark"
+                                            >
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex-1">
+                                                        <span className="text-gray-500 mr-2">{questionNumber}.</span>
+                                                        <span
+                                                            className="cursor-pointer hover:text-primary inline"
+                                                            onClick={() => handleQuestionClick(question)}
+                                                            title={question.question_text.replace(/<[^>]+>/g, '')}
+                                                        >
+                                                            {truncateText(question.question_text)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <button
+                                                            onClick={() => toggleQuestionSelection(question)}
+                                                            className="text-success hover:text-meta-3"
+                                                        >
+                                                            Add
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
                             </div>
+
+                            <Pagination
+                                totalItems={filteredQuestions.filter(q => !selectedQuestions.some(sq => sq.id === q.id)).length}
+                                itemsPerPage={itemsPerPage}
+                                currentPage={currentPage}
+                                onPageChange={(page) => setCurrentPage(page)}
+                                onItemsPerPageChange={(items) => {
+                                    setItemsPerPage(items);
+                                    setCurrentPage(1); // Reset to first page when changing items per page
+                                }}
+                            />
                         </div>
 
                         {/* Question Bank Selection */}
@@ -975,11 +1074,34 @@ const CreateTest = () => {
             >
                 <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
-                <div className="fixed inset-0 flex items-center justify-end pr-[20%] p-4">
-                    <Dialog.Panel className="w-full max-w-2xl rounded-lg bg-white dark:bg-boxdark p-6">
-                        <h2 className="text-xl font-semibold mb-4 text-black dark:text-white">
-                            Question Details
-                        </h2>
+                <div className="fixed inset-0 flex items-center justify-end pr-[15%] p-4">
+                    <Dialog.Panel className="w-full max-w-3xl rounded-lg bg-white dark:bg-boxdark p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-semibold text-black dark:text-white">
+                                Question Details
+                            </h2>
+                            {isQuestionInTest(selectedQuestionDetail?.id || 0) && (
+                                <button
+                                    onClick={() => shuffleAnswers(selectedQuestionDetail?.id || 0)}
+                                    className="flex items-center gap-2 rounded bg-primary px-4 py-2 text-white hover:bg-opacity-90 transition-all duration-200"
+                                >
+                                    <svg
+                                        className="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth="2"
+                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                        />
+                                    </svg>
+                                    Shuffle Answers
+                                </button>
+                            )}
+                        </div>
 
                         {selectedQuestionDetail && (
                             <div className="space-y-4">
@@ -990,33 +1112,77 @@ const CreateTest = () => {
                                 <div className="mt-4">
                                     <h4 className="font-medium text-black dark:text-white mb-2">Answers:</h4>
                                     <div className="space-y-2">
-                                        {selectedQuestionDetail.answers?.map((answer, index) => (
-                                            <div
-                                                key={index}
-                                                className={`p-2 rounded ${answer.is_correct
-                                                    ? 'bg-meta-3/10 border border-meta-3'
-                                                    : 'bg-gray-100 dark:bg-meta-4'
-                                                    }`}
-                                            >
-                                                <div className="flex items-start gap-2">
-                                                    <span>{String.fromCharCode(65 + index)})</span>
-                                                    <div dangerouslySetInnerHTML={{ __html: answer.answer_text }} />
-                                                    {answer.is_correct && (
-                                                        <span className="text-meta-3 ml-2">✓</span>
-                                                    )}
+                                        {selectedQuestionDetail.answers?.map((answer, index) => {
+                                            const isSelected = selectedAnswers[selectedQuestionDetail.id]?.[index] || false;
+                                            const isHidden = editedQuestions[selectedQuestionDetail.id]?.hiddenAnswers?.[index];
+                                            return (
+                                                <div
+                                                    key={index}
+                                                    className={`p-2 rounded transition-all duration-200 ${isQuestionInTest(selectedQuestionDetail.id)
+                                                        ? `cursor-pointer ${isSelected
+                                                            ? answer.is_correct
+                                                                ? 'bg-meta-3/10 border border-meta-3'
+                                                                : 'bg-gray-100 dark:bg-meta-4'
+                                                            : 'bg-gray-50 dark:bg-meta-4/50'
+                                                        }`
+                                                        : answer.is_correct
+                                                            ? 'bg-meta-3/10 border border-meta-3'
+                                                            : 'bg-gray-100 dark:bg-meta-4'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-start gap-2">
+                                                        {isQuestionInTest(selectedQuestionDetail.id) && (
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={() => toggleAnswer(selectedQuestionDetail.id, index)}
+                                                                className="mt-1 cursor-pointer"
+                                                            />
+                                                        )}
+                                                        <div className={`flex-1 transition-all duration-200 ${!isSelected ? 'text-gray-400 font-normal' : 'text-black dark:text-white font-medium'}`}>
+                                                            <span>{String.fromCharCode(65 + index)})</span>
+                                                            <div className="inline-block ml-2" dangerouslySetInnerHTML={{ __html: answer.answer_text }} />
+                                                            {answer.is_correct && (
+                                                                <span className="text-meta-3 ml-2">✓</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
-                                <div className="mt-6 flex justify-end">
-                                    <button
-                                        onClick={() => setIsQuestionDialogOpen(false)}
-                                        className="rounded bg-primary px-6 py-2 text-white hover:bg-opacity-90"
-                                    >
-                                        Close
-                                    </button>
+                                <div className="mt-6 flex justify-end gap-4">
+                                    {isQuestionInTest(selectedQuestionDetail.id) ? (
+                                        <>
+                                            <button
+                                                onClick={() => setIsQuestionDialogOpen(false)}
+                                                className="rounded bg-danger px-6 py-2 text-white hover:bg-opacity-90"
+                                            >
+                                                Close
+                                            </button>
+                                            <button
+                                                onClick={() => handleSaveChanges(false)}
+                                                className="rounded bg-primary px-6 py-2 text-white hover:bg-opacity-90"
+                                            >
+                                                Save
+                                            </button>
+                                            <button
+                                                onClick={() => handleSaveChanges(true)}
+                                                className="rounded bg-success px-6 py-2 text-white hover:bg-opacity-90"
+                                            >
+                                                Save & Overwrite
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={() => setIsQuestionDialogOpen(false)}
+                                            className="rounded bg-primary px-6 py-2 text-white hover:bg-opacity-90"
+                                        >
+                                            Close
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )}
