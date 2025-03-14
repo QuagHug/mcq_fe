@@ -24,6 +24,15 @@ type SelectedTags = {
     bloom?: string;
 };
 
+// Add this interface at the top with other interfaces
+interface Bank {
+    id: string;
+    name: string;
+    subject: string;
+    parent_id?: string | null;
+    children?: Bank[];
+}
+
 const AddOneQues = () => {
     const navigate = useNavigate();
     const { courseId } = useParams();
@@ -69,7 +78,7 @@ const AddOneQues = () => {
     const [loading, setLoading] = useState(false);
     const [selectedBank, setSelectedBank] = useState('');
 
-    const [banks, setBanks] = useState<Array<{ id: string, name: string, subject: string }>>([]);
+    const [banks, setBanks] = useState<Bank[]>([]);
     const [courses, setCourses] = useState<Array<{ id: string, name: string }>>([]);
     const [selectedCourse, setSelectedCourse] = useState('');
 
@@ -491,13 +500,22 @@ const AddOneQues = () => {
                     <select
                         value={selectedBank}
                         onChange={(e) => setSelectedBank(e.target.value)}
-                        className="rounded border border-stroke bg-transparent py-2.5 px-3 font-medium outline-none"
-                        disabled={!selectedCourse}
+                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                     >
-                        <option value="">Choose Question Bank</option>
-                        {banks.map(bank => (
-                            <option key={bank.id} value={bank.id}>{bank.name}</option>
-                        ))}
+                        <option value="">Select Question Bank</option>
+                        {banks
+                            .filter(bank => !bank.parent_id) // Parent banks
+                            .map(bank => (
+                                <React.Fragment key={bank.id}>
+                                    <option value={bank.id}>{bank.name}</option>
+                                    {bank.children?.map(childBank => (
+                                        <option key={childBank.id} value={childBank.id}>
+                                            ↳ {childBank.name}
+                                        </option>
+                                    ))}
+                                </React.Fragment>
+                            ))
+                        }
                     </select>
                 </div>
             </div>

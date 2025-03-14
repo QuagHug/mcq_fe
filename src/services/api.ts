@@ -69,18 +69,23 @@ export const fetchQuestionBanks = async (courseId: string) => {
   return response.json();
 };
 
-export const createQuestionBank = async (courseId: string, bankData: { name: string }) => {
-  const token = await getValidToken();
-  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify(bankData)
-  });
-  if (!response.ok) throw new Error('Failed to create question bank');
-  return response.json();
+interface CreateBankParams {
+    name: string;
+    parent_id?: number | null;
+}
+
+export const createQuestionBank = async (courseId: string, params: CreateBankParams) => {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(params)
+    });
+    if (!response.ok) throw new Error('Failed to create question bank');
+    return response.json();
 };
 
 export const fetchQuestions = async (courseId: string, bankId: string) => {
@@ -290,4 +295,15 @@ export const createTest = async (courseId: string, testData: {
     });
     if (!response.ok) throw new Error('Failed to create test');
     return response.json();
+};
+
+export const fetchChildBanks = async (courseId: string, parentBankId: string) => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/?parent_id=${parentBankId}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  if (!response.ok) throw new Error('Failed to fetch child banks');
+  return response.json();
 }; 

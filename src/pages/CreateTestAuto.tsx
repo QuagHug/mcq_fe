@@ -6,6 +6,9 @@ import { fetchQuestionBanks, fetchCourses } from '../services/api';
 interface QuestionBank {
     id: number;
     name: string;
+    bank_id: string;
+    parent: number | null;
+    children: QuestionBank[];
     questions: any[];
 }
 
@@ -134,6 +137,19 @@ const CreateTestAuto: React.FC = () => {
             setQuestionBanks([]);
         }
     };
+
+    useEffect(() => {
+        const loadBanks = async () => {
+            if (!selectedCourse) return;
+            try {
+                const data = await fetchQuestionBanks(selectedCourse);
+                setQuestionBanks(data);
+            } catch (err) {
+                setError('Failed to load question banks');
+            }
+        };
+        loadBanks();
+    }, [selectedCourse]);
 
     return (
         <div className="mx-auto max-w-270">

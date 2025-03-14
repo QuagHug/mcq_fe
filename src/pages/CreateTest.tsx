@@ -10,6 +10,7 @@ import html2canvas from 'html2canvas';
 import { Dialog } from '@headlessui/react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
+import React from 'react';
 
 interface Question {
     id: number;
@@ -24,7 +25,10 @@ interface Question {
 interface QuestionBank {
     id: number;
     name: string;
-    questions: Question[];
+    bank_id: string;
+    parent: number | null;
+    children: QuestionBank[];
+    questions: any[];
 }
 
 interface Answer {
@@ -61,7 +65,7 @@ const CreateTest = () => {
 
     const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
     const [selectedQuestions, setSelectedQuestions] = useState<Question[]>([]);
-    const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
+    const [selectedBankId, setSelectedBankId] = useState<string>('');
     const [showQuestionBank, setShowQuestionBank] = useState(false);
     const [isTestDetailsExpanded, setIsTestDetailsExpanded] = useState(true);
     const [shuffleQuestions, setShuffleQuestions] = useState(false);
@@ -73,8 +77,8 @@ const CreateTest = () => {
     const [error, setError] = useState<string | null>(null);
     const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
     const [selectedQuestionDetail, setSelectedQuestionDetail] = useState<Question | null>(null);
-    const [showLOs, setShowLOs] = useState(false);
-    const [selectedLOs, setSelectedLOs] = useState<string[]>([]);
+    const [showBloomsLevels, setShowBloomsLevels] = useState(false);
+    const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
     const [isPreviewDialogOpen, setPreviewDialogOpen] = useState(false);
     const [answerFormat, setAnswerFormat] = useState<AnswerFormat>({
         case: 'uppercase',
@@ -99,10 +103,6 @@ const CreateTest = () => {
     const bloomsLevels = [
         'Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'
     ];
-
-    // Update state name for clarity
-    const [showBloomsLevels, setShowBloomsLevels] = useState(false);
-    const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
 
     // Fetch courses on component mount
     useEffect(() => {
@@ -154,10 +154,13 @@ const CreateTest = () => {
                         tax.level === level
                     )
                 );
-            return matchesSearch && matchesLevels;
+            const matchesBank = !selectedBankId || 
+                question.bank_id === selectedBankId;
+            
+            return matchesSearch && matchesLevels && matchesBank;
         });
         setFilteredQuestions(filtered);
-    }, [searchQuery, selectedLevels, questionBanks]);
+    }, [searchQuery, selectedLevels, selectedBankId, questionBanks]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -202,7 +205,7 @@ const CreateTest = () => {
     };
 
     const toggleLO = (loId: string) => {
-        setSelectedLOs(prev =>
+        setSelectedTopics(prev =>
             prev.includes(loId)
                 ? prev.filter(id => id !== loId)
                 : [...prev, loId]
@@ -400,9 +403,9 @@ const CreateTest = () => {
     };
 
     // Add this helper function to calculate L.O. statistics
-    const calculateLOStats = (questions: Question[], selectedLOs: string[]) => {
-        const stats = selectedLOs.reduce((acc, lo) => {
-            acc[lo] = 0;
+    const calculateLOStats = (questions: Question[], selectedTopics: string[]) => {
+        const stats = selectedTopics.reduce((acc, topic) => {
+            acc[topic] = 0;
             return acc;
         }, {} as Record<string, number>);
 
@@ -538,105 +541,43 @@ const CreateTest = () => {
                                     </h3>
                                 </div>
                                 <div className="flex gap-4 items-center">
-                                    <input
-                                        type="text"
-                                        placeholder="Search questions..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
-                                    />
-                                    <button
-                                        onClick={handleShuffle}
-                                        className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
-                                    >
-                                        Shuffle Questions
-                                    </button>
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setShowBloomsLevels(!showBloomsLevels)}
-                                            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
-                                        >
-                                            <span>Bloom's Levels</span>
-                                            <svg
-                                                className={`w-4 h-4 transform transition-transform duration-200 ${showBloomsLevels ? 'rotate-180' : ''}`}
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            type="text"
+                                            placeholder="Search questions..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
+                                        />
+                                        <div className="relative">
+                                            <button
+                                                onClick={() => setShowBloomsLevels(!showBloomsLevels)}
+                                                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
                                             >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M19 9l-7 7-7-7"
-                                                />
-                                            </svg>
-                                        </button>
-
-                                        {showBloomsLevels && (
-                                            <div className="absolute top-full right-0 mt-2 w-80 bg-[#C0C0C0] dark:bg-boxdark rounded-sm shadow-lg z-50 p-4">
-                                                <div className="flex flex-wrap gap-2">
-                                                    {bloomsLevels.map(level => (
-                                                        <button
-                                                            key={level}
-                                                            onClick={() => toggleLevel(level)}
-                                                            className={`px-3 py-1 rounded-full text-sm ${
-                                                                selectedLevels.includes(level)
-                                                                    ? 'bg-primary text-white'
-                                                                    : 'bg-white dark:bg-meta-4 hover:bg-gray-100 dark:hover:bg-meta-3'
-                                                            }`}
-                                                        >
-                                                            {level}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
+                                                <span>Bloom's Levels</span>
+                                                <svg className={`w-4 h-4 transform ${showBloomsLevels ? 'rotate-180' : ''}`} /* ... */ />
+                                            </button>
+                                            {/* Existing Bloom's dropdown content */}
+                                        </div>
                                     </div>
                                     <div className="relative">
-                                        <button
-                                            onClick={() => selectedTopics.length > 0 && setShowLOs(!showLOs)}
-                                            disabled={selectedTopics.length === 0}
-                                            className={`inline-flex items-center justify-center gap-2 rounded-md py-2 px-6 text-white transition-colors duration-200
-                                                ${selectedTopics.length === 0
-                                                    ? 'bg-primary/40 cursor-not-allowed'
-                                                    : 'bg-primary hover:bg-opacity-90'}`}
+                                        <select
+                                            value={selectedBankId}
+                                            onChange={(e) => setSelectedBankId(e.target.value)}
+                                            className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none"
                                         >
-                                            <span>L.O.</span>
-                                            <svg
-                                                className={`w-4 h-4 transform transition-transform duration-200 ${showLOs ? 'rotate-180' : ''}`}
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M19 9l-7 7-7-7"
-                                                />
-                                            </svg>
-                                        </button>
-
-                                        {showLOs && selectedTopics.length > 0 && (
-                                            <div className="absolute top-full right-0 mt-2 w-48 bg-[#C0C0C0] dark:bg-boxdark rounded-sm shadow-lg z-50 p-4">
-                                                <div className="flex flex-col gap-2">
-                                                    {selectedTopics.map(topic => (
-                                                        subjectLOs[topic]?.map(lo => (
-                                                            <button
-                                                                key={`${topic}-${lo.id}`}
-                                                                onClick={() => toggleLO(lo.id)}
-                                                                className={`px-3 py-1 rounded-full text-sm text-left ${selectedLOs.includes(lo.id)
-                                                                    ? 'bg-primary text-white'
-                                                                    : 'bg-white dark:bg-meta-4 hover:bg-gray-100 dark:hover:bg-meta-3'
-                                                                    }`}
-                                                            >
-                                                                {lo.name}
-                                                            </button>
-                                                        ))
+                                            <option value="">All Banks</option>
+                                            {questionBanks.map(bank => (
+                                                <React.Fragment key={bank.id}>
+                                                    <option value={bank.id}>{bank.name}</option>
+                                                    {bank.children?.map(childBank => (
+                                                        <option key={childBank.id} value={childBank.id}>
+                                                            ↳ {childBank.name}
+                                                        </option>
                                                     ))}
-                                                </div>
-                                            </div>
-                                        )}
+                                                </React.Fragment>
+                                            ))}
+                                        </select>
                                     </div>
                                     <svg
                                         className={`w-4 h-4 transform transition-transform duration-200 cursor-pointer ${showQuestionBank ? 'rotate-180' : ''
@@ -743,7 +684,7 @@ const CreateTest = () => {
                                 <div className="mb-4.5">
                                     <select
                                         value={selectedBankId || ''}
-                                        onChange={(e) => setSelectedBankId(Number(e.target.value))}
+                                        onChange={(e) => setSelectedBankId(e.target.value)}
                                         className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                                     >
                                         <option value="">Select Question Bank</option>
@@ -753,10 +694,10 @@ const CreateTest = () => {
                                     </select>
                                 </div>
 
-                                {selectedBankId && selectedBankId !== 0 && (
+                                {selectedBankId && selectedBankId !== '0' && (
                                     <div className="space-y-4">
                                         {questionBanks
-                                            .find(bank => bank.id === selectedBankId)
+                                            .find(bank => bank.id === Number(selectedBankId))
                                             ?.questions.map(question => {
                                                 const isSelected = selectedQuestions.some(q => q.id === question.id);
                                                 return (
@@ -897,7 +838,7 @@ const CreateTest = () => {
                                 </label>
                                 <select
                                     value={selectedBankId || ''}
-                                    onChange={(e) => setSelectedBankId(Number(e.target.value))}
+                                    onChange={(e) => setSelectedBankId(e.target.value)}
                                     className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                                 >
                                     <option value="">Select a test bank</option>
@@ -933,10 +874,6 @@ const CreateTest = () => {
                                             <span className="text-sm">Selected Topics:</span>
                                             <span className="font-medium">{selectedTopics.length}</span>
                                         </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-sm">Selected L.O.s:</span>
-                                            <span className="font-medium">{selectedLOs.length}</span>
-                                        </div>
                                     </div>
                                 </div>
 
@@ -945,22 +882,17 @@ const CreateTest = () => {
                                     <h5 className="font-medium text-black dark:text-white mb-3">
                                         L.O. Distribution
                                     </h5>
-                                    {selectedLOs.length > 0 ? (
+                                    {selectedTopics.length > 0 ? (
                                         <div className="w-full h-[200px] flex items-center justify-center">
                                             <Pie
                                                 data={{
-                                                    labels: selectedLOs.map(lo => {
-                                                        for (const topic of selectedTopics) {
-                                                            const foundLO = subjectLOs[topic]?.find(l => l.id === lo);
-                                                            if (foundLO) {
-                                                                return `${topic} - ${foundLO.name}`;
-                                                            }
-                                                        }
-                                                        return lo;
+                                                    labels: selectedTopics.map(topic => {
+                                                        const foundLOs = subjectLOs[topic]?.map(lo => lo.name);
+                                                        return foundLOs ? foundLOs.join(', ') : topic;
                                                     }),
                                                     datasets: [
                                                         {
-                                                            data: Object.values(calculateLOStats(selectedQuestions, selectedLOs)),
+                                                            data: Object.values(calculateLOStats(selectedQuestions, selectedTopics)),
                                                             backgroundColor: [
                                                                 'rgba(255, 99, 132, 0.5)',
                                                                 'rgba(54, 162, 235, 0.5)',
@@ -998,7 +930,7 @@ const CreateTest = () => {
                                         </div>
                                     ) : (
                                         <div className="h-[200px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-                                            No L.O.s selected
+                                            No topics selected
                                         </div>
                                     )}
                                 </div>

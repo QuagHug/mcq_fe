@@ -7,8 +7,8 @@ import React from 'react';
 interface QuestionBank {
     id: number;
     name: string;
-    bank_id: string;
-    parent: number | null;
+    description: string | null;
+    parent_id: number | null;
     children: QuestionBank[];
     question_count: number;
     last_modified: string;
@@ -31,6 +31,7 @@ const QuestionBanks = () => {
     // Add state for parent bank selection
     const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
 
+    // Add state for expanded banks
     const [expandedBanks, setExpandedBanks] = useState<number[]>([]);
 
     useEffect(() => {
@@ -54,8 +55,8 @@ const QuestionBanks = () => {
 
     // Add debug log for rendering
     console.log('Current question banks state:', questionBanks);
-    console.log('Parent banks:', questionBanks.filter(bank => bank.parent === null));
-    console.log('Child banks:', questionBanks.filter(bank => bank.parent !== null));
+    console.log('Parent banks:', questionBanks.filter(bank => bank.parent_id === null));
+    console.log('Child banks:', questionBanks.filter(bank => bank.parent_id !== null));
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [newBankName, setNewBankName] = useState('');
@@ -87,9 +88,11 @@ const QuestionBanks = () => {
 
         try {
             setLoading(true);
-            // Generate the full bank name with chapter number
             const fullBankName = generateBankName(newBankName);
-            const newBank = await createQuestionBank(courseId, { name: fullBankName });
+            const newBank = await createQuestionBank(courseId, { 
+                name: fullBankName,
+                parent_id: selectedParentId ? parseInt(selectedParentId) : null 
+            });
             setQuestionBanks(prev => [...prev, newBank]);
             setNewBankName('');
             setIsDialogOpen(false);
@@ -188,14 +191,13 @@ const QuestionBanks = () => {
                         <tbody>
                             {questionBanks.map((bank, index) => (
                                 <React.Fragment key={bank.id}>
-                                    {/* Parent Bank Row */}
                                     <tr>
                                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                                             {index + 1}
                                         </td>
                                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                                             <div className="flex items-center">
-                                                {bank.children.length > 0 && (
+                                                {bank.children?.length > 0 && (
                                                     <button
                                                         onClick={() => toggleExpand(bank.id)}
                                                         className="mr-2 p-1 hover:bg-gray-100 rounded-full dark:hover:bg-meta-4"
@@ -264,10 +266,11 @@ const QuestionBanks = () => {
                                         </td>
                                     </tr>
 
-                                    {/* Child Banks */}
-                                    {expandedBanks.includes(bank.id) && bank.children.map((childBank) => (
+                                    {expandedBanks.includes(bank.id) && bank.children?.map((childBank) => (
                                         <tr key={childBank.id} className="bg-gray-50 dark:bg-meta-4/30">
-                                            <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark"></td>
+                                            <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                                                {index + 1}
+                                            </td>
                                             <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                                                 <div className="flex items-center pl-8">
                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 mr-2" viewBox="0 0 20 20" fill="currentColor">
@@ -371,6 +374,26 @@ const QuestionBanks = () => {
                             className="w-full p-2 mb-4 border rounded dark:bg-boxdark dark:border-strokedark dark:text-white"
                             autoFocus
                         />
+                        <div className="mb-4.5">
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Parent Bank (Optional)
+                            </label>
+                            <select
+                                value={selectedParentId || ''}
+                                onChange={(e) => setSelectedParentId(e.target.value || null)}
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                            >
+                                <option value="">None (Top Level)</option>
+                                {questionBanks
+                                    .filter(bank => !bank.parent_id)
+                                    .map(bank => (
+                                        <option key={bank.id} value={bank.id}>
+                                            {bank.name}
+                                        </option>
+                                    ))
+                                }
+                            </select>
+                        </div>
                         <div className="flex justify-end space-x-3">
                             <button
                                 onClick={() => {
