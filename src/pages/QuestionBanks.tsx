@@ -61,10 +61,16 @@ const QuestionBanks = () => {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [newBankName, setNewBankName] = useState('');
 
-    const generateBankName = (baseName: string) => {
-        // Get the next chapter number from existing banks
-        const nextChapterNum = questionBanks.length + 1;
-        return `Chapter ${nextChapterNum}: ${baseName}`;
+    // Helper function to get all possible parent banks in a flat structure with level indication
+    const getFlattenedBanks = (banks: QuestionBank[], level: number = 0): { id: number; name: string; level: number }[] => {
+        let flattened: { id: number; name: string; level: number }[] = [];
+        banks.forEach(bank => {
+            flattened.push({ id: bank.id, name: bank.name, level });
+            if (bank.children?.length) {
+                flattened = flattened.concat(getFlattenedBanks(bank.children, level + 1));
+            }
+        });
+        return flattened;
     };
 
     const handleChapterClick = (chapterId: string, chapterName: string) => {
@@ -88,13 +94,42 @@ const QuestionBanks = () => {
 
         try {
             setLoading(true);
-            const fullBankName = generateBankName(newBankName);
             const newBank = await createQuestionBank(courseId, { 
-                name: fullBankName,
+                name: newBankName.trim(),
                 parent_id: selectedParentId ? parseInt(selectedParentId) : null 
             });
-            setQuestionBanks(prev => [...prev, newBank]);
+
+            // Update the question banks state to include the new bank
+            setQuestionBanks(prev => {
+                if (!selectedParentId) {
+                    // Add to top level if no parent selected
+                    return [...prev, newBank];
+                }
+                
+                // Helper function to recursively update the banks
+                const updateBanks = (banks: QuestionBank[]): QuestionBank[] => {
+                    return banks.map(bank => {
+                        if (bank.id.toString() === selectedParentId) {
+                            return {
+                                ...bank,
+                                children: [...(bank.children || []), newBank]
+                            };
+                        }
+                        if (bank.children?.length) {
+                            return {
+                                ...bank,
+                                children: updateBanks(bank.children)
+                            };
+                        }
+                        return bank;
+                    });
+                };
+
+                return updateBanks(prev);
+            });
+
             setNewBankName('');
+            setSelectedParentId(null);
             setIsDialogOpen(false);
         } catch (err) {
             setError('Failed to create question bank');
@@ -126,6 +161,93 @@ const QuestionBanks = () => {
             prev.includes(bankId) 
                 ? prev.filter(id => id !== bankId)
                 : [...prev, bankId]
+        );
+    };
+
+    // Modify the rendering of banks to handle recursive nesting
+    const renderBankRow = (bank: QuestionBank, index: number, level: number = 0) => {
+        return (
+            <React.Fragment key={bank.id}>
+                <tr className={level > 0 ? 'bg-gray-50 dark:bg-meta-4/30' : ''}>
+                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        {level === 0 ? index + 1 : ''}
+                    </td>
+                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        <div className="flex items-center" style={{ paddingLeft: `${level * 24}px` }}>
+                            {bank.children?.length > 0 ? (
+                                <button
+                                    onClick={() => toggleExpand(bank.id)}
+                                    className="mr-2 p-1 hover:bg-gray-100 rounded-full dark:hover:bg-meta-4"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className={`h-4 w-4 transition-transform ${
+                                            expandedBanks.includes(bank.id) ? 'rotate-90' : ''
+                                        }`}
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M9 5l7 7-7 7"
+                                        />
+                                    </svg>
+                                </button>
+                            ) : (
+                                <div className="w-8"></div>
+                            )}
+                            <Link
+                                to={`/courses/${courseId}/question-banks/${bank.id}`}
+                                state={{
+                                    courseName: courseName,
+                                    chapterName: bank.name
+                                }}
+                                className="text-black dark:text-white hover:text-primary"
+                            >
+                                {bank.name}
+                            </Link>
+                        </div>
+                    </td>
+                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        <div className="inline-flex items-center justify-center rounded-full bg-meta-3 bg-opacity-10 py-1 px-3 text-sm font-medium text-meta-3">
+                            {bank.question_count} Questions
+                        </div>
+                    </td>
+                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        {new Date(bank.last_modified).toLocaleDateString()}
+                    </td>
+                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                        <div className="flex items-center space-x-3.5">
+                            <button className="hover:text-primary">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                </svg>
+                            </button>
+                            <button
+                                className="hover:text-danger"
+                                onClick={() => handleDeleteClick(bank.id, bank.name)}
+                            >
+                                <svg
+                                    className="fill-current"
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 18 18"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <path d="M13.7535 2.47502H11.5879V1.9969C11.5879 1.15315 10.9129 0.478149 10.0691 0.478149H7.90352C7.05977 0.478149 6.38477 1.15315 6.38477 1.9969V2.47502H4.21914C3.40352 2.47502 2.72852 3.15002 2.72852 3.96565V4.8094C2.72852 5.42815 3.09414 5.9344 3.62852 6.1594L4.07852 15.4688C4.13477 16.6219 5.09102 17.5219 6.24414 17.5219H11.7004C12.8535 17.5219 13.8098 16.6219 13.866 15.4688L14.3441 6.13127C14.8785 5.90627 15.2441 5.3719 15.2441 4.78127V3.93752C15.2441 3.15002 14.5691 2.47502 13.7535 2.47502ZM7.67852 1.9969C7.67852 1.85627 7.79102 1.74377 7.93164 1.74377H10.0973C10.2379 1.74377 10.3504 1.85627 10.3504 1.9969V2.47502H7.70664V1.9969H7.67852ZM4.02227 3.96565C4.02227 3.85315 4.10664 3.74065 4.24727 3.74065H13.7535C13.866 3.74065 13.9785 3.82502 13.9785 3.96565V4.8094C13.9785 4.9219 13.8941 5.0344 13.7535 5.0344H4.24727C4.13477 5.0344 4.02227 4.95002 4.02227 4.8094V3.96565ZM11.7285 16.2563H6.27227C5.79414 16.2563 5.40039 15.8906 5.37227 15.3844L4.95039 6.2719H13.0785L12.6566 15.3844C12.6004 15.8625 12.2066 16.2563 11.7285 16.2563Z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {expandedBanks.includes(bank.id) && bank.children?.map((childBank, childIndex) => 
+                    renderBankRow(childBank, childIndex, level + 1)
+                )}
+            </React.Fragment>
         );
     };
 
@@ -189,141 +311,9 @@ const QuestionBanks = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {questionBanks.map((bank, index) => (
-                                <React.Fragment key={bank.id}>
-                                    <tr>
-                                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                            {index + 1}
-                                        </td>
-                                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                            <div className="flex items-center">
-                                                {bank.children?.length > 0 && (
-                                                    <button
-                                                        onClick={() => toggleExpand(bank.id)}
-                                                        className="mr-2 p-1 hover:bg-gray-100 rounded-full dark:hover:bg-meta-4"
-                                                    >
-                                                        <svg
-                                                            xmlns="http://www.w3.org/2000/svg"
-                                                            className={`h-4 w-4 transition-transform ${
-                                                                expandedBanks.includes(bank.id) ? 'rotate-90' : ''
-                                                            }`}
-                                                            fill="none"
-                                                            viewBox="0 0 24 24"
-                                                            stroke="currentColor"
-                                                        >
-                                                            <path
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                strokeWidth={2}
-                                                                d="M9 5l7 7-7 7"
-                                                            />
-                                                        </svg>
-                                                    </button>
-                                                )}
-                                                <Link
-                                                    to={`/courses/${courseId}/question-banks/${bank.id}`}
-                                                    state={{
-                                                        courseName: courseName,
-                                                        chapterName: bank.name
-                                                    }}
-                                                    className="text-black dark:text-white hover:text-primary"
-                                                >
-                                                    {bank.name}
-                                                </Link>
-                                            </div>
-                                        </td>
-                                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                            <div className="inline-flex items-center justify-center rounded-full bg-meta-3 bg-opacity-10 py-1 px-3 text-sm font-medium text-meta-3">
-                                                {bank.question_count} Questions
-                                            </div>
-                                        </td>
-                                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                            {new Date(bank.last_modified).toLocaleDateString()}
-                                        </td>
-                                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                            <div className="flex items-center space-x-3.5">
-                                                <button className="hover:text-primary">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    className="hover:text-danger"
-                                                    onClick={() => handleDeleteClick(bank.id, bank.name)}
-                                                >
-                                                    <svg
-                                                        className="fill-current"
-                                                        width="18"
-                                                        height="18"
-                                                        viewBox="0 0 18 18"
-                                                        fill="none"
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                    >
-                                                        <path d="M13.7535 2.47502H11.5879V1.9969C11.5879 1.15315 10.9129 0.478149 10.0691 0.478149H7.90352C7.05977 0.478149 6.38477 1.15315 6.38477 1.9969V2.47502H4.21914C3.40352 2.47502 2.72852 3.15002 2.72852 3.96565V4.8094C2.72852 5.42815 3.09414 5.9344 3.62852 6.1594L4.07852 15.4688C4.13477 16.6219 5.09102 17.5219 6.24414 17.5219H11.7004C12.8535 17.5219 13.8098 16.6219 13.866 15.4688L14.3441 6.13127C14.8785 5.90627 15.2441 5.3719 15.2441 4.78127V3.93752C15.2441 3.15002 14.5691 2.47502 13.7535 2.47502ZM7.67852 1.9969C7.67852 1.85627 7.79102 1.74377 7.93164 1.74377H10.0973C10.2379 1.74377 10.3504 1.85627 10.3504 1.9969V2.47502H7.70664V1.9969H7.67852ZM4.02227 3.96565C4.02227 3.85315 4.10664 3.74065 4.24727 3.74065H13.7535C13.866 3.74065 13.9785 3.82502 13.9785 3.96565V4.8094C13.9785 4.9219 13.8941 5.0344 13.7535 5.0344H4.24727C4.13477 5.0344 4.02227 4.95002 4.02227 4.8094V3.96565ZM11.7285 16.2563H6.27227C5.79414 16.2563 5.40039 15.8906 5.37227 15.3844L4.95039 6.2719H13.0785L12.6566 15.3844C12.6004 15.8625 12.2066 16.2563 11.7285 16.2563Z" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-
-                                    {expandedBanks.includes(bank.id) && bank.children?.map((childBank) => (
-                                        <tr key={childBank.id} className="bg-gray-50 dark:bg-meta-4/30">
-                                            <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                                {index + 1}
-                                            </td>
-                                            <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                                <div className="flex items-center pl-8">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                                    </svg>
-                                                    <Link
-                                                        to={`/courses/${courseId}/question-banks/${childBank.id}`}
-                                                        state={{
-                                                            courseName: courseName,
-                                                            chapterName: childBank.name
-                                                        }}
-                                                        className="text-black dark:text-white hover:text-primary"
-                                                    >
-                                                        {childBank.name}
-                                                    </Link>
-                                                </div>
-                                            </td>
-                                            <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                                <div className="inline-flex items-center justify-center rounded-full bg-meta-3 bg-opacity-10 py-1 px-3 text-sm font-medium text-meta-3">
-                                                    {childBank.question_count} Questions
-                                                </div>
-                                            </td>
-                                            <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                                {new Date(childBank.last_modified).toLocaleDateString()}
-                                            </td>
-                                            <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                                                <div className="flex items-center space-x-3.5">
-                                                    <button className="hover:text-primary">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        className="hover:text-danger"
-                                                        onClick={() => handleDeleteClick(childBank.id, childBank.name)}
-                                                    >
-                                                        <svg
-                                                            className="fill-current"
-                                                            width="18"
-                                                            height="18"
-                                                            viewBox="0 0 18 18"
-                                                            fill="none"
-                                                            xmlns="http://www.w3.org/2000/svg"
-                                                        >
-                                                            <path d="M13.7535 2.47502H11.5879V1.9969C11.5879 1.15315 10.9129 0.478149 10.0691 0.478149H7.90352C7.05977 0.478149 6.38477 1.15315 6.38477 1.9969V2.47502H4.21914C3.40352 2.47502 2.72852 3.15002 2.72852 3.96565V4.8094C2.72852 5.42815 3.09414 5.9344 3.62852 6.1594L4.07852 15.4688C4.13477 16.6219 5.09102 17.5219 6.24414 17.5219H11.7004C12.8535 17.5219 13.8098 16.6219 13.866 15.4688L14.3441 6.13127C14.8785 5.90627 15.2441 5.3719 15.2441 4.78127V3.93752C15.2441 3.15002 14.5691 2.47502 13.7535 2.47502ZM7.67852 1.9969C7.67852 1.85627 7.79102 1.74377 7.93164 1.74377H10.0973C10.2379 1.74377 10.3504 1.85627 10.3504 1.9969V2.47502H7.70664V1.9969H7.67852ZM4.02227 3.96565C4.02227 3.85315 4.10664 3.74065 4.24727 3.74065H13.7535C13.866 3.74065 13.9785 3.82502 13.9785 3.96565V4.8094C13.9785 4.9219 13.8941 5.0344 13.7535 5.0344H4.24727C4.13477 5.0344 4.02227 4.95002 4.02227 4.8094V3.96565ZM11.7285 16.2563H6.27227C5.79414 16.2563 5.40039 15.8906 5.37227 15.3844L4.95039 6.2719H13.0785L12.6566 15.3844C12.6004 15.8625 12.2066 16.2563 11.7285 16.2563Z" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </React.Fragment>
-                            ))}
+                            {questionBanks
+                                .filter(bank => !bank.parent_id) // Only render top-level banks
+                                .map((bank, index) => renderBankRow(bank, index))}
                         </tbody>
                     </table>
                 </div>
@@ -366,14 +356,20 @@ const QuestionBanks = () => {
                         <h3 className="text-lg font-semibold mb-4 text-black dark:text-white">
                             Create New Question Bank
                         </h3>
-                        <input
-                            type="text"
-                            value={newBankName}
-                            onChange={(e) => setNewBankName(e.target.value)}
-                            placeholder="Enter question bank name"
-                            className="w-full p-2 mb-4 border rounded dark:bg-boxdark dark:border-strokedark dark:text-white"
-                            autoFocus
-                        />
+                        <div className="mb-4.5">
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Bank Name
+                            </label>
+                            <input
+                                type="text"
+                                value={newBankName}
+                                onChange={(e) => setNewBankName(e.target.value)}
+                                placeholder="Enter question bank name"
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                autoFocus
+                            />
+                        </div>
+
                         <div className="mb-4.5">
                             <label className="mb-2.5 block text-black dark:text-white">
                                 Parent Bank (Optional)
@@ -384,29 +380,32 @@ const QuestionBanks = () => {
                                 className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                             >
                                 <option value="">None (Top Level)</option>
-                                {questionBanks
-                                    .filter(bank => !bank.parent_id)
-                                    .map(bank => (
-                                        <option key={bank.id} value={bank.id}>
-                                            {bank.name}
-                                        </option>
-                                    ))
-                                }
+                                {getFlattenedBanks(questionBanks).map(bank => (
+                                    <option key={bank.id} value={bank.id}>
+                                        {'\u00A0'.repeat(bank.level * 4)}{bank.name}
+                                    </option>
+                                ))}
                             </select>
                         </div>
+
                         <div className="flex justify-end space-x-3">
                             <button
                                 onClick={() => {
                                     setIsDialogOpen(false);
                                     setNewBankName('');
+                                    setSelectedParentId(null);
                                 }}
-                                className="px-4 py-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                className="rounded border border-stroke py-2 px-6 text-base font-medium text-black hover:border-primary hover:bg-primary/5 dark:border-strokedark dark:text-white dark:hover:border-primary"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleCreateBank}
-                                className="px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90"
+                                disabled={!newBankName.trim()}
+                                className={`rounded py-2 px-6 text-base font-medium text-white transition
+                                    ${!newBankName.trim() 
+                                        ? 'bg-gray-400 cursor-not-allowed' 
+                                        : 'bg-primary hover:bg-opacity-90'}`}
                             >
                                 Create
                             </button>
