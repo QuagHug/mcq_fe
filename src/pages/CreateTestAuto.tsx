@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
-import { Editor } from '@tinymce/tinymce-react';
-import { fetchQuestionBanks, fetchCourses } from '../services/api';
 
 interface QuestionBank {
     id: number;
@@ -21,6 +19,11 @@ interface TestData {
     description: string;
     combinations: TestCombination[];
     topics?: string[];
+}
+
+interface Chapter {
+    id: number;
+    name: string;
 }
 
 const CreateTestAuto: React.FC = () => {
@@ -44,10 +47,46 @@ const CreateTestAuto: React.FC = () => {
     const [showTopics, setShowTopics] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [subjects, setSubjects] = useState<Array<{ id: string, name: string }>>([]);
+    const [selectedSubject, setSelectedSubject] = useState('');
+    const [chapters, setChapters] = useState<Chapter[]>([]);
+    const [selectedChapter, setSelectedChapter] = useState<string>('');
 
     const topics = [
         'PPL', 'DSA', 'Discrete Math', 'Dynamic Programming', 'Math'
     ];
+
+    // Mock data for subjects and chapters
+    const mockSubjects = [
+        { id: "1", name: "Mathematics" },
+        { id: "2", name: "Physics" },
+        { id: "3", name: "Computer Science" },
+        { id: "4", name: "Chemistry" }
+    ];
+
+    const mockChaptersMap: Record<string, Chapter[]> = {
+        "1": [ // Mathematics chapters
+            { id: 1, name: "Algebra" },
+            { id: 2, name: "Calculus" },
+            { id: 3, name: "Geometry" },
+            { id: 4, name: "Statistics" }
+        ],
+        "2": [ // Physics chapters
+            { id: 5, name: "Mechanics" },
+            { id: 6, name: "Thermodynamics" },
+            { id: 7, name: "Electromagnetism" }
+        ],
+        "3": [ // Computer Science chapters
+            { id: 8, name: "Programming Basics" },
+            { id: 9, name: "Data Structures & Algorithms" },
+            { id: 10, name: "PPL" }
+        ],
+        "4": [ // Chemistry chapters
+            { id: 11, name: "Organic Chemistry" },
+            { id: 12, name: "Inorganic Chemistry" },
+            { id: 13, name: "Physical Chemistry" }
+        ]
+    };
 
     const toggleTopic = (topic: string) => {
         setTestData(prev => ({
@@ -108,8 +147,14 @@ const CreateTestAuto: React.FC = () => {
     useEffect(() => {
         const loadCourses = async () => {
             try {
-                const coursesData = await fetchCourses();
-                setCourses(coursesData);
+                const mockCoursesData = [
+                    { id: "1", name: "Introduction to Programming" },
+                    { id: "2", name: "Data Structures and Algorithms" },
+                    { id: "3", name: "Web Development" },
+                    { id: "4", name: "Machine Learning" },
+                    { id: "5", name: "Database Systems" }
+                ];
+                setCourses(mockCoursesData);
             } catch (err) {
                 setError('Failed to load courses');
             }
@@ -117,23 +162,25 @@ const CreateTestAuto: React.FC = () => {
         loadCourses();
     }, []);
 
-    // Handle course selection and fetch question banks
-    const handleCourseChange = async (courseId: string) => {
-        setSelectedCourse(courseId);
-        if (courseId) {
-            try {
-                setLoading(true);
-                const data = await fetchQuestionBanks(courseId);
-                setQuestionBanks(data);
-            } catch (err) {
-                setError('Failed to load question banks');
-            } finally {
-                setLoading(false);
-            }
+    // Set initial subjects when component mounts
+    useEffect(() => {
+        setSubjects(mockSubjects);
+    }, []);
+
+    // Modified handleSubjectChange to use mock data
+    const handleSubjectChange = (subjectId: string) => {
+        setSelectedSubject(subjectId);
+        setSelectedChapter(''); // Reset chapter selection when subject changes
+
+        if (subjectId) {
+            setChapters(mockChaptersMap[subjectId] || []);
         } else {
-            setQuestionBanks([]);
+            setChapters([]);
         }
     };
+
+    // Check if form is valid (both subject and chapter are selected)
+    const isFormValid = selectedSubject && selectedChapter;
 
     return (
         <div className="mx-auto max-w-270">
@@ -328,34 +375,52 @@ const CreateTestAuto: React.FC = () => {
 
                     {/* Course and Test Bank Selection */}
                     <div className="mt-6 space-y-4">
-                        {loading && <div>Loading question banks...</div>}
-                        {error && <div className="text-danger">{error}</div>}
-
                         <div>
                             <label className="mb-2.5 block text-black dark:text-white">
-                                Add to Test Bank
+                                Select Subject
                             </label>
                             <select
-                                value={selectedBankId || ''}
-                                onChange={(e) => setSelectedBankId(Number(e.target.value))}
+                                value={selectedSubject}
+                                onChange={(e) => handleSubjectChange(e.target.value)}
                                 className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                                disabled={!selectedCourse}
                             >
-                                <option value="">Select a test bank</option>
-                                {questionBanks.map(bank => (
-                                    <option key={bank.id} value={bank.id}>{bank.name}</option>
+                                <option value="">Select a subject</option>
+                                {mockSubjects.map(subject => (
+                                    <option key={subject.id} value={subject.id}>{subject.name}</option>
                                 ))}
                             </select>
                         </div>
+
+                        {selectedSubject && (
+                            <div>
+                                <label className="mb-2.5 block text-black dark:text-white">
+                                    Select Chapter
+                                </label>
+                                <select
+                                    value={selectedChapter}
+                                    onChange={(e) => setSelectedChapter(e.target.value)}
+                                    className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                >
+                                    <option value="">Select a chapter</option>
+                                    {chapters.map(chapter => (
+                                        <option key={chapter.id} value={chapter.id}>{chapter.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* Generate Test Button */}
+            {/* Update the Save button to be disabled when form is invalid */}
             <div className="mt-6">
                 <button
                     onClick={handleSubmit}
-                    className="flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90"
+                    disabled={!isFormValid}
+                    className={`flex w-full justify-center rounded p-3 font-medium text-gray ${isFormValid
+                        ? 'bg-primary hover:bg-opacity-90'
+                        : 'bg-gray-400 cursor-not-allowed'
+                        }`}
                 >
                     Save
                 </button>
