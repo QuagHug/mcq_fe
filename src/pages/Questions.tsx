@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { fetchQuestions, deleteQuestion, bulkCreateQuestions, fetchChildBanks, fetchQuestionBanks } from '../services/api';
+import { fetchQuestions, deleteQuestion, bulkCreateQuestions, fetchChildBanks, fetchQuestionBanks, createQuestionBank } from '../services/api';
 import { saveAs } from 'file-saver';
 
 interface Question {
@@ -57,6 +57,8 @@ const Questions = () => {
     const [questionToDelete, setQuestionToDelete] = useState<{ id: number; text: string } | null>(null);
     const [childBanks, setChildBanks] = useState<Bank[]>([]);
     const [parentBank, setParentBank] = useState<Bank | null>(null);
+    const [isCreateBankModalOpen, setIsCreateBankModalOpen] = useState(false);
+    const [newBankName, setNewBankName] = useState('');
 
     const loadQuestions = async () => {
         if (!courseId || !chapterId) return;
@@ -93,23 +95,39 @@ const Questions = () => {
         const loadParentBank = async () => {
             if (!courseId || !chapterId) return;
             try {
+                // Fetch all banks to get the complete tree structure
                 const banks = await fetchQuestionBanks(courseId);
-                // First check if current bank is a top-level bank
-                const isTopLevel = banks.some((b: { id: number }) => b.id.toString() === chapterId);
-                if (isTopLevel) {
-                    setParentBank(null);
-                    return;
-                }
                 
-                // If not top-level, find its parent
-                for (const bank of banks) {
-                    if (bank.children) {
-                        const child = bank.children.find((c: { id: number }) => c.id.toString() === chapterId);
-                        if (child) {
-                            setParentBank(bank);
-                            break;
+                // Find the root bank that contains our current bank in its tree
+                const findRootBank = (bankList: Bank[]): Bank | null => {
+                    // First check if any bank in this level contains our target
+                    for (const bank of bankList) {
+                        if (bank.id.toString() === chapterId || 
+                            (bank.children && findBankInTree(bank.children, chapterId))) {
+                            return bank;
                         }
                     }
+                    return null;
+                };
+
+                // Helper function to check if a bank exists in a tree
+                const findBankInTree = (bankList: Bank[], targetId: string): boolean => {
+                    return bankList.some(bank => 
+                        bank.id.toString() === targetId || 
+                        (bank.children && findBankInTree(bank.children, targetId))
+                    );
+                };
+
+                // Find the root bank that contains our current bank
+                const rootBank = findRootBank(banks);
+                
+                if (rootBank) {
+                    // If we found the bank in the tree, set it as the parent
+                    setParentBank(rootBank);
+                } else {
+                    // If we didn't find it (might be a new bank), set the current bank as root
+                    const currentBank = banks.find(b => b.id.toString() === chapterId);
+                    setParentBank(currentBank || null);
                 }
             } catch (err) {
                 console.error('Failed to fetch parent bank:', err);
@@ -290,6 +308,29 @@ const Questions = () => {
         );
     };
 
+    // Add function to handle bank creation
+    const handleCreateBank = async () => {
+        if (!newBankName.trim() || !courseId || !chapterId) {
+            return;
+        }
+
+        try {
+            const newBank = await createQuestionBank(courseId, {
+                name: newBankName.trim(),
+                parent_id: Number(chapterId)
+            });
+
+            // Update the child banks state
+            setChildBanks(prev => [...prev, newBank]);
+            
+            // Reset form and close modal
+            setNewBankName('');
+            setIsCreateBankModalOpen(false);
+        } catch (err) {
+            setError('Failed to create question bank');
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -299,6 +340,13 @@ const Questions = () => {
                     </h2>
 
                     <div className="flex items-center gap-4">
+                        {/* Add Create Bank button */}
+                        <button
+                            onClick={() => setIsCreateBankModalOpen(true)}
+                            className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
+                        >
+                            Create Bank
+                        </button>
                         <button
                             onClick={handleExport}
                             className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
@@ -505,8 +553,53 @@ const Questions = () => {
                     </div>
                 </div>
             )}
+
+            {/* Add Create Bank Modal */}
+            {isCreateBankModalOpen && (
+                <div className="fixed inset-0 z-999999 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black bg-opacity-50">
+                    <div className="w-full max-w-md rounded-sm border border-stroke bg-white p-6 shadow-default dark:border-strokedark dark:bg-boxdark">
+                        <h3 className="mb-4 text-xl font-semibold text-black dark:text-white">
+                            Create New Question Bank
+                        </h3>
+                        <div className="mb-4">
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Bank Name
+                            </label>
+                            <input
+                                type="text"
+                                value={newBankName}
+                                onChange={(e) => setNewBankName(e.target.value)}
+                                placeholder="Enter bank name"
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex justify-end gap-4">
+                            <button
+                                className="rounded border border-stroke py-2 px-6 text-base font-medium text-black hover:border-primary hover:bg-primary/5 dark:border-strokedark dark:text-white"
+                                onClick={() => {
+                                    setIsCreateBankModalOpen(false);
+                                    setNewBankName('');
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCreateBank}
+                                disabled={!newBankName.trim()}
+                                className={`rounded py-2 px-6 text-base font-medium text-white transition
+                                    ${!newBankName.trim() 
+                                        ? 'bg-gray-400 cursor-not-allowed' 
+                                        : 'bg-primary hover:bg-opacity-90'}`}
+                            >
+                                Create
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
-export default Questions; 
+export default Questions;

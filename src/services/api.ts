@@ -133,11 +133,12 @@ export const editQuestion = async (courseId: string, bankId: string, questionId:
 
 export const deleteQuestionBank = async (courseId: string, bankId: string) => {
   try {
+    const token = await getValidToken();
     const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${document.cookie.split('token=')[1]}`
+        'Authorization': `Bearer ${token}`
       },
     });
 
