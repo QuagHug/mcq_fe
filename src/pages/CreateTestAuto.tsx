@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
+import { fetchQuestionBanks } from '../services/api';
 
 interface QuestionBank {
     id: number;
@@ -178,6 +179,18 @@ const CreateTestAuto: React.FC = () => {
             } finally {
                 setLoading(false);
             }
+        } else {
+            setChapters([]);
+        }
+    };
+
+    // Add this function to handle subject changes
+    const handleSubjectChange = (subjectId: string) => {
+        setSelectedSubject(subjectId);
+        setSelectedChapter(''); // Reset chapter selection when subject changes
+
+        if (subjectId) {
+            setChapters(mockChaptersMap[subjectId] || []);
         } else {
             setChapters([]);
         }
