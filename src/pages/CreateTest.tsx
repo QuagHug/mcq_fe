@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import Pagination from '../components/Pagination';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { fetchQuestionBanks, fetchCourses } from '../services/api';
+import { fetchQuestionBanks, fetchCourses, createTest, fetchCourseTests } from '../services/api';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { Dialog } from '@headlessui/react';
@@ -14,6 +14,7 @@ interface Question {
     id: number;
     question_text: string;
     marks: number;
+    bank_id: string;
     selected?: boolean;
     answers?: { answer_text: string; is_correct: boolean }[];
     taxonomies?: { taxonomy: { name: string }; level: string }[];
@@ -157,15 +158,17 @@ const CreateTest = () => {
         loadCourses();
     }, []);
 
-    // Handle course selection and fetch question banks
+    // Update the course selection handler
     const handleCourseChange = async (courseId: string) => {
         setSelectedCourse(courseId);
         if (courseId) {
             try {
                 setLoading(true);
-                const data = await fetchQuestionBanks(courseId);
-                setQuestionBanks(data);
+                // Only fetch question banks
+                const banksData = await fetchQuestionBanks(courseId);
+                setQuestionBanks(banksData);
             } catch (err) {
+                console.error('Failed to load data:', err);
                 setError('Failed to load question banks');
             } finally {
                 setLoading(false);
@@ -176,15 +179,24 @@ const CreateTest = () => {
     };
 
     useEffect(() => {
-        const allQuestions = questionBanks.flatMap(bank => bank.questions);
-        setFilteredQuestions(allQuestions);
-    }, [questionBanks]);
+        const allQuestions = questionBanks.flatMap(bank => {
+            const getQuestionsFromBank = (bank: QuestionBank): Question[] => {
+                const bankQuestions = bank.questions?.map(q => ({
+                    ...q,
+                    bank_id: bank.id.toString() // Ensure each question has its bank_id
+                })) || [];
+                const childQuestions = bank.children?.flatMap(child =>
+                    getQuestionsFromBank(child)
+                ) || [];
+                return [...bankQuestions, ...childQuestions];
+            };
+            return getQuestionsFromBank(bank);
+        });
 
-    useEffect(() => {
-        const allQuestions = questionBanks.flatMap(bank => bank.questions);
         const filtered = allQuestions.filter(question => {
             const matchesSearch = question.question_text.toLowerCase()
                 .includes(searchQuery.toLowerCase());
+
             const matchesLevels = selectedLevels.length === 0 ||
                 selectedLevels.some(level =>
                     question.taxonomies?.some((tax: { taxonomy: { name: string }; level: string }) =>
@@ -192,11 +204,45 @@ const CreateTest = () => {
                         tax.level === level
                     )
                 );
-            const matchesBank = !selectedBankId ||
-                question.bank_id === selectedBankId;
+
+            // Check if question belongs to selected bank or its children
+            const matchesBank = !selectedBankId || (() => {
+                // If no bank is selected, show all questions
+                if (!selectedBankId) return true;
+
+                // Find the selected bank in the tree
+                const findBank = (banks: QuestionBank[]): QuestionBank | null => {
+                    for (const bank of banks) {
+                        if (bank.id.toString() === selectedBankId) return bank;
+                        if (bank.children) {
+                            const found = findBank(bank.children);
+                            if (found) return found;
+                        }
+                    }
+                    return null;
+                };
+
+                const selectedBank = findBank(questionBanks);
+                if (!selectedBank) return false;
+
+                // Get all bank IDs that should be included (selected bank and its children)
+                const getAllBankIds = (bank: QuestionBank): string[] => {
+                    const ids = [bank.id.toString()];
+                    if (bank.children) {
+                        bank.children.forEach(child => {
+                            ids.push(...getAllBankIds(child));
+                        });
+                    }
+                    return ids;
+                };
+
+                const validBankIds = getAllBankIds(selectedBank);
+                return validBankIds.includes(question.bank_id);
+            })();
 
             return matchesSearch && matchesLevels && matchesBank;
         });
+
         setFilteredQuestions(filtered);
     }, [searchQuery, selectedLevels, selectedBankId, questionBanks]);
 
@@ -456,6 +502,78 @@ const CreateTest = () => {
         }));
     };
 
+    // Add a recursive function to render bank options
+    const renderBankOptions = (banks: QuestionBank[], level: number = 0) => {
+        return banks.map(bank => (
+            <React.Fragment key={bank.id}>
+                <option value={bank.id}>
+                    {level > 0 ? '  '.repeat(level) + '↳ ' : ''}{bank.name}
+                </option>
+                {bank.children && bank.children.length > 0 && renderBankOptions(bank.children, level + 1)}
+            </React.Fragment>
+        ));
+    };
+
+    // Update the filtering logic to handle any depth of nesting
+    const findQuestionInBank = (bank: QuestionBank, questionBankId: string): boolean => {
+        if (bank.id.toString() === questionBankId) return true;
+        if (bank.children) {
+            return bank.children.some(child => findQuestionInBank(child, questionBankId));
+        }
+        return false;
+    };
+
+    const getAllQuestionsFromBank = (bank: QuestionBank): any[] => {
+        const bankQuestions = bank.questions || [];
+        const childQuestions = bank.children?.flatMap(child => getAllQuestionsFromBank(child)) || [];
+        return [...bankQuestions, ...childQuestions];
+    };
+
+    const filterQuestions = () => {
+        const allQuestions = questionBanks.flatMap(bank => getAllQuestionsFromBank(bank));
+
+        return allQuestions.filter(question => {
+            const matchesSearch = question.question_text.toLowerCase()
+                .includes(searchQuery.toLowerCase());
+            const matchesBank = !selectedBankId ||
+                question.bank_id === selectedBankId ||
+                questionBanks.some(bank => findQuestionInBank(bank, selectedBankId));
+            return matchesSearch && matchesBank;
+        });
+    };
+
+    const handleCreateTest = async () => {
+        if (!testData.title || selectedQuestions.length === 0 || !selectedCourse) {
+            console.log('Validation failed:', {
+                hasTitle: !!testData.title,
+                hasQuestions: selectedQuestions.length > 0,
+                hasSelectedCourse: !!selectedCourse
+            });
+            return;
+        }
+
+        try {
+            console.log('Making API call with data:', {
+                title: testData.title,
+                question_ids: selectedQuestions.map(q => q.id)
+            });
+
+            setLoading(true);
+            const response = await createTest(selectedCourse, {
+                title: testData.title,
+                question_ids: selectedQuestions.map(q => q.id)
+            });
+
+            console.log('API response:', response);
+            navigate(`/courses/${selectedCourse}/tests`);
+        } catch (error) {
+            console.error('Failed to create test:', error);
+            setError('Failed to create test. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="mx-auto max-w-270">
             <Breadcrumb
@@ -542,7 +660,7 @@ const CreateTest = () => {
                     </div>
 
                     {/* Question Selection Block */}
-                    <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+                    <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark">
                         <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
                             <div className="flex justify-between items-center">
                                 <div>
@@ -615,16 +733,7 @@ const CreateTest = () => {
                                             className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none"
                                         >
                                             <option value="">All Banks</option>
-                                            {questionBanks.map(bank => (
-                                                <React.Fragment key={bank.id}>
-                                                    <option value={bank.id}>{bank.name}</option>
-                                                    {bank.children?.map(childBank => (
-                                                        <option key={childBank.id} value={childBank.id}>
-                                                            ↳ {childBank.name}
-                                                        </option>
-                                                    ))}
-                                                </React.Fragment>
-                                            ))}
+                                            {renderBankOptions(questionBanks)}
                                         </select>
                                     </div>
                                     <svg
@@ -910,36 +1019,15 @@ const CreateTest = () => {
                                     </h4>
                                 </div>
 
-                                {/* Preview Sample with Blur Effect */}
-                                <div className="space-y-4 relative min-h-[200px]">
-                                    {/* First two questions shown clearly */}
-                                    {(shuffleQuestions ? [...selectedQuestions].sort(() => Math.random() - 0.5) : selectedQuestions)
-                                        .slice(0, 2).map((question, index) => (
-                                            <div key={index} className="space-y-2">
-                                                <div className="font-medium">
-                                                    Question {index + 1}: {sanitizeHtml(question.question_text)}
-                                                </div>
-                                                <div className="pl-4 space-y-1">
-                                                    {question.answers?.map((answer, ansIndex) => (
-                                                        <div key={ansIndex}>
-                                                            {answerFormat.case === 'uppercase'
-                                                                ? String.fromCharCode(65 + ansIndex)
-                                                                : String.fromCharCode(97 + ansIndex)}
-                                                            {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-
-                                    {/* Third question with blur effect */}
-                                    {selectedQuestions.length > 2 && (
-                                        <div className="space-y-2 blur-[2px] opacity-60">
+                                {/* Preview Sample */}
+                                <div className="space-y-4">
+                                    {selectedQuestions.slice(0, 2).map((question, index) => (
+                                        <div key={index} className="space-y-2">
                                             <div className="font-medium">
-                                                Question 3: {sanitizeHtml(selectedQuestions[2].question_text)}
+                                                Question {index + 1}: {sanitizeHtml(question.question_text)}
                                             </div>
                                             <div className="pl-4 space-y-1">
-                                                {selectedQuestions[2].answers?.map((answer, ansIndex) => (
+                                                {question.answers?.map((answer, ansIndex) => (
                                                     <div key={ansIndex}>
                                                         {answerFormat.case === 'uppercase'
                                                             ? String.fromCharCode(65 + ansIndex)
@@ -949,42 +1037,9 @@ const CreateTest = () => {
                                                 ))}
                                             </div>
                                         </div>
-                                    )}
-
-                                    {/* Gradient overlay for additional blur effect */}
-                                    {selectedQuestions.length > 2 && (
-                                        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white dark:from-boxdark to-transparent" />
-                                    )}
+                                    ))}
                                 </div>
-
-                                {/* More button positioned at bottom left */}
-                                {selectedQuestions.length > 2 && (
-                                    <div className="absolute bottom-4 left-6">
-                                        <button
-                                            onClick={() => setPreviewDialogOpen(true)}
-                                            className="text-sm text-primary hover:text-opacity-80 transition-colors duration-200 flex items-center gap-2"
-                                        >
-                                            View full preview
-                                            <svg
-                                                className="w-4 h-4"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M17 8l4 4m0 0l-4 4m4-4H3"
-                                                />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                )}
                             </div>
-
-                            {/* Test Bank Selection */}
-
                         </div>
                     </div>
 
@@ -1086,11 +1141,13 @@ const CreateTest = () => {
                         </button>
 
                         <button
+                            type="button"
                             onClick={() => {
                                 console.log('Save button clicked');
+                                handleCreateTest();
                             }}
-                            className="flex w-full justify-center rounded bg-primary p-3 font-medium text-gray hover:bg-opacity-90"
-                            disabled={selectedQuestions.length === 0}
+                            className="inline-flex items-center justify-center rounded-md bg-primary py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10"
+                            disabled={!testData.title || selectedQuestions.length === 0 || !selectedCourse}
                         >
                             Save
                         </button>

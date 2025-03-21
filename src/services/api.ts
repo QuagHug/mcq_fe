@@ -280,21 +280,28 @@ interface Question {
     marks: number;
 }
 
-export const createTest = async (courseId: string, testData: {
+interface CreateTestRequest {
     title: string;
-    description: string;
-    questions: Question[];
-}) => {
+    question_ids: number[];
+}
+
+export const createTest = async (courseId: string, data: CreateTestRequest) => {
     const token = await getValidToken();
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/`, {
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/create/`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(testData)
+        body: JSON.stringify(data)
     });
-    if (!response.ok) throw new Error('Failed to create test');
+    
+    if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Create test error:', errorData);
+        throw new Error('Failed to create test');
+    }
+    
     return response.json();
 };
 
@@ -307,4 +314,15 @@ export const fetchChildBanks = async (courseId: string, parentBankId: string) =>
   });
   if (!response.ok) throw new Error('Failed to fetch child banks');
   return response.json();
+};
+
+export const fetchCourseTests = async (courseId: string) => {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    if (!response.ok) throw new Error('Failed to fetch course tests');
+    return response.json();
 }; 

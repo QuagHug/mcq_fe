@@ -1,7 +1,7 @@
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
-import { fetchQuestionBanks, deleteQuestionBank, createQuestionBank } from '../services/api';
+import { fetchQuestionBanks, deleteQuestionBank, createQuestionBank, fetchCourseTests } from '../services/api';
 import React from 'react';
 
 interface QuestionBank {
@@ -34,23 +34,31 @@ const QuestionBanks = () => {
     // Add state for expanded banks
     const [expandedBanks, setExpandedBanks] = useState<number[]>([]);
 
+    // Add this state at the top with other states
+    const [courseTests, setCourseTests] = useState<any[]>([]);
+
     useEffect(() => {
-        const loadQuestionBanks = async () => {
+        const loadData = async () => {
             if (!courseId) return;
             try {
-                const data = await fetchQuestionBanks(courseId);
-                console.log('Raw data:', data);
-                setQuestionBanks(data);
-                setTotalPages(Math.ceil(data.length / 10));
+                const [banksData, testsData] = await Promise.all([
+                    fetchQuestionBanks(courseId),
+                    fetchCourseTests(courseId)
+                ]);
+                console.log('Raw banks data:', banksData);
+                console.log('Raw tests data:', testsData);
+                setQuestionBanks(banksData);
+                setCourseTests(testsData);
+                setTotalPages(Math.ceil(banksData.length / 10));
             } catch (err) {
-                console.error('Error loading question banks:', err);
-                setError('Failed to load question banks');
+                console.error('Error loading data:', err);
+                setError('Failed to load data');
             } finally {
                 setLoading(false);
             }
         };
 
-        loadQuestionBanks();
+        loadData();
     }, [courseId]);
 
     // Add debug log for rendering
@@ -314,6 +322,96 @@ const QuestionBanks = () => {
                             {questionBanks
                                 .filter(bank => !bank.parent_id) // Only render top-level banks
                                 .map((bank, index) => renderBankRow(bank, index))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Add this section after your question banks table */}
+            {/* Add this right before the pagination component */}
+            <div className="mt-4 rounded-sm border border-stroke bg-white px-5 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
+                <h3 className="mb-4 text-xl font-semibold text-black dark:text-white">
+                    Course Tests
+                </h3>
+                <div className="max-w-full overflow-x-auto">
+                    <table className="w-full table-auto">
+                        <thead>
+                            <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                                <th className="min-w-[70px] py-4 px-4 font-medium text-black dark:text-white">
+                                    No.
+                                </th>
+                                <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                                    Test Name
+                                </th>
+                                <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
+                                    Questions
+                                </th>
+                                <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
+                                    Created At
+                                </th>
+                                <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {courseTests.map((test, index) => (
+                                <tr key={test.id}>
+                                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                                        {index + 1}
+                                    </td>
+                                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                                        <Link
+                                            to={`/tests/${test.id}`}
+                                            className="text-black dark:text-white hover:text-primary"
+                                        >
+                                            {test.title}
+                                        </Link>
+                                    </td>
+                                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                                        <div className="inline-flex items-center justify-center rounded-full bg-meta-3 bg-opacity-10 py-1 px-3 text-sm font-medium text-meta-3">
+                                            {test.question_count || test.questions?.length || 0} Questions
+                                        </div>
+                                    </td>
+                                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                                        {new Date(test.created_at).toLocaleDateString()}
+                                    </td>
+                                    <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                                        <div className="flex items-center space-x-3.5">
+                                            <Link
+                                                to={`/tests/${test.id}`}
+                                                className="hover:text-primary"
+                                            >
+                                                <svg
+                                                    className="fill-current"
+                                                    width="18"
+                                                    height="18"
+                                                    viewBox="0 0 18 18"
+                                                    fill="none"
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                >
+                                                    <path
+                                                        d="M8.99981 14.8219C3.43106 14.8219 0.674805 9.50624 0.562305 9.28124C0.47793 9.11249 0.47793 8.88749 0.562305 8.71874C0.674805 8.49374 3.43106 3.17812 8.99981 3.17812C14.5686 3.17812 17.3248 8.49374 17.4373 8.71874C17.5217 8.88749 17.5217 9.11249 17.4373 9.28124C17.3248 9.50624 14.5686 14.8219 8.99981 14.8219ZM1.85605 8.99999C2.4748 10.0406 4.89356 13.5562 8.99981 13.5562C13.1061 13.5562 15.5248 10.0406 16.1436 8.99999C15.5248 7.95936 13.1061 4.44374 8.99981 4.44374C4.89356 4.44374 2.4748 7.95936 1.85605 8.99999Z"
+                                                        fill=""
+                                                    />
+                                                    <path
+                                                        d="M9 11.3906C7.67812 11.3906 6.60938 10.3219 6.60938 9C6.60938 7.67813 7.67812 6.60938 9 6.60938C10.3219 6.60938 11.3906 7.67813 11.3906 9C11.3906 10.3219 10.3219 11.3906 9 11.3906ZM9 7.875C8.38125 7.875 7.875 8.38125 7.875 9C7.875 9.61875 8.38125 10.125 9 10.125C9.61875 10.125 10.125 9.61875 10.125 9C10.125 8.38125 9.61875 7.875 9 7.875Z"
+                                                        fill=""
+                                                    />
+                                                </svg>
+                                            </Link>
+                                            <Link
+                                                to={`/tests/${test.id}/results`}
+                                                className="hover:text-primary"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+                                                </svg>
+                                            </Link>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
