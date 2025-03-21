@@ -108,6 +108,23 @@ const CreateTest = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
+    // Add new state for including answer key
+    const [includeKey, setIncludeKey] = useState(false);
+    const [shuffleAnswers, setShuffleAnswers] = useState(false);
+
+    // Add subject handling
+    const [selectedSubject, setSelectedSubject] = useState('');
+    const mockSubjects = [
+        { id: "1", name: "Mathematics" },
+        { id: "2", name: "Physics" },
+        { id: "3", name: "Computer Science" },
+        { id: "4", name: "Chemistry" }
+    ];
+
+    const handleSubjectChange = (subjectId: string) => {
+        setSelectedSubject(subjectId);
+    };
+
     const subjectLOs: SubjectLOs = {
         'DSA': [
             { id: 'lo1', name: 'L.O.1' },
@@ -170,14 +187,14 @@ const CreateTest = () => {
                 .includes(searchQuery.toLowerCase());
             const matchesLevels = selectedLevels.length === 0 ||
                 selectedLevels.some(level =>
-                    question.taxonomies?.some(tax =>
+                    question.taxonomies?.some((tax: { taxonomy: { name: string }; level: string }) =>
                         tax.taxonomy.name === "Bloom's Taxonomy" &&
                         tax.level === level
                     )
                 );
-            const matchesBank = !selectedBankId || 
+            const matchesBank = !selectedBankId ||
                 question.bank_id === selectedBankId;
-            
+
             return matchesSearch && matchesLevels && matchesBank;
         });
         setFilteredQuestions(filtered);
@@ -200,14 +217,7 @@ const CreateTest = () => {
     };
 
     const handleShuffle = () => {
-        setSelectedQuestions(prevQuestions => {
-            const shuffled = [...prevQuestions];
-            for (let i = shuffled.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-            }
-            return shuffled;
-        });
+        setShuffleQuestions(!shuffleQuestions);
     };
 
     const toggleLevel = (level: string) => {
@@ -226,11 +236,22 @@ const CreateTest = () => {
         );
     };
 
+    // Add new function to shuffle answers for all questions
+    const handleShuffleAnswers = () => {
+        setShuffleAnswers(!shuffleAnswers);
+    };
+
+    // Modify the exportToWord function to handle answer key
     const exportToWord = async () => {
         if (!testData.title || selectedQuestions.length === 0) {
             setError('Please add a title and select questions before exporting');
             return;
         }
+
+        // Prepare questions array - shuffle if needed
+        const questionsToExport = shuffleQuestions
+            ? [...selectedQuestions].sort(() => Math.random() - 0.5)
+            : selectedQuestions;
 
         const doc = new Document({
             sections: [{
@@ -244,9 +265,7 @@ const CreateTest = () => {
                                 size: 32,
                             }),
                         ],
-                        spacing: {
-                            after: 400,
-                        },
+                        spacing: { after: 400 },
                     }),
 
                     ...(testData.description ? [
@@ -256,64 +275,49 @@ const CreateTest = () => {
                                     text: testData.description.replace(/<[^>]+>/g, ''),
                                 }),
                             ],
-                            spacing: {
-                                after: 400,
-                            },
+                            spacing: { after: 400 },
                         }),
                     ] : []),
 
-                    ...selectedQuestions.flatMap((question, index) => [
-                        // Question text
-                        new Paragraph({
-                            children: [
-                                new TextRun({
-                                    text: `Question ${index + 1}: `,
-                                    bold: true,
-                                }),
-                                new TextRun({
-                                    text: question.question_text.replace(/<[^>]+>/g, ''),
-                                }),
-                            ],
-                            spacing: {
-                                before: 400,
-                                after: 200,
-                            },
-                        }),
+                    ...questionsToExport.flatMap((question, index) => {
+                        // For each question, prepare its answers - shuffle if needed
+                        const questionAnswers = shuffleAnswers
+                            ? [...(question.answers || [])].sort(() => Math.random() - 0.5)
+                            : question.answers || [];
 
-                        ...(question.answers?.map((answer, ansIndex) =>
+                        return [
+                            // Question text
                             new Paragraph({
                                 children: [
                                     new TextRun({
-                                        text: `${String.fromCharCode(65 + ansIndex)}) `,
+                                        text: `Question ${index + 1}: `,
                                         bold: true,
                                     }),
                                     new TextRun({
-                                        text: answer.answer_text.replace(/<[^>]+>/g, ''),
+                                        text: question.question_text.replace(/<[^>]+>/g, ''),
                                     }),
-                                    ...(answer.is_correct ? [
-                                        new TextRun({
-                                            text: ' ✓',
-                                            bold: true,
-                                            color: '008000',
-                                        }),
-                                    ] : []),
                                 ],
-                                indent: {
-                                    left: 720,
-                                },
-                                spacing: {
-                                    before: 100,
-                                    after: 100,
-                                },
-                            })
-                        ) || []),
+                                spacing: { before: 400, after: 200 },
+                            }),
 
-                        new Paragraph({
-                            spacing: {
-                                after: 200,
-                            },
-                        }),
-                    ]),
+                            // Answers
+                            ...questionAnswers.map((answer, ansIndex) =>
+                                new Paragraph({
+                                    children: [
+                                        new TextRun({
+                                            text: `${String.fromCharCode(65 + ansIndex)}) `,
+                                            bold: true,
+                                        }),
+                                        new TextRun({
+                                            text: answer.answer_text.replace(/<[^>]+>/g, ''),
+                                        }),
+                                    ],
+                                    indent: { left: 720 },
+                                    spacing: { before: 100, after: 100 },
+                                })
+                            ),
+                        ];
+                    }),
                 ],
             }],
         });
@@ -421,7 +425,7 @@ const CreateTest = () => {
     };
 
     // Add shuffle answers function
-    const shuffleAnswers = (questionId: number) => {
+    const shuffleQuestionAnswers = (questionId: number) => {
         if (!selectedQuestionDetail?.answers) return;
 
         // Create a copy of the current answers array
@@ -487,12 +491,12 @@ const CreateTest = () => {
                             className="border-b border-stroke px-6.5 py-4 dark:border-strokedark cursor-pointer flex justify-between items-center"
                             onClick={() => setIsTestDetailsExpanded(!isTestDetailsExpanded)}
                         >
-                            <h3 className="font-medium text-black dark:text-white">
+                            <h3 className="font-medium text-black dark:text-white flex items-center gap-1">
                                 Test Details
+                                <span className="text-danger text-lg">*</span>
                             </h3>
                             <svg
-                                className={`w-4 h-4 transform transition-transform duration-200 ${isTestDetailsExpanded ? 'rotate-180' : ''
-                                    }`}
+                                className={`w-4 h-4 transform transition-transform duration-200 ${isTestDetailsExpanded ? 'rotate-180' : ''}`}
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -518,46 +522,20 @@ const CreateTest = () => {
                                         required
                                     />
                                 </div>
+                                <div className="mb-4.5">
+                                    <select
+                                        value={selectedSubject}
+                                        onChange={(e) => handleSubjectChange(e.target.value)}
+                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                    >
+                                        <option value="">Select a subject</option>
+                                        {mockSubjects.map(subject => (
+                                            <option key={subject.id} value={subject.id}>{subject.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <div>
-                                    {/* <Editor
-                                        apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
-                                        init={{
-                                            height: 250,
-                                            menubar: false,
-                                            plugins: [
-                                                'advlist', 'autolink', 'lists', 'link', 'image',
-                                                'charmap', 'preview', 'anchor', 'searchreplace',
-                                                'visualblocks', 'code', 'fullscreen', 'insertdatetime',
-                                                'media', 'table', 'code', 'help', 'wordcount', 'equation',
-                                                'placeholder'
-                                            ],
-                                            toolbar: 'undo redo | formatselect | ' +
-                                                'bold italic forecolor | alignleft aligncenter ' +
-                                                'alignright alignjustify | bullist numlist outdent indent | ' +
-                                                'removeformat | equation | help',
-                                            content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
-                                            placeholder: 'Enter test description...',
-                                            setup: (editor) => {
-                                                editor.on('init', () => {
-                                                    const editorElement = editor.getContainer();
-                                                    if (editorElement) {
-                                                        const iframe = editorElement.querySelector('iframe');
-                                                        if (iframe) {
-                                                            const iframeDocument = iframe.contentDocument;
-                                                            if (iframeDocument) {
-                                                                const body = iframeDocument.body;
-                                                                if (!body.textContent?.trim()) {
-                                                                    body.setAttribute('data-mce-placeholder', 'Enter test description...');
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                });
-                                            }
-                                        }}
-                                        value={testData.description}
-                                        onEditorChange={handleDescriptionChange}
-                                    /> */}
+                                    {/* Editor component commented out */}
                                 </div>
                             </div>
                         )}
@@ -568,10 +546,20 @@ const CreateTest = () => {
                         <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <h3 className="font-medium text-black dark:text-white">
-                                        Selected Questions ({selectedQuestions.length})
+                                    <h3 className="font-medium text-black dark:text-white flex items-center gap-1">
+                                        Questions
+                                        <span className="text-danger text-lg">*</span>
                                     </h3>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Available Questions List */}
+                        <div className="p-6.5 border-b border-stroke dark:border-strokedark">
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="font-medium text-black dark:text-white">
+                                    Available Questions
+                                </h4>
                                 <div className="flex gap-4 items-center">
                                     <input
                                         type="text"
@@ -580,12 +568,6 @@ const CreateTest = () => {
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
                                     />
-                                    <button
-                                        onClick={handleShuffle}
-                                        className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
-                                    >
-                                        Shuffle Questions
-                                    </button>
                                     <div className="relative">
                                         <button
                                             onClick={() => setShowBloomsLevels(!showBloomsLevels)}
@@ -663,15 +645,91 @@ const CreateTest = () => {
                                     </svg>
                                 </div>
                             </div>
+
+                            <div className="space-y-4">
+                                {/* Add Column Headers */}
+                                <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-meta-4 rounded-sm">
+                                    <div className="flex-1">
+                                        <span className="font-medium text-black dark:text-white">Question</span>
+                                    </div>
+                                    <div className="flex items-center gap-16">
+                                        <span className="font-medium text-black dark:text-white">Taxonomy</span>
+                                        <span className="w-12"></span>
+                                    </div>
+                                </div>
+
+                                {filteredQuestions
+                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                    .map((question, index) => {
+                                        const isSelected = selectedQuestions.some(q => q.id === question.id);
+                                        if (isSelected) return null;
+                                        const availableQuestionIndex = filteredQuestions
+                                            .filter(q => !selectedQuestions.some(sq => sq.id === q.id))
+                                            .findIndex(q => q.id === question.id);
+                                        const questionNumber = availableQuestionIndex + 1;
+                                        return (
+                                            <div
+                                                key={question.id}
+                                                className="p-4 border rounded-sm dark:border-strokedark"
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex-1">
+                                                        <span className="text-gray-500 mr-2">{questionNumber}.</span>
+                                                        <span
+                                                            className="cursor-pointer hover:text-primary inline"
+                                                            onClick={() => handleQuestionClick(question)}
+                                                            title={question.question_text.replace(/<[^>]+>/g, '')}
+                                                        >
+                                                            {truncateText(question.question_text)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-16">
+                                                        <span className="text-sm text-gray-500 w-24 text-center">
+                                                            {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => toggleQuestionSelection(question)}
+                                                            className="text-success hover:text-meta-3 w-12"
+                                                        >
+                                                            Add
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+
+                            <Pagination
+                                totalItems={filteredQuestions.filter(q => !selectedQuestions.some(sq => sq.id === q.id)).length}
+                                itemsPerPage={itemsPerPage}
+                                currentPage={currentPage}
+                                onPageChange={(page) => setCurrentPage(page)}
+                                onItemsPerPageChange={(items) => {
+                                    setItemsPerPage(items);
+                                    setCurrentPage(1);
+                                }}
+                            />
                         </div>
 
                         {/* Selected Questions Section */}
                         {selectedQuestions.length > 0 && (
-                            <div className="p-6.5 border-b border-stroke dark:border-strokedark">
+                            <div className="p-6.5">
                                 <h4 className="font-medium text-black dark:text-white mb-4">
-                                    Questions in Test
+                                    Selected Questions ({selectedQuestions.length})
                                 </h4>
                                 <div className="space-y-4">
+                                    {/* Add Column Headers for Selected Questions */}
+                                    <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-meta-4 rounded-sm">
+                                        <div className="flex-1">
+                                            <span className="font-medium text-black dark:text-white">Question</span>
+                                        </div>
+                                        <div className="flex items-center gap-16">
+                                            <span className="font-medium text-black dark:text-white">Taxonomy</span>
+                                            <span className="w-12"></span>
+                                        </div>
+                                    </div>
+
                                     {selectedQuestions
                                         .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                         .map((question, index) => {
@@ -682,7 +740,7 @@ const CreateTest = () => {
                                                     className="p-4 border rounded-sm dark:border-strokedark"
                                                 >
                                                     <div className="flex justify-between items-start">
-                                                        <div className="flex gap-4">
+                                                        <div className="flex gap-4 flex-1">
                                                             <span className="text-gray-500">{questionNumber}.</span>
                                                             <div className="flex-1">
                                                                 <div
@@ -692,14 +750,16 @@ const CreateTest = () => {
                                                                 />
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-3">
-                                                            <span className="text-sm text-gray-500"></span>
+                                                        <div className="flex items-center gap-16">
+                                                            <span className="text-sm text-gray-500 w-24 text-center">
+                                                                {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
+                                                            </span>
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     toggleQuestionSelection(question);
                                                                 }}
-                                                                className="text-danger hover:text-meta-1"
+                                                                className="text-danger hover:text-meta-1 w-12"
                                                             >
                                                                 Remove
                                                             </button>
@@ -722,112 +782,6 @@ const CreateTest = () => {
                                 />
                             </div>
                         )}
-
-                        {/* Available Questions List */}
-                        <div className="p-6.5">
-                            <h4 className="font-medium text-black dark:text-white mb-4">
-                                Available Questions
-                            </h4>
-                            <div className="space-y-4">
-                                {filteredQuestions
-                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                                    .map((question, index) => {
-                                        const isSelected = selectedQuestions.some(q => q.id === question.id);
-                                        if (isSelected) return null;
-                                        const questionNumber = (currentPage - 1) * itemsPerPage + index + 1;
-                                        return (
-                                            <div
-                                                key={question.id}
-                                                className="p-4 border rounded-sm dark:border-strokedark"
-                                            >
-                                                <div className="flex justify-between items-start">
-                                                    <div className="flex-1">
-                                                        <span className="text-gray-500 mr-2">{questionNumber}.</span>
-                                                        <span
-                                                            className="cursor-pointer hover:text-primary inline"
-                                                            onClick={() => handleQuestionClick(question)}
-                                                            title={question.question_text.replace(/<[^>]+>/g, '')}
-                                                        >
-                                                            {truncateText(question.question_text)}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <button
-                                                            onClick={() => toggleQuestionSelection(question)}
-                                                            className="text-success hover:text-meta-3"
-                                                        >
-                                                            Add
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                            </div>
-
-                            <Pagination
-                                totalItems={filteredQuestions.filter(q => !selectedQuestions.some(sq => sq.id === q.id)).length}
-                                itemsPerPage={itemsPerPage}
-                                currentPage={currentPage}
-                                onPageChange={(page) => setCurrentPage(page)}
-                                onItemsPerPageChange={(items) => {
-                                    setItemsPerPage(items);
-                                    setCurrentPage(1); // Reset to first page when changing items per page
-                                }}
-                            />
-                        </div>
-
-                        {/* Question Bank Selection */}
-                        {showQuestionBank && (
-                            <div className="p-6.5 border-t border-stroke dark:border-strokedark">
-                                <div className="mb-4.5">
-                                    <select
-                                        value={selectedBankId || ''}
-                                        onChange={(e) => setSelectedBankId(e.target.value)}
-                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                                    >
-                                        <option value="">Select Question Bank</option>
-                                        {questionBanks.map(bank => (
-                                            <option key={bank.id} value={bank.id}>{bank.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {selectedBankId && selectedBankId !== '0' && (
-                                    <div className="space-y-4">
-                                        {questionBanks
-                                            .find(bank => bank.id === Number(selectedBankId))
-                                            ?.questions.map(question => {
-                                                const isSelected = selectedQuestions.some(q => q.id === question.id);
-                                                return (
-                                                    <div
-                                                        key={question.id}
-                                                        className="p-4 border rounded-sm dark:border-strokedark"
-                                                    >
-                                                        <div className="flex justify-between items-start">
-                                                            <div className="flex-1">
-                                                                <span
-                                                                    className="cursor-pointer hover:text-primary inline"
-                                                                    onClick={() => handleQuestionClick(question)}
-                                                                    dangerouslySetInnerHTML={{ __html: question.question_text }}
-                                                                />
-                                                            </div>
-                                                            <button
-                                                                onClick={() => toggleQuestionSelection(question)}
-                                                                disabled={isSelected}
-                                                                className={`text-success hover:text-meta-3 disabled:opacity-50 disabled:cursor-not-allowed ${isSelected ? 'bg-gray-100 dark:bg-gray-800' : ''
-                                                                    }`}
-                                                            >
-                                                                Add
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                    </div>
-                                )}
-                            </div>
-                        )}
                     </div>
 
                     {/* Preview Block */}
@@ -839,12 +793,12 @@ const CreateTest = () => {
                         </div>
 
                         <div className="p-6.5">
-                            {/* Answer Format Configuration */}
+                            {/* Test Configuration */}
                             <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
                                 <h4 className="text-lg font-medium text-black dark:text-white mb-4">
-                                    Answer Format
+                                    Test Configuration
                                 </h4>
-                                <div className="flex gap-6">
+                                <div className="flex gap-6 flex-wrap">
                                     <div>
                                         <label className="mb-2.5 block text-black dark:text-white">
                                             Letter Case
@@ -890,33 +844,102 @@ const CreateTest = () => {
                                             ))}
                                         </div>
                                     </div>
+
+                                    <div>
+                                        <label className="mb-2.5 block text-black dark:text-white">
+                                            Question Order
+                                        </label>
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={handleShuffle}
+                                                className="px-4 py-2 rounded bg-white dark:bg-meta-4 border border-stroke hover:bg-primary hover:text-white hover:border-primary active:bg-opacity-80 transition-all duration-200 group"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <svg
+                                                        className="w-4 h-4 transform group-hover:rotate-180 transition-transform duration-300"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        viewBox="0 0 24 24"
+                                                    >
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth="2"
+                                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                                        />
+                                                    </svg>
+                                                    <span className="whitespace-nowrap">Shuffle Questions</span>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-2.5 block text-black dark:text-white">
+                                            Answer Key
+                                        </label>
+                                        <button
+                                            className={`px-4 py-2 rounded border bg-white dark:bg-meta-4 border-stroke hover:bg-primary hover:text-white hover:border-primary transition-all duration-200`}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <svg
+                                                    className="w-4 h-4"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        strokeWidth="2"
+                                                        d="M6 18L18 6M6 6l12 12"
+                                                    />
+                                                </svg>
+                                                <span>Include Key</span>
+                                            </div>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Test Preview */}
-                            <div
-                                className="border border-stroke dark:border-strokedark rounded-sm p-6 cursor-pointer hover:bg-gray-50 dark:hover:bg-meta-4 transition-colors duration-200"
-                                onClick={() => {
-                                    // Create and show a preview dialog
-                                    setPreviewDialogOpen(true);
-                                }}
-                            >
-                                <div className="flex items-center justify-between mb-4">
+                            <div className="border border-stroke dark:border-strokedark rounded-sm p-6 relative">
+                                <div className="mb-4">
                                     <h4 className="text-lg font-medium text-black dark:text-white">
                                         Test Preview
                                     </h4>
-                                    <span className="text-sm text-meta-3">Click to view full preview</span>
                                 </div>
 
-                                {/* Preview Sample */}
-                                <div className="space-y-4">
-                                    {selectedQuestions.slice(0, 2).map((question, index) => (
-                                        <div key={index} className="space-y-2">
+                                {/* Preview Sample with Blur Effect */}
+                                <div className="space-y-4 relative min-h-[200px]">
+                                    {/* First two questions shown clearly */}
+                                    {(shuffleQuestions ? [...selectedQuestions].sort(() => Math.random() - 0.5) : selectedQuestions)
+                                        .slice(0, 2).map((question, index) => (
+                                            <div key={index} className="space-y-2">
+                                                <div className="font-medium">
+                                                    Question {index + 1}: {sanitizeHtml(question.question_text)}
+                                                </div>
+                                                <div className="pl-4 space-y-1">
+                                                    {question.answers?.map((answer, ansIndex) => (
+                                                        <div key={ansIndex}>
+                                                            {answerFormat.case === 'uppercase'
+                                                                ? String.fromCharCode(65 + ansIndex)
+                                                                : String.fromCharCode(97 + ansIndex)}
+                                                            {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                    {/* Third question with blur effect */}
+                                    {selectedQuestions.length > 2 && (
+                                        <div className="space-y-2 blur-[2px] opacity-60">
                                             <div className="font-medium">
-                                                Question {index + 1}: {sanitizeHtml(question.question_text)}
+                                                Question 3: {sanitizeHtml(selectedQuestions[2].question_text)}
                                             </div>
                                             <div className="pl-4 space-y-1">
-                                                {question.answers?.map((answer, ansIndex) => (
+                                                {selectedQuestions[2].answers?.map((answer, ansIndex) => (
                                                     <div key={ansIndex}>
                                                         {answerFormat.case === 'uppercase'
                                                             ? String.fromCharCode(65 + ansIndex)
@@ -926,34 +949,50 @@ const CreateTest = () => {
                                                 ))}
                                             </div>
                                         </div>
-                                    ))}
+                                    )}
+
+                                    {/* Gradient overlay for additional blur effect */}
+                                    {selectedQuestions.length > 2 && (
+                                        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white dark:from-boxdark to-transparent" />
+                                    )}
                                 </div>
+
+                                {/* More button positioned at bottom left */}
+                                {selectedQuestions.length > 2 && (
+                                    <div className="absolute bottom-4 left-6">
+                                        <button
+                                            onClick={() => setPreviewDialogOpen(true)}
+                                            className="text-sm text-primary hover:text-opacity-80 transition-colors duration-200 flex items-center gap-2"
+                                        >
+                                            View full preview
+                                            <svg
+                                                className="w-4 h-4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth="2"
+                                                    d="M17 8l4 4m0 0l-4 4m4-4H3"
+                                                />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Test Bank Selection */}
-                            <div className="mt-6">
-                                <label className="mb-2.5 block text-black dark:text-white">
-                                    Add to Test Bank
-                                </label>
-                                <select
-                                    value={selectedBankId || ''}
-                                    onChange={(e) => setSelectedBankId(e.target.value)}
-                                    className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                                >
-                                    <option value="">Select a test bank</option>
-                                    {questionBanks.map(bank => (
-                                        <option key={bank.id} value={bank.id}>{bank.name}</option>
-                                    ))}
-                                </select>
-                            </div>
+
                         </div>
                     </div>
 
-                    {/* Statistics Section */}
+                    {/* Summary Section */}
                     <div className="mt-6 rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
                         <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
                             <h3 className="font-medium text-black dark:text-white">
-                                Statistics
+                                Summary
                             </h3>
                         </div>
 
@@ -1040,11 +1079,10 @@ const CreateTest = () => {
                     {/* Export Buttons */}
                     <div className="mt-6 flex gap-4">
                         <button
-                            onClick={exportToWord}
-                            className="flex w-full justify-center rounded bg-success p-3 font-medium text-gray hover:bg-opacity-90"
-                            disabled={selectedQuestions.length === 0}
+                            onClick={handleCancel}
+                            className="flex w-full justify-center rounded bg-danger p-3 font-medium text-gray hover:bg-opacity-90"
                         >
-                            Export to Word
+                            Cancel
                         </button>
 
                         <button
@@ -1056,11 +1094,13 @@ const CreateTest = () => {
                         >
                             Save
                         </button>
+
                         <button
-                            onClick={handleCancel}
-                            className="flex w-full justify-center rounded bg-danger p-3 font-medium text-gray hover:bg-opacity-90"
+                            onClick={exportToWord}
+                            className="flex w-full justify-center rounded bg-success p-3 font-medium text-gray hover:bg-opacity-90"
+                            disabled={selectedQuestions.length === 0}
                         >
-                            Cancel
+                            Export to Word
                         </button>
                     </div>
                 </>
@@ -1082,7 +1122,7 @@ const CreateTest = () => {
                             </h2>
                             {isQuestionInTest(selectedQuestionDetail?.id || 0) && (
                                 <button
-                                    onClick={() => shuffleAnswers(selectedQuestionDetail?.id || 0)}
+                                    onClick={() => shuffleQuestionAnswers(selectedQuestionDetail?.id || 0)}
                                     className="flex items-center gap-2 rounded bg-primary px-4 py-2 text-white hover:bg-opacity-90 transition-all duration-200"
                                 >
                                     <svg
@@ -1219,26 +1259,27 @@ const CreateTest = () => {
                         </div>
 
                         <div className="space-y-6">
-                            {selectedQuestions.map((question, index) => (
-                                <div key={index} className="space-y-3">
-                                    <div className="font-medium text-black dark:text-white">
-                                        Question {index + 1}: {sanitizeHtml(question.question_text)}
+                            {(shuffleQuestions ? [...selectedQuestions].sort(() => Math.random() - 0.5) : selectedQuestions)
+                                .map((question, index) => (
+                                    <div key={index} className="space-y-3">
+                                        <div className="font-medium text-black dark:text-white">
+                                            Question {index + 1}: {sanitizeHtml(question.question_text)}
+                                        </div>
+                                        <div className="pl-6 space-y-2">
+                                            {question.answers?.map((answer, ansIndex) => (
+                                                <div
+                                                    key={ansIndex}
+                                                    className="text-black dark:text-white"
+                                                >
+                                                    {answerFormat.case === 'uppercase'
+                                                        ? String.fromCharCode(65 + ansIndex)
+                                                        : String.fromCharCode(97 + ansIndex)}
+                                                    {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="pl-6 space-y-2">
-                                        {question.answers?.map((answer, ansIndex) => (
-                                            <div
-                                                key={ansIndex}
-                                                className="text-black dark:text-white"
-                                            >
-                                                {answerFormat.case === 'uppercase'
-                                                    ? String.fromCharCode(65 + ansIndex)
-                                                    : String.fromCharCode(97 + ansIndex)}
-                                                {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
+                                ))}
                         </div>
                     </div>
                 </div>

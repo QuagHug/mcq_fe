@@ -228,8 +228,9 @@ const CreateTestAuto: React.FC = () => {
                     className="border-b border-stroke px-6.5 py-4 dark:border-strokedark cursor-pointer flex justify-between items-center"
                     onClick={() => setIsTestDetailsExpanded(!isTestDetailsExpanded)}
                 >
-                    <h3 className="font-medium text-black dark:text-white">
+                    <h3 className="font-medium text-black dark:text-white flex items-center gap-1">
                         Test Details
+                        <span className="text-danger text-lg">*</span>
                     </h3>
                     <svg
                         className={`w-4 h-4 transform transition-transform duration-200 ${isTestDetailsExpanded ? 'rotate-180' : ''
@@ -258,6 +259,18 @@ const CreateTestAuto: React.FC = () => {
                                 className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                                 required
                             />
+                        </div>
+                        <div className="mb-4.5">
+                            <select
+                                value={selectedSubject}
+                                onChange={(e) => handleSubjectChange(e.target.value)}
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                            >
+                                <option value="">Select a subject</option>
+                                {mockSubjects.map(subject => (
+                                    <option key={subject.id} value={subject.id}>{subject.name}</option>
+                                ))}
+                            </select>
                         </div>
                         <div>
                             {/* <Editor
@@ -307,8 +320,9 @@ const CreateTestAuto: React.FC = () => {
             {/* Test Details Block */}
             <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mb-6">
                 <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                    <h3 className="font-medium text-black dark:text-white">
-                        Test Prompt
+                    <h3 className="font-medium text-black dark:text-white flex items-center gap-1">
+                        Question Choices
+                        <span className="text-danger text-lg">*</span>
                     </h3>
                 </div>
                 <div className="p-6.5">
@@ -352,44 +366,30 @@ const CreateTestAuto: React.FC = () => {
                                     <label className="mb-2.5 block text-black dark:text-white">
                                         Difficulty
                                     </label>
-                                    <select
-                                        value={combination.difficulty}
-                                        onChange={(e) => updateCombination(index, 'difficulty', e.target.value)}
-                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
-                                    >
-                                        <option value="">Select Difficulty</option>
-                                        <option value="easy">Easy</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="hard">Hard</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="mb-2.5 block text-black dark:text-white">
-                                        Learning Outcome
-                                    </label>
-                                    <select
-                                        value={combination.learningOutcome}
-                                        onChange={(e) => updateCombination(index, 'learningOutcome', e.target.value)}
-                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
-                                    >
-                                        <option value="lo1">LO1</option>
-                                        <option value="lo2">LO2</option>
-                                        <option value="lo3">LO3</option>
-                                        <option value="lo4">LO4</option>
-                                    </select>
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={combination.difficulty}
+                                            onChange={(e) => updateCombination(index, 'difficulty', e.target.value)}
+                                            className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
+                                        >
+                                            <option value="">Select Difficulty</option>
+                                            <option value="easy">Easy</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="hard">Hard</option>
+                                        </select>
+                                        {testData.combinations.length > 1 && (
+                                            <button
+                                                onClick={() => removeCombination(index)}
+                                                className="p-2 text-danger hover:text-danger/80"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-
-                            {testData.combinations.length > 1 && (
-                                <button
-                                    onClick={() => removeCombination(index)}
-                                    className="absolute right-0 top-0 p-2 text-danger hover:text-danger/80"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            )}
                         </div>
                     ))}
 
@@ -405,22 +405,6 @@ const CreateTestAuto: React.FC = () => {
 
                     {/* Course and Test Bank Selection */}
                     <div className="mt-6 space-y-4">
-                        <div>
-                            <label className="mb-2.5 block text-black dark:text-white">
-                                Select Subject
-                            </label>
-                            <select
-                                value={selectedSubject}
-                                onChange={(e) => handleSubjectChange(e.target.value)}
-                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                            >
-                                <option value="">Select a subject</option>
-                                {mockSubjects.map(subject => (
-                                    <option key={subject.id} value={subject.id}>{subject.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
                         {selectedSubject && (
                             <div>
                                 <label className="mb-2.5 block text-black dark:text-white">
