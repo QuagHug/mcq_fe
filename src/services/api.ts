@@ -1,4 +1,4 @@
-import { getRefreshToken } from "../utils/auth";
+import { getRefreshToken, getAccessToken } from "../utils/auth";
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api`;
 
@@ -70,22 +70,22 @@ export const fetchQuestionBanks = async (courseId: string) => {
 };
 
 interface CreateBankParams {
-    name: string;
-    parent_id?: number | null;
+  name: string;
+  parent_id?: number | null;
 }
 
 export const createQuestionBank = async (courseId: string, params: CreateBankParams) => {
-    const token = await getValidToken();
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(params)
-    });
-    if (!response.ok) throw new Error('Failed to create question bank');
-    return response.json();
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(params)
+  });
+  if (!response.ok) throw new Error('Failed to create question bank');
+  return response.json();
 };
 
 export const fetchQuestions = async (courseId: string, bankId: string) => {
@@ -275,34 +275,34 @@ export const generateQuestions = async (context: string) => {
 };
 
 interface Question {
-    id: number;
-    question_text: string;
-    marks: number;
+  id: number;
+  question_text: string;
+  marks: number;
 }
 
 interface CreateTestRequest {
-    title: string;
-    question_ids: number[];
+  title: string;
+  question_ids: number[];
 }
 
 export const createTest = async (courseId: string, data: CreateTestRequest) => {
-    const token = await getValidToken();
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/create/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(data)
-    });
-    
-    if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Create test error:', errorData);
-        throw new Error('Failed to create test');
-    }
-    
-    return response.json();
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/create/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('Create test error:', errorData);
+    throw new Error('Failed to create test');
+  }
+
+  return response.json();
 };
 
 export const fetchChildBanks = async (courseId: string, parentBankId: string) => {
@@ -317,12 +317,81 @@ export const fetchChildBanks = async (courseId: string, parentBankId: string) =>
 };
 
 export const fetchCourseTests = async (courseId: string) => {
-    const token = await getValidToken();
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/`, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/courses/${courseId}/tests/`, {
+      headers: {
+        'Authorization': `Bearer ${getAccessToken()}`,
+      },
     });
-    if (!response.ok) throw new Error('Failed to fetch course tests');
-    return response.json();
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch tests');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching tests:', error);
+    throw error;
+  }
+};
+
+export const fetchTestDetail = async (courseId: string, testId: string) => {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/courses/${courseId}/tests/${testId}/`, {
+      headers: {
+        'Authorization': `Bearer ${getAccessToken()}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch test details');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching test details:', error);
+    throw error;
+  }
+};
+
+export const updateTest = async (courseId: string, testId: string, testData: any) => {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/courses/${courseId}/tests/${testId}/`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${getAccessToken()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(testData),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update test');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating test:', error);
+    throw error;
+  }
+};
+
+export const deleteTest = async (courseId: string, testId: string) => {
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/courses/${courseId}/tests/${testId}/`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${getAccessToken()}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete test');
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting test:', error);
+    throw error;
+  }
 }; 

@@ -761,8 +761,9 @@ const CreateTest = () => {
                                     <div className="flex-1">
                                         <span className="font-medium text-black dark:text-white">Question</span>
                                     </div>
-                                    <div className="flex items-center gap-16">
-                                        <span className="font-medium text-black dark:text-white">Taxonomy</span>
+                                    <div className="flex items-center gap-8">
+                                        <span className="font-medium text-black dark:text-white w-24 text-center">Difficulty</span>
+                                        <span className="font-medium text-black dark:text-white w-24 text-center">Taxonomy</span>
                                         <span className="w-12"></span>
                                     </div>
                                 </div>
@@ -792,7 +793,10 @@ const CreateTest = () => {
                                                             {truncateText(question.question_text)}
                                                         </span>
                                                     </div>
-                                                    <div className="flex items-center gap-16">
+                                                    <div className="flex items-center gap-8">
+                                                        <span className="text-sm text-gray-500 w-24 text-center">
+                                                            N/A
+                                                        </span>
                                                         <span className="text-sm text-gray-500 w-24 text-center">
                                                             {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
                                                         </span>
@@ -833,8 +837,9 @@ const CreateTest = () => {
                                         <div className="flex-1">
                                             <span className="font-medium text-black dark:text-white">Question</span>
                                         </div>
-                                        <div className="flex items-center gap-16">
-                                            <span className="font-medium text-black dark:text-white">Taxonomy</span>
+                                        <div className="flex items-center gap-8">
+                                            <span className="font-medium text-black dark:text-white w-24 text-center">Difficulty</span>
+                                            <span className="font-medium text-black dark:text-white w-24 text-center">Taxonomy</span>
                                             <span className="w-12"></span>
                                         </div>
                                     </div>
@@ -859,7 +864,10 @@ const CreateTest = () => {
                                                                 />
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-16">
+                                                        <div className="flex items-center gap-8">
+                                                            <span className="text-sm text-gray-500 w-24 text-center">
+                                                                N/A
+                                                            </span>
                                                             <span className="text-sm text-gray-500 w-24 text-center">
                                                                 {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
                                                             </span>
@@ -1135,7 +1143,7 @@ const CreateTest = () => {
                     <div className="mt-6 flex gap-4">
                         <button
                             onClick={handleCancel}
-                            className="flex w-full justify-center rounded bg-danger p-3 font-medium text-gray hover:bg-opacity-90"
+                            className="flex flex-1 justify-center rounded bg-danger py-4 px-10 font-medium text-white hover:bg-opacity-90"
                         >
                             Cancel
                         </button>
@@ -1146,7 +1154,7 @@ const CreateTest = () => {
                                 console.log('Save button clicked');
                                 handleCreateTest();
                             }}
-                            className="inline-flex items-center justify-center rounded-md bg-primary py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10"
+                            className="flex flex-1 justify-center rounded bg-primary py-4 px-10 font-medium text-white hover:bg-opacity-90"
                             disabled={!testData.title || selectedQuestions.length === 0 || !selectedCourse}
                         >
                             Save
@@ -1154,7 +1162,7 @@ const CreateTest = () => {
 
                         <button
                             onClick={exportToWord}
-                            className="flex w-full justify-center rounded bg-success p-3 font-medium text-gray hover:bg-opacity-90"
+                            className="flex flex-1 justify-center rounded bg-success py-4 px-10 font-medium text-white hover:bg-opacity-90"
                             disabled={selectedQuestions.length === 0}
                         >
                             Export to Word

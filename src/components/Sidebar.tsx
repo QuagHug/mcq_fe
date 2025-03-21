@@ -76,6 +76,29 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                     Courses
                   </NavLink>
                 </li>
+                {/* <!-- Menu Item Test Bank --> */}
+                <li>
+                  <NavLink
+                    to="/test-bank"
+                    className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes('test-bank') && 'bg-graydark dark:bg-meta-4'
+                      }`}
+                  >
+                    <svg
+                      className="fill-current"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        d="M21 7v12q0 .825-.587 1.413Q19.825 21 19 21H5q-.825 0-1.413-.587Q3 19.825 3 19V5q0-.825.587-1.413Q4.175 3 5 3h12zm-2 .85L16.15 5H5v14h14zM12 18q-1.25 0-2.125-.875T9 15q0-1.25.875-2.125T12 12q1.25 0 2.125.875T15 15q0 1.25-.875 2.125T12 18m-6-8h9V6H6z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                    Test Bank
+                  </NavLink>
+                </li>
                 {/* <!-- Menu Item Courses --> */}
 
                 {/* <!-- Menu Item Generate Question --> */}
@@ -334,9 +357,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                 <li>
                   <NavLink
                     to="/test-results"
-                    className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
-                      pathname.includes('test-results') && 'bg-graydark dark:bg-meta-4'
-                    }`}
+                    className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes('test-results') && 'bg-graydark dark:bg-meta-4'
+                      }`}
                   >
                     <svg
                       className="fill-current"
