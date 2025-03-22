@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { useParams } from 'react-router-dom';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
 import * as XLSX from 'xlsx';
+import { uploadTestResults, fetchCourseTests, fetchCourses } from '../services/api';
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -17,9 +18,28 @@ interface TestData {
 
 const TestResults = () => {
     const params = useParams();
+    const { courseId } = useParams();
     const [testData, setTestData] = useState<TestData | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [selectedTest, setSelectedTest] = useState<string>('');
+    const [tests, setTests] = useState<any[]>([]);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [isLoadingTests, setIsLoadingTests] = useState(false);
+    const [courses, setCourses] = useState<any[]>([]);
+    const [selectedCourse, setSelectedCourse] = useState<string>('');
+    const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+    const [testCodeMap, setTestCodeMap] = useState<{ [key: string]: string }>({});
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            console.log('File selected:', file.name);
+            setSelectedFile(file);
+        }
+    };
 
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -211,6 +231,106 @@ const TestResults = () => {
         }
     };
 
+    const handleTestChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedTest(event.target.value);
+        setSelectedFile(null);
+        setUploadError(null);
+    };
+
+    const handleTestCodeChange = (event: React.ChangeEvent<HTMLInputElement>, questionId: string) => {
+        setTestCodeMap(prev => ({
+            ...prev,
+            [questionId]: event.target.value
+        }));
+    };
+
+    const handleUpload = async () => {
+        if (!selectedFile || !selectedCourse || !selectedTest || !testCodeMap[selectedTest]) {
+            setUploadError('Please select a test, enter test code, and choose a file');
+            return;
+        }
+
+        try {
+            setIsUploading(true);
+            setUploadError(null);
+            const response = await uploadTestResults(
+                selectedCourse, 
+                selectedTest, 
+                selectedFile, 
+                testCodeMap[selectedTest]
+            );
+            console.log('Upload response:', response);
+            
+            // Clear form after successful upload
+            setSelectedFile(null);
+            setTestCodeMap(prev => ({ ...prev, [selectedTest]: '' }));
+            const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+            if (fileInput) fileInput.value = '';
+            
+        } catch (error) {
+            console.error('Upload failed:', error);
+            setUploadError('Failed to upload file. Please try again.');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleCourseChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedCourse(event.target.value);
+        setSelectedTest('');
+        setSelectedFile(null);
+        setUploadError(null);
+    };
+
+    useEffect(() => {
+        const loadCourses = async () => {
+            try {
+                setIsLoadingCourses(true);
+                const coursesData = await fetchCourses();
+                console.log('Fetched courses:', coursesData);
+                setCourses(coursesData);
+            } catch (error) {
+                console.error('Failed to load courses:', error);
+                setError('Failed to load courses');
+            } finally {
+                setIsLoadingCourses(false);
+            }
+        };
+
+        loadCourses();
+    }, []);
+
+    useEffect(() => {
+        const loadTests = async () => {
+            if (!selectedCourse) return;
+            try {
+                setIsLoadingTests(true);
+                const testsData = await fetchCourseTests(selectedCourse);
+                console.log('Fetched tests:', testsData);
+                setTests(testsData);
+            } catch (error) {
+                console.error('Failed to load tests:', error);
+                setUploadError('Failed to load tests');
+            } finally {
+                setIsLoadingTests(false);
+            }
+        };
+
+        loadTests();
+    }, [selectedCourse]);
+
+    // Add this useEffect to monitor state changes
+    useEffect(() => {
+        console.log('Debug button state:', {
+            selectedFile,
+            fileName: selectedFile?.name,
+            isUploading,
+            testCode: testCodeMap[selectedTest],
+            selectedTest,
+            disabledCondition: !selectedFile || isUploading || !testCodeMap[selectedTest]
+        });
+    }, [selectedFile, isUploading, testCodeMap, selectedTest]);
+
     return (
         <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
             <Breadcrumb
@@ -223,24 +343,136 @@ const TestResults = () => {
             />
 
             {/* Upload Section */}
-            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-                <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                    <h3 className="font-medium text-black dark:text-white">
-                        Upload Test Results
-                    </h3>
-                </div>
-                <div className="p-6.5">
+            <div className="rounded-sm border border-stroke bg-white p-4 shadow-default dark:border-strokedark dark:bg-boxdark">
+                <h4 className="mb-4 text-xl font-semibold text-black dark:text-white">
+                    Upload Test Results
+                </h4>
+                <div className="flex flex-col gap-4">
+                    {/* Course Selection Dropdown */}
                     <div className="mb-4.5">
-                        <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                            Upload Results File (CSV or TXT)
+                        <label className="mb-2.5 block text-black dark:text-white">
+                            Select Course
                         </label>
-                        <input
-                            type="file"
-                            accept=".csv,.txt,.xlsx,.xls"
-                            onChange={handleFileUpload}
-                            className="w-full cursor-pointer rounded-lg border-[1.5px] border-stroke bg-transparent font-medium outline-none transition file:mr-5 file:border-collapse file:cursor-pointer file:border-0 file:border-r file:border-solid file:border-stroke file:bg-whiter file:py-3 file:px-5 file:hover:bg-primary file:hover:bg-opacity-10 focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:file:border-form-strokedark dark:file:bg-white/30 dark:file:text-white dark:focus:border-primary"
-                        />
+                        <div className="relative z-20 bg-transparent dark:bg-form-input">
+                            <select
+                                value={selectedCourse}
+                                onChange={handleCourseChange}
+                                className="relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-5 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                disabled={isLoadingCourses}
+                            >
+                                <option value="">Select a course</option>
+                                {courses.map((course) => (
+                                    <option key={course.id} value={course.id}>
+                                        {course.name}
+                                    </option>
+                                ))}
+                            </select>
+                            {isLoadingCourses && (
+                                <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                                    <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </div>
+                            )}
+                        </div>
                     </div>
+
+                    {/* Test Selection (only shown when course is selected) */}
+                    {selectedCourse && (
+                        <div className="mb-4.5">
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Select Test
+                            </label>
+                            <div className="relative z-20 bg-transparent dark:bg-form-input">
+                                <select
+                                    value={selectedTest}
+                                    onChange={handleTestChange}
+                                    className="relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-5 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                    disabled={isLoadingTests}
+                                >
+                                    <option value="">Select a test</option>
+                                    {tests.map((test) => (
+                                        <option key={test.id} value={test.id}>
+                                            {test.title}
+                                        </option>
+                                    ))}
+                                </select>
+                                {isLoadingTests && (
+                                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                                        <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* File Input - Only shown when test is selected */}
+                    {selectedTest && (
+                        <div className="mb-4.5">
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Test Code Mapping
+                            </label>
+                            <div className="mb-4 p-4 border border-stroke rounded-sm">
+                                <p className="text-sm text-gray-500 mb-3">
+                                    Please enter the test code from your results file that corresponds to this test
+                                </p>
+                                <input
+                                    type="text"
+                                    placeholder="Enter test code (e.g., T001)"
+                                    onChange={(e) => handleTestCodeChange(e, selectedTest)}
+                                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary mb-4"
+                                />
+                            </div>
+                            
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Upload Results File
+                            </label>
+                            <input
+                                type="file"
+                                accept=".xlsx,.xls"
+                                onChange={handleFileChange}
+                                className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary mb-4"
+                            />
+
+                            {/* Add Upload Button */}
+                            {uploadError && (
+                                <p className="text-danger mb-4">{uploadError}</p>
+                            )}
+                            
+                            <button
+                                onClick={handleUpload}
+                                disabled={!selectedFile || isUploading || !testCodeMap[selectedTest]}
+                                className={`inline-flex items-center justify-center rounded-md ${
+                                    (() => {
+                                        const isDisabled = !selectedFile || isUploading || !testCodeMap[selectedTest];
+                                        console.log('Button render state:', {
+                                            selectedFile: !!selectedFile,
+                                            isUploading,
+                                            testCode: testCodeMap[selectedTest],
+                                            isDisabled
+                                        });
+                                        return isDisabled ? 'bg-gray-400' : 'bg-primary hover:bg-opacity-90';
+                                    })()
+                                } py-4 px-10 text-center font-medium text-white transition`}
+                            >
+                                {isUploading ? (
+                                    <>
+                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Uploading...
+                                    </>
+                                ) : (
+                                    'Upload Results'
+                                )}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 

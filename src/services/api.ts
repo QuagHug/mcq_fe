@@ -325,4 +325,27 @@ export const fetchCourseTests = async (courseId: string) => {
     });
     if (!response.ok) throw new Error('Failed to fetch course tests');
     return response.json();
+};
+
+export const uploadTestResults = async (courseId: string, testId: string, file: File, testCode: string) => {
+    const token = await getValidToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('test_code', testCode);
+
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/results/upload/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        body: formData
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Upload error:', errorData);
+        throw new Error('Failed to upload test results');
+    }
+
+    return response.json();
 }; 
