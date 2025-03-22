@@ -4,6 +4,11 @@ export const setTokens = (access: string, refresh: string) => {
   document.cookie = `refresh_token=${refresh}; path=/; secure; samesite=strict`;
 };
 
+// Get access token
+export const getAccessToken = () => {
+  return document.cookie.split('token=')[1]?.split(';')[0];
+};
+
 // Get refresh token
 export const getRefreshToken = () => {
   return document.cookie.split('refresh_token=')[1]?.split(';')[0];

@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { fetchQuestionBanks } from '../services/api';
+import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { saveAs } from 'file-saver';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Pie } from 'react-chartjs-2';
 
 interface QuestionBank {
     id: number;
@@ -30,7 +34,15 @@ interface Chapter {
     name: string;
 }
 
-const CreateTestAuto: React.FC = () => {
+interface AnswerFormat {
+    case: 'uppercase' | 'lowercase';
+    separator: string;
+}
+
+// Register ChartJS components
+ChartJS.register(ArcElement, Tooltip, Legend);
+
+const CreateTestAuto: React.FC = (): JSX.Element => {
     const [testData, setTestData] = useState<TestData>({
         title: '',
         description: '',
@@ -55,6 +67,11 @@ const CreateTestAuto: React.FC = () => {
     const [selectedSubject, setSelectedSubject] = useState('');
     const [chapters, setChapters] = useState<Chapter[]>([]);
     const [selectedChapter, setSelectedChapter] = useState<string>('');
+    const [shuffleQuestions, setShuffleQuestions] = useState(false);
+    const [answerFormat, setAnswerFormat] = useState<AnswerFormat>({
+        case: 'uppercase',
+        separator: ')',
+    });
 
     const topics = [
         'PPL', 'DSA', 'Discrete Math', 'Dynamic Programming', 'Math'
@@ -212,6 +229,75 @@ const CreateTestAuto: React.FC = () => {
         loadBanks();
     }, [selectedCourse]);
 
+    const handleShuffle = () => {
+        setShuffleQuestions(!shuffleQuestions);
+    };
+
+    const exportToWord = async () => {
+        if (!testData.title || testData.combinations.length === 0) {
+            setError('Please add a title and at least one combination before exporting');
+            return;
+        }
+
+        // Create a new Document
+        const doc = new Document({
+            sections: [{
+                properties: {},
+                children: [
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: testData.title,
+                                bold: true,
+                                size: 32,
+                            }),
+                        ],
+                        spacing: { after: 400 },
+                    }),
+                    ...(testData.description ? [
+                        new Paragraph({
+                            children: [
+                                new TextRun({
+                                    text: testData.description,
+                                }),
+                            ],
+                            spacing: { after: 400 },
+                        }),
+                    ] : []),
+                    ...testData.combinations.map((combination, index) =>
+                        new Paragraph({
+                            children: [
+                                new TextRun({
+                                    text: `Combination ${index + 1}:`,
+                                    bold: true,
+                                }),
+                                new TextRun({
+                                    text: `\nNumber of Questions: ${combination.numberOfQuestions}`,
+                                }),
+                                new TextRun({
+                                    text: `\nTaxonomy Level: ${combination.taxonomyLevel}`,
+                                }),
+                                new TextRun({
+                                    text: `\nDifficulty: ${combination.difficulty}`,
+                                }),
+                            ],
+                            spacing: { before: 400, after: 200 },
+                        })
+                    ),
+                ],
+            }],
+        });
+
+        try {
+            const blob = await Packer.toBlob(doc);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            saveAs(blob, `${testData.title.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.docx`);
+        } catch (err) {
+            console.error('Error generating document:', err);
+            setError('Failed to generate document');
+        }
+    };
+
     return (
         <div className="mx-auto max-w-270">
             <Breadcrumb
@@ -228,8 +314,9 @@ const CreateTestAuto: React.FC = () => {
                     className="border-b border-stroke px-6.5 py-4 dark:border-strokedark cursor-pointer flex justify-between items-center"
                     onClick={() => setIsTestDetailsExpanded(!isTestDetailsExpanded)}
                 >
-                    <h3 className="font-medium text-black dark:text-white">
+                    <h3 className="font-medium text-black dark:text-white flex items-center gap-1">
                         Test Details
+                        <span className="text-danger text-lg">*</span>
                     </h3>
                     <svg
                         className={`w-4 h-4 transform transition-transform duration-200 ${isTestDetailsExpanded ? 'rotate-180' : ''
@@ -259,46 +346,17 @@ const CreateTestAuto: React.FC = () => {
                                 required
                             />
                         </div>
-                        <div>
-                            {/* <Editor
-                                apiKey="rk63se2fx3gtxdcb6a6556yapoajd3drfp10hjc5u7km8vid"
-                                init={{
-                                    height: 250,
-                                    menubar: false,
-                                    plugins: [
-                                        'advlist', 'autolink', 'lists', 'link', 'image',
-                                        'charmap', 'preview', 'anchor', 'searchreplace',
-                                        'visualblocks', 'code', 'fullscreen', 'insertdatetime',
-                                        'media', 'table', 'code', 'help', 'wordcount', 'equation',
-                                        'placeholder'
-                                    ],
-                                    toolbar: 'undo redo | formatselect | ' +
-                                        'bold italic forecolor | alignleft aligncenter ' +
-                                        'alignright alignjustify | bullist numlist outdent indent | ' +
-                                        'removeformat | equation | help',
-                                    content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
-                                    placeholder: 'Enter test description...',
-                                    setup: (editor) => {
-                                        editor.on('init', () => {
-                                            const editorElement = editor.getContainer();
-                                            if (editorElement) {
-                                                const iframe = editorElement.querySelector('iframe');
-                                                if (iframe) {
-                                                    const iframeDocument = iframe.contentDocument;
-                                                    if (iframeDocument) {
-                                                        const body = iframeDocument.body;
-                                                        if (!body.textContent?.trim()) {
-                                                            body.setAttribute('data-mce-placeholder', 'Enter test description...');
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        });
-                                    }
-                                }}
-                                value={testData.description}
-                                onEditorChange={handleDescriptionChange}
-                            /> */}
+                        <div className="mb-4.5">
+                            <select
+                                value={selectedSubject}
+                                onChange={(e) => handleSubjectChange(e.target.value)}
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                            >
+                                <option value="">Select a subject</option>
+                                {mockSubjects.map(subject => (
+                                    <option key={subject.id} value={subject.id}>{subject.name}</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
                 )}
@@ -307,8 +365,9 @@ const CreateTestAuto: React.FC = () => {
             {/* Test Details Block */}
             <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mb-6">
                 <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                    <h3 className="font-medium text-black dark:text-white">
-                        Test Prompt
+                    <h3 className="font-medium text-black dark:text-white flex items-center gap-1">
+                        Question Choices
+                        <span className="text-danger text-lg">*</span>
                     </h3>
                 </div>
                 <div className="p-6.5">
@@ -352,44 +411,30 @@ const CreateTestAuto: React.FC = () => {
                                     <label className="mb-2.5 block text-black dark:text-white">
                                         Difficulty
                                     </label>
-                                    <select
-                                        value={combination.difficulty}
-                                        onChange={(e) => updateCombination(index, 'difficulty', e.target.value)}
-                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
-                                    >
-                                        <option value="">Select Difficulty</option>
-                                        <option value="easy">Easy</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="hard">Hard</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="mb-2.5 block text-black dark:text-white">
-                                        Learning Outcome
-                                    </label>
-                                    <select
-                                        value={combination.learningOutcome}
-                                        onChange={(e) => updateCombination(index, 'learningOutcome', e.target.value)}
-                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
-                                    >
-                                        <option value="lo1">LO1</option>
-                                        <option value="lo2">LO2</option>
-                                        <option value="lo3">LO3</option>
-                                        <option value="lo4">LO4</option>
-                                    </select>
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={combination.difficulty}
+                                            onChange={(e) => updateCombination(index, 'difficulty', e.target.value)}
+                                            className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
+                                        >
+                                            <option value="">Select Difficulty</option>
+                                            <option value="easy">Easy</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="hard">Hard</option>
+                                        </select>
+                                        {testData.combinations.length > 1 && (
+                                            <button
+                                                onClick={() => removeCombination(index)}
+                                                className="p-2 text-danger hover:text-danger/80"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-
-                            {testData.combinations.length > 1 && (
-                                <button
-                                    onClick={() => removeCombination(index)}
-                                    className="absolute right-0 top-0 p-2 text-danger hover:text-danger/80"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            )}
                         </div>
                     ))}
 
@@ -405,22 +450,6 @@ const CreateTestAuto: React.FC = () => {
 
                     {/* Course and Test Bank Selection */}
                     <div className="mt-6 space-y-4">
-                        <div>
-                            <label className="mb-2.5 block text-black dark:text-white">
-                                Select Subject
-                            </label>
-                            <select
-                                value={selectedSubject}
-                                onChange={(e) => handleSubjectChange(e.target.value)}
-                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                            >
-                                <option value="">Select a subject</option>
-                                {mockSubjects.map(subject => (
-                                    <option key={subject.id} value={subject.id}>{subject.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
                         {selectedSubject && (
                             <div>
                                 <label className="mb-2.5 block text-black dark:text-white">
@@ -442,17 +471,219 @@ const CreateTestAuto: React.FC = () => {
                 </div>
             </div>
 
+            {/* Preview Block */}
+            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mt-6">
+                <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
+                    <h3 className="font-medium text-black dark:text-white">
+                        Preview
+                    </h3>
+                </div>
+
+                <div className="p-6.5">
+                    {/* Test Configuration */}
+                    <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
+                        <h4 className="text-lg font-medium text-black dark:text-white mb-4">
+                            Test Configuration
+                        </h4>
+                        <div className="flex gap-6 flex-wrap">
+                            <div>
+                                <label className="mb-2.5 block text-black dark:text-white">
+                                    Letter Case
+                                </label>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'uppercase' }))}
+                                        className={`px-4 py-2 rounded ${answerFormat.case === 'uppercase'
+                                            ? 'bg-primary text-white'
+                                            : 'bg-white dark:bg-meta-4 border border-stroke'
+                                            }`}
+                                    >
+                                        ABC
+                                    </button>
+                                    <button
+                                        onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'lowercase' }))}
+                                        className={`px-4 py-2 rounded ${answerFormat.case === 'lowercase'
+                                            ? 'bg-primary text-white'
+                                            : 'bg-white dark:bg-meta-4 border border-stroke'
+                                            }`}
+                                    >
+                                        abc
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="mb-2.5 block text-black dark:text-white">
+                                    Separator
+                                </label>
+                                <div className="flex gap-3">
+                                    {[')', '.', '/'].map(separator => (
+                                        <button
+                                            key={separator}
+                                            onClick={() => setAnswerFormat(prev => ({ ...prev, separator }))}
+                                            className={`px-4 py-2 rounded ${answerFormat.separator === separator
+                                                ? 'bg-primary text-white'
+                                                : 'bg-white dark:bg-meta-4 border border-stroke'
+                                                }`}
+                                        >
+                                            A{separator}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="mb-2.5 block text-black dark:text-white">
+                                    Question Order
+                                </label>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={handleShuffle}
+                                        className="px-4 py-2 rounded bg-white dark:bg-meta-4 border border-stroke hover:bg-primary hover:text-white hover:border-primary active:bg-opacity-80 transition-all duration-200 group"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <svg
+                                                className="w-4 h-4 transform group-hover:rotate-180 transition-transform duration-300"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth="2"
+                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                                />
+                                            </svg>
+                                            <span className="whitespace-nowrap">Shuffle Questions</span>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="mb-2.5 block text-black dark:text-white">
+                                    Answer Key
+                                </label>
+                                <button
+                                    className={`px-4 py-2 rounded border bg-white dark:bg-meta-4 border-stroke hover:bg-primary hover:text-white hover:border-primary transition-all duration-200`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <svg
+                                            className="w-4 h-4"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M6 18L18 6M6 6l12 12"
+                                            />
+                                        </svg>
+                                        <span>Include Key</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Test Preview */}
+                    <div className="border border-stroke dark:border-strokedark rounded-sm p-6 relative">
+                        <div className="mb-4">
+                            <h4 className="text-lg font-medium text-black dark:text-white">
+                                Test Preview
+                            </h4>
+                        </div>
+
+                        {/* Preview Sample */}
+                        <div className="space-y-4">
+                            {testData.combinations.map((combination, index) => (
+                                <div key={index} className="p-4 border rounded-sm dark:border-strokedark">
+                                    <div className="font-medium text-black dark:text-white mb-2">
+                                        Combination {index + 1}:
+                                    </div>
+                                    <div className="pl-4 space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                        <div>Number of Questions: {combination.numberOfQuestions}</div>
+                                        <div>Taxonomy Level: {combination.taxonomyLevel}</div>
+                                        <div>Difficulty: {combination.difficulty}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Summary Section */}
+            <div className="mt-6 rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+                <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
+                    <h3 className="font-medium text-black dark:text-white">
+                        Summary
+                    </h3>
+                </div>
+
+                <div className="p-6.5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Basic Stats */}
+                        <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
+                            <h5 className="font-medium text-black dark:text-white mb-3">
+                                Overview
+                            </h5>
+                            <div className="space-y-2">
+                                <div className="flex justify-between">
+                                    <span className="text-sm">Total Questions:</span>
+                                    <span className="font-medium">
+                                        {testData.combinations.reduce((sum, comb) => sum + comb.numberOfQuestions, 0)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-sm">Combinations:</span>
+                                    <span className="font-medium">{testData.combinations.length}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Distribution Chart */}
+                        <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
+                            <h5 className="font-medium text-black dark:text-white mb-3">
+                                Question Distribution
+                            </h5>
+                            <div className="h-[200px] flex items-center justify-center text-gray-500 dark:text-gray-400">
+                                Distribution chart will be shown here
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Update the Save button to be disabled when form is invalid */}
-            <div className="mt-6">
+            <div className="mt-6 flex gap-4">
+                <button
+                    onClick={() => window.history.back()}
+                    className="flex flex-1 justify-center rounded bg-danger py-4 px-10 font-medium text-white hover:bg-opacity-90"
+                >
+                    Cancel
+                </button>
+
                 <button
                     onClick={handleSubmit}
                     disabled={!isFormValid}
-                    className={`flex w-full justify-center rounded p-3 font-medium text-gray ${isFormValid
+                    className={`flex flex-1 justify-center rounded py-4 px-10 font-medium text-white ${isFormValid
                         ? 'bg-primary hover:bg-opacity-90'
                         : 'bg-gray-400 cursor-not-allowed'
                         }`}
                 >
                     Save
+                </button>
+
+                <button
+                    onClick={exportToWord}
+                    className="flex flex-1 justify-center rounded bg-success py-4 px-10 font-medium text-white hover:bg-opacity-90"
+                    disabled={!isFormValid}
+                >
+                    Export to Word
                 </button>
             </div>
         </div>

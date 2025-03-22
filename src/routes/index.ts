@@ -16,6 +16,7 @@ const AddManyQues = lazy(() => import('../pages/AddManyQues'));
 const CreateTest = lazy(() => import('../pages/CreateTest'));
 const CreateTestAuto = lazy(() => import('../pages/CreateTestAuto'));
 const TestResults = lazy(() => import('../pages/TestResults'));
+const TestBank = lazy(() => import('../pages/TestBank'));
 
 const coreRoutes = [
   {
@@ -47,6 +48,16 @@ const coreRoutes = [
     path: '/courses/:courseId/question-banks/:chapterId/questions/:questionId/edit',
     title: 'Edit Question',
     component: QuestionEdit,
+  },
+  {
+    path: '/test-bank',
+    title: 'Test Bank',
+    component: TestBank,
+  },
+  {
+    path: '/test-bank/:courseId',
+    title: 'Course Tests',
+    component: TestBank,
   },
   {
     path: '/generate-questions',
