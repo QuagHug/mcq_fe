@@ -318,9 +318,10 @@ export const fetchChildBanks = async (courseId: string, parentBankId: string) =>
 
 export const fetchCourseTests = async (courseId: string) => {
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/courses/${courseId}/tests/`, {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/`, {
       headers: {
-        'Authorization': `Bearer ${getAccessToken()}`,
+        'Authorization': `Bearer ${token}`,
       },
     });
 
@@ -337,9 +338,10 @@ export const fetchCourseTests = async (courseId: string) => {
 
 export const fetchTestDetail = async (courseId: string, testId: string) => {
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/courses/${courseId}/tests/${testId}/`, {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/`, {
       headers: {
-        'Authorization': `Bearer ${getAccessToken()}`,
+        'Authorization': `Bearer ${token}`,
       },
     });
 
@@ -356,10 +358,11 @@ export const fetchTestDetail = async (courseId: string, testId: string) => {
 
 export const updateTest = async (courseId: string, testId: string, testData: any) => {
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/courses/${courseId}/tests/${testId}/`, {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${getAccessToken()}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(testData),
@@ -378,10 +381,11 @@ export const updateTest = async (courseId: string, testId: string, testData: any
 
 export const deleteTest = async (courseId: string, testId: string) => {
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/courses/${courseId}/tests/${testId}/`, {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/`, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${getAccessToken()}`,
+        'Authorization': `Bearer ${token}`,
       },
     });
 
