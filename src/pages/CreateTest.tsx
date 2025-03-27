@@ -69,6 +69,15 @@ const truncateText = (text: string, maxLength: number = 50) => {
     return cleanText.substring(0, truncateAt) + '...';
 };
 
+// Add this type near the other interfaces at the top
+interface QuestionDistribution {
+    [key: string]: {
+        easy: number;
+        medium: number;
+        hard: number;
+    };
+}
+
 const CreateTest = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
@@ -574,6 +583,34 @@ const CreateTest = () => {
         }
     };
 
+    // Add this function before the return statement
+    const calculateDistribution = () => {
+        const distribution: QuestionDistribution = {
+            'Remember': { easy: 0, medium: 0, hard: 0 },
+            'Understand': { easy: 0, medium: 0, hard: 0 },
+            'Apply': { easy: 0, medium: 0, hard: 0 },
+            'Analyze': { easy: 0, medium: 0, hard: 0 },
+            'Evaluate': { easy: 0, medium: 0, hard: 0 },
+            'Create': { easy: 0, medium: 0, hard: 0 }
+        };
+
+        selectedQuestions.forEach(question => {
+            const taxonomy = question.taxonomies?.find(tax =>
+                tax.taxonomy.name === "Bloom's Taxonomy"
+            )?.level || 'Remember';
+
+            // For this example, we'll set all questions as 'medium' difficulty
+            // You can modify this once you have actual difficulty data
+            const difficulty = 'medium';
+
+            if (distribution[taxonomy]) {
+                distribution[taxonomy][difficulty]++;
+            }
+        });
+
+        return distribution;
+    };
+
     return (
         <div className="mx-auto max-w-270">
             <Breadcrumb
@@ -777,6 +814,7 @@ const CreateTest = () => {
                                             .filter(q => !selectedQuestions.some(sq => sq.id === q.id))
                                             .findIndex(q => q.id === question.id);
                                         const questionNumber = availableQuestionIndex + 1;
+
                                         return (
                                             <div
                                                 key={question.id}
@@ -1060,80 +1098,76 @@ const CreateTest = () => {
                         </div>
 
                         <div className="p-6.5">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Basic Stats */}
-                                <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
-                                    <h5 className="font-medium text-black dark:text-white mb-3">
-                                        Overview
-                                    </h5>
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between">
-                                            <span className="text-sm">Total Questions:</span>
-                                            <span className="font-medium">{selectedQuestions.length}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-sm">Selected Topics:</span>
-                                            <span className="font-medium">{selectedTopics.length}</span>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div className="grid grid-cols-1 gap-6">
 
-                                {/* L.O. Distribution Chart */}
-                                <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
+                                {/* Distribution Table */}
+                                <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm overflow-x-auto">
                                     <h5 className="font-medium text-black dark:text-white mb-3">
-                                        L.O. Distribution
+                                        Question Distribution
                                     </h5>
-                                    {selectedTopics.length > 0 ? (
-                                        <div className="w-full h-[200px] flex items-center justify-center">
-                                            <Pie
-                                                data={{
-                                                    labels: selectedTopics.map(topic => {
-                                                        const foundLOs = subjectLOs[topic]?.map(lo => lo.name);
-                                                        return foundLOs ? foundLOs.join(', ') : topic;
-                                                    }),
-                                                    datasets: [
-                                                        {
-                                                            data: Object.values(calculateLOStats(selectedQuestions, selectedTopics)),
-                                                            backgroundColor: [
-                                                                'rgba(255, 99, 132, 0.5)',
-                                                                'rgba(54, 162, 235, 0.5)',
-                                                                'rgba(255, 206, 86, 0.5)',
-                                                                'rgba(75, 192, 192, 0.5)',
-                                                                'rgba(153, 102, 255, 0.5)',
-                                                            ],
-                                                            borderColor: [
-                                                                'rgba(255, 99, 132, 1)',
-                                                                'rgba(54, 162, 235, 1)',
-                                                                'rgba(255, 206, 86, 1)',
-                                                                'rgba(75, 192, 192, 1)',
-                                                                'rgba(153, 102, 255, 1)',
-                                                            ],
-                                                            borderWidth: 1,
-                                                        },
-                                                    ],
-                                                }}
-                                                options={{
-                                                    responsive: true,
-                                                    maintainAspectRatio: false,
-                                                    plugins: {
-                                                        legend: {
-                                                            position: 'right',
-                                                            labels: {
-                                                                color: 'rgb(156, 163, 175)',
-                                                                font: {
-                                                                    size: 12
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div className="h-[200px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-                                            No topics selected
-                                        </div>
-                                    )}
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-gray-2 dark:bg-meta-4">
+                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
+                                                    Taxonomy Level
+                                                </th>
+                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
+                                                    Easy
+                                                </th>
+                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
+                                                    Medium
+                                                </th>
+                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
+                                                    Hard
+                                                </th>
+                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
+                                                    Total
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].map(taxonomy => {
+                                                const difficulties = calculateDistribution()[taxonomy];
+                                                const rowTotal = Object.values(difficulties).reduce((sum, count) => sum + count, 0);
+
+                                                return (
+                                                    <tr key={taxonomy}>
+                                                        <td className="py-3 px-4 border-b border-[#eee] dark:border-strokedark">
+                                                            {taxonomy}
+                                                        </td>
+                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
+                                                            {difficulties.easy}
+                                                        </td>
+                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
+                                                            {difficulties.medium}
+                                                        </td>
+                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
+                                                            {difficulties.hard}
+                                                        </td>
+                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark font-medium">
+                                                            {rowTotal}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {/* Total Row */}
+                                            <tr className="bg-gray-2 dark:bg-meta-4">
+                                                <td className="py-3 px-4 font-medium">Total</td>
+                                                <td className="py-3 px-4 text-center font-medium">
+                                                    {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.easy, 0)}
+                                                </td>
+                                                <td className="py-3 px-4 text-center font-medium">
+                                                    {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.medium, 0)}
+                                                </td>
+                                                <td className="py-3 px-4 text-center font-medium">
+                                                    {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.hard, 0)}
+                                                </td>
+                                                <td className="py-3 px-4 text-center font-medium">
+                                                    {selectedQuestions.length}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>

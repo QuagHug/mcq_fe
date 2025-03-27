@@ -17,6 +17,8 @@ const CreateTest = lazy(() => import('../pages/CreateTest'));
 const CreateTestAuto = lazy(() => import('../pages/CreateTestAuto'));
 const TestResults = lazy(() => import('../pages/TestResults'));
 const TestBank = lazy(() => import('../pages/TestBank'));
+const TestDetails = lazy(() => import('../pages/TestDetails'));
+const EditTest = lazy(() => import('../pages/EditTest'));
 
 const coreRoutes = [
   {
@@ -58,6 +60,16 @@ const coreRoutes = [
     path: '/test-bank/:courseId',
     title: 'Course Tests',
     component: TestBank,
+  },
+  {
+    path: '/test-bank/:courseId/tests/:testId',
+    title: 'Test Details',
+    component: TestDetails,
+  },
+  {
+    path: '/test-bank/:courseId/tests/:testId/edit',
+    title: 'Edit Test',
+    component: EditTest,
   },
   {
     path: '/generate-questions',

@@ -42,6 +42,16 @@ interface AnswerFormat {
 // Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend);
 
+// Add this type near the other interfaces at the top
+type Difficulty = 'easy' | 'medium' | 'hard';
+
+// Add this type for the distribution table
+interface QuestionDistribution {
+    [key: string]: {
+        [key in Difficulty]: number;
+    };
+}
+
 const CreateTestAuto: React.FC = (): JSX.Element => {
     const [testData, setTestData] = useState<TestData>({
         title: '',
@@ -213,8 +223,8 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
         }
     };
 
-    // Check if form is valid (both subject and chapter are selected)
-    const isFormValid = selectedSubject && selectedChapter;
+    // Check if form is valid (has title and at least one combination with questions)
+    const isFormValid = testData.title && testData.combinations.some(comb => comb.numberOfQuestions > 0);
 
     useEffect(() => {
         const loadBanks = async () => {
@@ -296,6 +306,28 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
             console.error('Error generating document:', err);
             setError('Failed to generate document');
         }
+    };
+
+    // Update the calculateDistribution function
+    const calculateDistribution = (): QuestionDistribution => {
+        const distribution: QuestionDistribution = {
+            'Remember': { easy: 0, medium: 0, hard: 0 },
+            'Understand': { easy: 0, medium: 0, hard: 0 },
+            'Apply': { easy: 0, medium: 0, hard: 0 },
+            'Analyze': { easy: 0, medium: 0, hard: 0 },
+            'Evaluate': { easy: 0, medium: 0, hard: 0 },
+            'Create': { easy: 0, medium: 0, hard: 0 }
+        };
+
+        testData.combinations.forEach(combination => {
+            const taxonomy = combination.taxonomyLevel.charAt(0).toUpperCase() + combination.taxonomyLevel.slice(1);
+            const difficulty = combination.difficulty as Difficulty;
+            if (distribution[taxonomy] && distribution[taxonomy][difficulty]) {
+                distribution[taxonomy][difficulty] += combination.numberOfQuestions;
+            }
+        });
+
+        return distribution;
     };
 
     return (
@@ -625,34 +657,76 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                 </div>
 
                 <div className="p-6.5">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Basic Stats */}
-                        <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
-                            <h5 className="font-medium text-black dark:text-white mb-3">
-                                Overview
-                            </h5>
-                            <div className="space-y-2">
-                                <div className="flex justify-between">
-                                    <span className="text-sm">Total Questions:</span>
-                                    <span className="font-medium">
-                                        {testData.combinations.reduce((sum, comb) => sum + comb.numberOfQuestions, 0)}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span className="text-sm">Combinations:</span>
-                                    <span className="font-medium">{testData.combinations.length}</span>
-                                </div>
-                            </div>
-                        </div>
+                    <div className="grid grid-cols-1 gap-6">
 
-                        {/* Distribution Chart */}
-                        <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
+                        {/* Distribution Table */}
+                        <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm overflow-x-auto">
                             <h5 className="font-medium text-black dark:text-white mb-3">
                                 Question Distribution
                             </h5>
-                            <div className="h-[200px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-                                Distribution chart will be shown here
-                            </div>
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-gray-2 dark:bg-meta-4">
+                                        <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
+                                            Taxonomy Level
+                                        </th>
+                                        <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
+                                            Easy
+                                        </th>
+                                        <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
+                                            Medium
+                                        </th>
+                                        <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
+                                            Hard
+                                        </th>
+                                        <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
+                                            Total
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].map(taxonomy => {
+                                        const difficulties = calculateDistribution()[taxonomy];
+                                        const rowTotal = Object.values(difficulties).reduce((sum, count) => sum + count, 0);
+
+                                        return (
+                                            <tr key={taxonomy}>
+                                                <td className="py-3 px-4 border-b border-[#eee] dark:border-strokedark">
+                                                    {taxonomy}
+                                                </td>
+                                                <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
+                                                    {difficulties.easy}
+                                                </td>
+                                                <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
+                                                    {difficulties.medium}
+                                                </td>
+                                                <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
+                                                    {difficulties.hard}
+                                                </td>
+                                                <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark font-medium">
+                                                    {rowTotal}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {/* Total Row */}
+                                    <tr className="bg-gray-2 dark:bg-meta-4">
+                                        <td className="py-3 px-4 font-medium">Total</td>
+                                        <td className="py-3 px-4 text-center font-medium">
+                                            {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.easy, 0)}
+                                        </td>
+                                        <td className="py-3 px-4 text-center font-medium">
+                                            {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.medium, 0)}
+                                        </td>
+                                        <td className="py-3 px-4 text-center font-medium">
+                                            {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.hard, 0)}
+                                        </td>
+                                        <td className="py-3 px-4 text-center font-medium">
+                                            {testData.combinations.reduce((sum, comb) => sum + comb.numberOfQuestions, 0)}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -669,11 +743,8 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
 
                 <button
                     onClick={handleSubmit}
-                    disabled={!isFormValid}
-                    className={`flex flex-1 justify-center rounded py-4 px-10 font-medium text-white ${isFormValid
-                        ? 'bg-primary hover:bg-opacity-90'
-                        : 'bg-gray-400 cursor-not-allowed'
-                        }`}
+                    // disabled={!isFormValid}
+                    className="flex flex-1 justify-center rounded bg-primary py-4 px-10 font-medium text-white hover:bg-opacity-90"
                 >
                     Save
                 </button>
