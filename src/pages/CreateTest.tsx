@@ -9,7 +9,6 @@ import { Dialog } from '@headlessui/react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 import React from 'react';
-import QuestionStats from '../components/QuestionStats';
 
 interface Question {
     id: number;
@@ -20,7 +19,10 @@ interface Question {
     answers?: { answer_text: string; is_correct: boolean }[];
     taxonomies?: { taxonomy: { name: string }; level: string }[];
     learningObjective?: string;
-    statistics?: QuestionStatistics;
+    statistics?: {
+        scaled_difficulty: number;
+        scaled_discrimination: number;
+    };
 }
 
 interface QuestionBank {
@@ -49,23 +51,6 @@ interface SubjectLOs {
 interface AnswerFormat {
     case: 'uppercase' | 'lowercase';
     separator: string;
-}
-
-interface QuestionStatistics {
-    note?: string;
-    error?: string;
-    last_updated: string;
-    irt_parameters: {
-        difficulty: number;
-        discrimination: number;
-    };
-    classical_parameters: {
-        p_value: number;
-        total_responses: number;
-        correct_responses: number;
-    };
-    scaled_difficulty: number;
-    scaled_discrimination: number;
 }
 
 // Register ChartJS components
@@ -837,23 +822,39 @@ const CreateTest = () => {
                                         return (
                                             <div
                                                 key={question.id}
-                                                className="question-selection-item p-4 border rounded mb-2"
+                                                className="p-4 border rounded-sm dark:border-strokedark"
                                             >
-                                                <div className="flex items-start gap-4">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isQuestionInTest(question.id)}
-                                                        onChange={() => toggleQuestionSelection(question)}
-                                                        className="mt-1"
-                                                    />
-                                                    <div className="flex-grow">
-                                                        <p className="font-medium">{question.question_text}</p>
-                                                        {question.statistics && (
-                                                            <div className="text-xs text-gray-500 mt-1">
-                                                                Difficulty: {question.statistics.scaled_difficulty.toFixed(2)} | 
-                                                                Discrimination: {question.statistics.scaled_discrimination.toFixed(2)}
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-gray-500">{questionNumber}.</span>
+                                                            <div 
+                                                                className="flex items-center gap-2 text-sm font-medium text-black dark:text-white hover:text-primary"
+                                                                onClick={() => handleQuestionClick(question)}
+                                                            >
+                                                                <div className="inline" dangerouslySetInnerHTML={{ __html: question.question_text }} />
+                                                                {question.statistics && (
+                                                                    <span className="text-xs text-gray-500 shrink-0">
+                                                                        (D: {question.statistics.scaled_difficulty.toFixed(2)}, 
+                                                                        Disc: {question.statistics.scaled_discrimination.toFixed(2)})
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                        )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-8">
+                                                        <span className="text-sm text-gray-500 w-24 text-center">
+                                                            N/A
+                                                        </span>
+                                                        <span className="text-sm text-gray-500 w-24 text-center">
+                                                            {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => toggleQuestionSelection(question)}
+                                                            className="text-success hover:text-meta-3 w-12"
+                                                        >
+                                                            Add
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
