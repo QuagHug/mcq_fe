@@ -31,7 +31,6 @@ const TestResults = () => {
     const [courses, setCourses] = useState<any[]>([]);
     const [selectedCourse, setSelectedCourse] = useState<string>('');
     const [isLoadingCourses, setIsLoadingCourses] = useState(false);
-    const [testCodeMap, setTestCodeMap] = useState<{ [key: string]: string }>({});
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -237,16 +236,9 @@ const TestResults = () => {
         setUploadError(null);
     };
 
-    const handleTestCodeChange = (event: React.ChangeEvent<HTMLInputElement>, questionId: string) => {
-        setTestCodeMap(prev => ({
-            ...prev,
-            [questionId]: event.target.value
-        }));
-    };
-
     const handleUpload = async () => {
-        if (!selectedFile || !selectedCourse || !selectedTest || !testCodeMap[selectedTest]) {
-            setUploadError('Please select a test, enter test code, and choose a file');
+        if (!selectedFile || !selectedCourse || !selectedTest) {
+            setUploadError('Please select a test and choose a file');
             return;
         }
 
@@ -256,14 +248,12 @@ const TestResults = () => {
             const response = await uploadTestResults(
                 selectedCourse, 
                 selectedTest, 
-                selectedFile, 
-                testCodeMap[selectedTest]
+                selectedFile
             );
             console.log('Upload response:', response);
             
             // Clear form after successful upload
             setSelectedFile(null);
-            setTestCodeMap(prev => ({ ...prev, [selectedTest]: '' }));
             const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
             if (fileInput) fileInput.value = '';
             
@@ -325,11 +315,10 @@ const TestResults = () => {
             selectedFile,
             fileName: selectedFile?.name,
             isUploading,
-            testCode: testCodeMap[selectedTest],
             selectedTest,
-            disabledCondition: !selectedFile || isUploading || !testCodeMap[selectedTest]
+            disabledCondition: !selectedFile || isUploading
         });
-    }, [selectedFile, isUploading, testCodeMap, selectedTest]);
+    }, [selectedFile, isUploading, selectedTest]);
 
     return (
         <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
@@ -414,21 +403,6 @@ const TestResults = () => {
                     {selectedTest && (
                         <div className="mb-4.5">
                             <label className="mb-2.5 block text-black dark:text-white">
-                                Test Code Mapping
-                            </label>
-                            <div className="mb-4 p-4 border border-stroke rounded-sm">
-                                <p className="text-sm text-gray-500 mb-3">
-                                    Please enter the test code from your results file that corresponds to this test
-                                </p>
-                                <input
-                                    type="text"
-                                    placeholder="Enter test code (e.g., T001)"
-                                    onChange={(e) => handleTestCodeChange(e, selectedTest)}
-                                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary mb-4"
-                                />
-                            </div>
-                            
-                            <label className="mb-2.5 block text-black dark:text-white">
                                 Upload Results File
                             </label>
                             <input
@@ -438,25 +412,15 @@ const TestResults = () => {
                                 className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary mb-4"
                             />
 
-                            {/* Add Upload Button */}
                             {uploadError && (
                                 <p className="text-danger mb-4">{uploadError}</p>
                             )}
                             
                             <button
                                 onClick={handleUpload}
-                                disabled={!selectedFile || isUploading || !testCodeMap[selectedTest]}
+                                disabled={!selectedFile || isUploading}
                                 className={`inline-flex items-center justify-center rounded-md ${
-                                    (() => {
-                                        const isDisabled = !selectedFile || isUploading || !testCodeMap[selectedTest];
-                                        console.log('Button render state:', {
-                                            selectedFile: !!selectedFile,
-                                            isUploading,
-                                            testCode: testCodeMap[selectedTest],
-                                            isDisabled
-                                        });
-                                        return isDisabled ? 'bg-gray-400' : 'bg-primary hover:bg-opacity-90';
-                                    })()
+                                    !selectedFile || isUploading ? 'bg-gray-400' : 'bg-primary hover:bg-opacity-90'
                                 } py-4 px-10 text-center font-medium text-white transition`}
                             >
                                 {isUploading ? (

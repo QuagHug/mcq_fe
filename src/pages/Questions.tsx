@@ -31,6 +31,7 @@ interface Question {
     }>;
     parent_id: number | null;
     children: Question[];
+    statistics?: QuestionStatistics;
 }
 
 interface Bank {
@@ -456,6 +457,12 @@ const Questions = () => {
                                             className="text-black dark:text-white hover:text-primary"
                                         >
                                             {truncateText(question.question_text)}
+                                            {question.statistics && (
+                                                <div className="text-xs text-gray-500 mt-1">
+                                                    Difficulty: {question.statistics.scaled_difficulty.toFixed(2)} | 
+                                                    Discrimination: {question.statistics.scaled_discrimination.toFixed(2)}
+                                                </div>
+                                            )}
                                         </Link>
                                     </td>
                                     <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
