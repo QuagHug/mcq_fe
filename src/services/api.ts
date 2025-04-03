@@ -283,6 +283,11 @@ interface Question {
 interface CreateTestRequest {
   title: string;
   question_ids: number[];
+  config: {
+    letterCase: 'uppercase' | 'lowercase';
+    separator: string;
+    includeAnswerKey: boolean;
+  };
 }
 
 export const createTest = async (courseId: string, data: CreateTestRequest) => {
@@ -317,23 +322,16 @@ export const fetchChildBanks = async (courseId: string, parentBankId: string) =>
 };
 
 export const fetchCourseTests = async (courseId: string) => {
-  try {
-    const token = await getValidToken();
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch tests');
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching tests:', error);
-    throw error;
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch tests');
   }
+  return response.json();
 };
 
 export const fetchTestDetail = async (courseId: string, testId: string) => {

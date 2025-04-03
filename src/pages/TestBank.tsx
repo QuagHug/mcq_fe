@@ -19,158 +19,6 @@ interface Course {
     owner: string;
 }
 
-// Update mock data for tests to be organized by course
-const mockTestsByCourse: Record<string, Test[]> = {
-    'DSA': [
-        {
-            id: '1',
-            title: 'DSA Midterm Exam',
-            created_at: '2024-03-15',
-            question_count: 30,
-            description: 'Midterm examination covering Data Structures and Algorithms'
-        },
-        {
-            id: '2',
-            title: 'DSA Final Exam',
-            created_at: '2024-03-16',
-            question_count: 50,
-            description: 'Final examination covering all DSA topics'
-        },
-        {
-            id: '3',
-            title: 'Quiz: Arrays and Linked Lists',
-            created_at: '2024-03-10',
-            question_count: 15,
-            description: 'Quick assessment on fundamental data structures'
-        },
-        {
-            id: '4',
-            title: 'Practice Test: Trees and Graphs',
-            created_at: '2024-03-12',
-            question_count: 20,
-            description: 'Practice questions on tree and graph algorithms'
-        },
-        {
-            id: '5',
-            title: 'Assignment: Sorting Algorithms',
-            created_at: '2024-03-08',
-            question_count: 25,
-            description: 'Assessment covering various sorting algorithms and their complexities'
-        }
-    ],
-    'PPL': [
-        {
-            id: '6',
-            title: 'PPL Midterm Exam',
-            created_at: '2024-03-17',
-            question_count: 40,
-            description: 'Comprehensive midterm covering programming paradigms'
-        },
-        {
-            id: '7',
-            title: 'PPL Final Exam',
-            created_at: '2024-03-18',
-            question_count: 60,
-            description: 'Final examination on programming languages and paradigms'
-        },
-        {
-            id: '8',
-            title: 'Quiz: Object-Oriented Programming',
-            created_at: '2024-03-14',
-            question_count: 15,
-            description: 'Assessment on OOP principles and concepts'
-        },
-        {
-            id: '9',
-            title: 'Practice Test: Functional Programming',
-            created_at: '2024-03-11',
-            question_count: 20,
-            description: 'Practice questions on functional programming concepts'
-        },
-        {
-            id: '10',
-            title: 'Assignment: Language Processing',
-            created_at: '2024-03-09',
-            question_count: 25,
-            description: 'Questions covering lexical analysis and parsing'
-        }
-    ],
-    'Discrete Math': [
-        {
-            id: '11',
-            title: 'Discrete Math Midterm',
-            created_at: '2024-03-16',
-            question_count: 35,
-            description: 'Midterm covering set theory and logic'
-        },
-        {
-            id: '12',
-            title: 'Quiz: Graph Theory',
-            created_at: '2024-03-13',
-            question_count: 20,
-            description: 'Assessment on graph theory fundamentals'
-        },
-        {
-            id: '13',
-            title: 'Practice Test: Number Theory',
-            created_at: '2024-03-10',
-            question_count: 25,
-            description: 'Practice problems in number theory'
-        }
-    ],
-    'Database Systems': [
-        {
-            id: '14',
-            title: 'Database Final Exam',
-            created_at: '2024-03-19',
-            question_count: 45,
-            description: 'Comprehensive final covering DBMS concepts'
-        },
-        {
-            id: '15',
-            title: 'Quiz: SQL Fundamentals',
-            created_at: '2024-03-15',
-            question_count: 20,
-            description: 'Assessment on SQL queries and database design'
-        },
-        {
-            id: '16',
-            title: 'Practice Test: Normalization',
-            created_at: '2024-03-12',
-            question_count: 15,
-            description: 'Practice questions on database normalization'
-        }
-    ]
-};
-
-// Add mock courses data to match with mockTestsByCourse
-const mockCourses: Course[] = [
-    {
-        id: 'dsa-001',
-        name: 'DSA',
-        course_id: 'CSE001',
-        owner: 'Dr. Smith'
-    },
-    {
-        id: 'ppl-001',
-        name: 'PPL',
-        course_id: 'CSE002',
-        owner: 'Dr. Johnson'
-    },
-    {
-        id: 'dm-001',
-        name: 'Discrete Math',
-        course_id: 'CSE003',
-        owner: 'Dr. Williams'
-    },
-    {
-        id: 'db-001',
-        name: 'Database Systems',
-        course_id: 'CSE004',
-        owner: 'Dr. Brown'
-    }
-];
-
 const TestBank = () => {
     const { courseId } = useParams();
     const [courses, setCourses] = useState<Course[]>([]);
@@ -186,8 +34,8 @@ const TestBank = () => {
     useEffect(() => {
         const loadCourses = async () => {
             try {
-                // Use mock data instead of API call for now
-                setCourses(mockCourses);
+                const coursesData = await fetchCourses();
+                setCourses(coursesData);
             } catch (err) {
                 setError('Failed to load courses');
             }
@@ -202,21 +50,23 @@ const TestBank = () => {
             return;
         }
 
-        // Simulate API call with mock data
-        setLoading(true);
-        setTimeout(() => {
-            // Find the course in the courses array
-            const course = courses.find(c => c.id === courseId);
-            if (course) {
-                // Use the course name to find matching tests
-                const courseTests = mockTestsByCourse[course.name] || [];
+        const loadTests = async () => {
+            try {
+                setLoading(true);
+                const courseTests = await fetchCourseTests(courseId);
                 setTests(courseTests);
-                setSelectedCourseName(course.name);
-            } else {
-                setTests([]);
+                const course = courses.find(c => c.id === courseId);
+                if (course) {
+                    setSelectedCourseName(course.name);
+                }
+            } catch (err) {
+                setError('Failed to load tests');
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
-        }, 500);
+        };
+
+        loadTests();
     }, [courseId, courses]);
 
     const handleDeleteClick = (test: Test) => {
@@ -228,7 +78,7 @@ const TestBank = () => {
         if (!testToDelete || !courseId) return;
 
         try {
-            // For mock data, just remove from state
+            await deleteTest(courseId, testToDelete.id);
             setTests(tests.filter(t => t.id !== testToDelete.id));
             setIsDeleteDialogOpen(false);
             setTestToDelete(null);

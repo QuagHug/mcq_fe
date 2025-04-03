@@ -568,13 +568,23 @@ const CreateTest = () => {
         try {
             console.log('Making API call with data:', {
                 title: testData.title,
-                question_ids: selectedQuestions.map(q => q.id)
+                question_ids: selectedQuestions.map(q => q.id),
+                config: {
+                    letterCase: answerFormat.case,
+                    separator: answerFormat.separator,
+                    includeAnswerKey: includeKey
+                }
             });
 
             setLoading(true);
             const response = await createTest(selectedCourse, {
                 title: testData.title,
-                question_ids: selectedQuestions.map(q => q.id)
+                question_ids: selectedQuestions.map(q => q.id),
+                config: {
+                    letterCase: answerFormat.case,
+                    separator: answerFormat.separator,
+                    includeAnswerKey: includeKey
+                }
             });
 
             console.log('API response:', response);
@@ -1045,7 +1055,12 @@ const CreateTest = () => {
                                             Answer Key
                                         </label>
                                         <button
-                                            className={`px-4 py-2 rounded border bg-white dark:bg-meta-4 border-stroke hover:bg-primary hover:text-white hover:border-primary transition-all duration-200`}
+                                            onClick={() => setIncludeKey(!includeKey)}
+                                            className={`px-4 py-2 rounded border ${
+                                                includeKey 
+                                                    ? 'bg-primary text-white border-primary' 
+                                                    : 'bg-white dark:bg-meta-4 border-stroke'
+                                            } hover:bg-primary hover:text-white hover:border-primary transition-all duration-200`}
                                         >
                                             <div className="flex items-center gap-2">
                                                 <svg
@@ -1054,12 +1069,21 @@ const CreateTest = () => {
                                                     stroke="currentColor"
                                                     viewBox="0 0 24 24"
                                                 >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth="2"
-                                                        d="M6 18L18 6M6 6l12 12"
-                                                    />
+                                                    {includeKey ? (
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth="2"
+                                                            d="M5 13l4 4L19 7"
+                                                        />
+                                                    ) : (
+                                                        <path
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            strokeWidth="2"
+                                                            d="M6 18L18 6M6 6l12 12"
+                                                        />
+                                                    )}
                                                 </svg>
                                                 <span>Include Key</span>
                                             </div>
