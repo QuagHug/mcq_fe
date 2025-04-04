@@ -9,6 +9,7 @@ import { Dialog } from '@headlessui/react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 import React from 'react';
+import TestConfiguration from '../components/TestConfiguration';
 
 interface Question {
     id: number;
@@ -82,11 +83,22 @@ interface QuestionDistribution {
     };
 }
 
+interface TestConfig {
+    letterCase: 'uppercase' | 'lowercase';
+    separator: string;
+    includeAnswerKey: boolean;
+}
+
 const CreateTest = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
     const [courses, setCourses] = useState<Array<{ id: string, name: string }>>([]);
     const [selectedCourse, setSelectedCourse] = useState('');
+    const [configuration, setConfiguration] = useState({
+        letterCase: 'lowercase' as const,
+        separator: ')',
+        includeAnswerKey: true
+    });
     const [testData, setTestData] = useState({
         title: '',
         description: '',
@@ -557,41 +569,21 @@ const CreateTest = () => {
 
     const handleCreateTest = async () => {
         if (!testData.title || selectedQuestions.length === 0 || !selectedCourse) {
-            console.log('Validation failed:', {
-                hasTitle: !!testData.title,
-                hasQuestions: selectedQuestions.length > 0,
-                hasSelectedCourse: !!selectedCourse
-            });
+            setError('Please fill in all required fields');
             return;
         }
 
         try {
-            console.log('Making API call with data:', {
-                title: testData.title,
-                question_ids: selectedQuestions.map(q => q.id),
-                config: {
-                    letterCase: answerFormat.case,
-                    separator: answerFormat.separator,
-                    includeAnswerKey: includeKey
-                }
-            });
-
             setLoading(true);
             const response = await createTest(selectedCourse, {
                 title: testData.title,
+                description: testData.description,
                 question_ids: selectedQuestions.map(q => q.id),
-                config: {
-                    letterCase: answerFormat.case,
-                    separator: answerFormat.separator,
-                    includeAnswerKey: includeKey
-                }
+                config: configuration
             });
-
-            console.log('API response:', response);
-            navigate(`/courses/${selectedCourse}/tests`);
-        } catch (error) {
-            console.error('Failed to create test:', error);
-            setError('Failed to create test. Please try again.');
+            navigate(`/test-bank/${selectedCourse}`);
+        } catch (err) {
+            setError('Failed to create test');
         } finally {
             setLoading(false);
         }
@@ -969,158 +961,11 @@ const CreateTest = () => {
                         </div>
 
                         <div className="p-6.5">
-                            {/* Test Configuration */}
-                            <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
-                                <h4 className="text-lg font-medium text-black dark:text-white mb-4">
-                                    Test Configuration
-                                </h4>
-                                <div className="flex gap-6 flex-wrap">
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Letter Case
-                                        </label>
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'uppercase' }))}
-                                                className={`px-4 py-2 rounded ${answerFormat.case === 'uppercase'
-                                                    ? 'bg-primary text-white'
-                                                    : 'bg-white dark:bg-meta-4 border border-stroke'
-                                                    }`}
-                                            >
-                                                ABC
-                                            </button>
-                                            <button
-                                                onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'lowercase' }))}
-                                                className={`px-4 py-2 rounded ${answerFormat.case === 'lowercase'
-                                                    ? 'bg-primary text-white'
-                                                    : 'bg-white dark:bg-meta-4 border border-stroke'
-                                                    }`}
-                                            >
-                                                abc
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Separator
-                                        </label>
-                                        <div className="flex gap-3">
-                                            {[')', '.', '/'].map(separator => (
-                                                <button
-                                                    key={separator}
-                                                    onClick={() => setAnswerFormat(prev => ({ ...prev, separator }))}
-                                                    className={`px-4 py-2 rounded ${answerFormat.separator === separator
-                                                        ? 'bg-primary text-white'
-                                                        : 'bg-white dark:bg-meta-4 border border-stroke'
-                                                        }`}
-                                                >
-                                                    A{separator}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Question Order
-                                        </label>
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={handleShuffle}
-                                                className="px-4 py-2 rounded bg-white dark:bg-meta-4 border border-stroke hover:bg-primary hover:text-white hover:border-primary active:bg-opacity-80 transition-all duration-200 group"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <svg
-                                                        className="w-4 h-4 transform group-hover:rotate-180 transition-transform duration-300"
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        viewBox="0 0 24 24"
-                                                    >
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth="2"
-                                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                                        />
-                                                    </svg>
-                                                    <span className="whitespace-nowrap">Shuffle Questions</span>
-                                                </div>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Answer Key
-                                        </label>
-                                        <button
-                                            onClick={() => setIncludeKey(!includeKey)}
-                                            className={`px-4 py-2 rounded border ${
-                                                includeKey 
-                                                    ? 'bg-primary text-white border-primary' 
-                                                    : 'bg-white dark:bg-meta-4 border-stroke'
-                                            } hover:bg-primary hover:text-white hover:border-primary transition-all duration-200`}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <svg
-                                                    className="w-4 h-4"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    {includeKey ? (
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth="2"
-                                                            d="M5 13l4 4L19 7"
-                                                        />
-                                                    ) : (
-                                                        <path
-                                                            strokeLinecap="round"
-                                                            strokeLinejoin="round"
-                                                            strokeWidth="2"
-                                                            d="M6 18L18 6M6 6l12 12"
-                                                        />
-                                                    )}
-                                                </svg>
-                                                <span>Include Key</span>
-                                            </div>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Test Preview */}
-                            <div className="border border-stroke dark:border-strokedark rounded-sm p-6 relative">
-                                <div className="mb-4">
-                                    <h4 className="text-lg font-medium text-black dark:text-white">
-                                        Test Preview
-                                    </h4>
-                                </div>
-
-                                {/* Preview Sample */}
-                                <div className="space-y-4">
-                                    {selectedQuestions.slice(0, 2).map((question, index) => (
-                                        <div key={index} className="space-y-2">
-                                            <div className="font-medium">
-                                                Question {index + 1}: {sanitizeHtml(question.question_text)}
-                                            </div>
-                                            <div className="pl-4 space-y-1">
-                                                {question.answers?.map((answer, ansIndex) => (
-                                                    <div key={ansIndex}>
-                                                        {answerFormat.case === 'uppercase'
-                                                            ? String.fromCharCode(65 + ansIndex)
-                                                            : String.fromCharCode(97 + ansIndex)}
-                                                        {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                            <TestConfiguration
+                                configuration={configuration}
+                                isEditing={true}
+                                onConfigChange={setConfiguration}
+                            />
                         </div>
                     </div>
 

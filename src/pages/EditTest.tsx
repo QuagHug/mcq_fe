@@ -2,26 +2,37 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Breadcrumb from '../components/Breadcrumb';
 import { Dialog } from '@headlessui/react';
+import { updateTest, fetchTestDetail, fetchQuestions, fetchQuestionBanks } from '../services/api';
+import TestConfiguration from '../components/TestConfiguration';
+import QuestionDisplay from '../components/QuestionDisplay';
 
 interface Question {
     id: string;
-    text: string;
-    options: {
+    question_text: string;
+    answers: {
         id: string;
-        text: string;
-        isCorrect: boolean;
+        answer_text: string;
+        is_correct: boolean;
+        explanation?: string;
     }[];
-    explanation?: string;
     taxonomyLevel?: string;
     difficulty?: 'easy' | 'medium' | 'hard';
-    selected?: boolean;
 }
 
 interface Test {
     id: string;
     title: string;
     description?: string;
-    questions: Question[];
+    configuration: {
+        letterCase: 'uppercase' | 'lowercase';
+        separator: string;
+        includeAnswerKey: boolean;
+    };
+    questions: {
+        id: number;
+        question: number;
+        question_data: Question;
+    }[];
 }
 
 interface QuestionBank {
@@ -30,80 +41,10 @@ interface QuestionBank {
     questions: Question[];
 }
 
-// Mock question bank data
-const mockQuestionBank: QuestionBank = {
-    id: '1',
-    name: 'DSA Question Bank',
-    questions: [
-        {
-            id: '3',
-            text: 'What is the space complexity of a binary search tree?',
-            options: [
-                { id: 'A', text: 'O(1)', isCorrect: false },
-                { id: 'B', text: 'O(n)', isCorrect: true },
-                { id: 'C', text: 'O(log n)', isCorrect: false },
-                { id: 'D', text: 'O(n²)', isCorrect: false }
-            ],
-            explanation: 'The space complexity of a binary search tree is O(n) where n is the number of nodes.',
-            taxonomyLevel: 'remember',
-            difficulty: 'easy'
-        },
-        {
-            id: '4',
-            text: 'Which sorting algorithm has the best average case time complexity?',
-            options: [
-                { id: 'A', text: 'Bubble Sort', isCorrect: false },
-                { id: 'B', text: 'Quick Sort', isCorrect: true },
-                { id: 'C', text: 'Insertion Sort', isCorrect: false },
-                { id: 'D', text: 'Selection Sort', isCorrect: false }
-            ],
-            explanation: 'Quick Sort has an average time complexity of O(n log n) which is optimal for comparison-based sorting.',
-            taxonomyLevel: 'understand',
-            difficulty: 'medium'
-        }
-    ]
-};
-
-const mockTest: Test = {
-    id: '1',
-    title: 'DSA Midterm Exam',
-    description: 'Midterm examination covering Data Structures and Algorithms',
-    questions: [
-        {
-            id: '1',
-            text: 'What is the time complexity of QuickSort in the average case?',
-            options: [
-                { id: 'A', text: 'O(n)', isCorrect: false },
-                { id: 'B', text: 'O(n log n)', isCorrect: true },
-                { id: 'C', text: 'O(n²)', isCorrect: false },
-                { id: 'D', text: 'O(log n)', isCorrect: false }
-            ],
-            explanation: 'QuickSort has an average time complexity of O(n log n) due to its divide-and-conquer approach.',
-            taxonomyLevel: 'understand',
-            difficulty: 'medium',
-            selected: true
-        },
-        {
-            id: '2',
-            text: 'What data structure would you use to implement a priority queue?',
-            options: [
-                { id: 'A', text: 'Array', isCorrect: false },
-                { id: 'B', text: 'Linked List', isCorrect: false },
-                { id: 'C', text: 'Heap', isCorrect: true },
-                { id: 'D', text: 'Stack', isCorrect: false }
-            ],
-            explanation: 'A Heap is the most efficient data structure for implementing a priority queue.',
-            taxonomyLevel: 'apply',
-            difficulty: 'hard',
-            selected: true
-        }
-    ]
-};
-
 const EditTest = () => {
     const { courseId, testId } = useParams();
     const navigate = useNavigate();
-    const [test, setTest] = useState<Test>(mockTest);
+    const [test, setTest] = useState<Test | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false);
@@ -114,7 +55,7 @@ const EditTest = () => {
         case: 'uppercase' as const,
         separator: ')',
     });
-    const [availableQuestions, setAvailableQuestions] = useState<Question[]>(mockQuestionBank.questions);
+    const [availableQuestions, setAvailableQuestions] = useState<Question[]>([]);
 
     // Add new state variables for filtering and pagination
     const [searchQuery, setSearchQuery] = useState('');
@@ -128,10 +69,13 @@ const EditTest = () => {
     // Add Bloom's levels array
     const bloomsLevels = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'];
 
+    // Add state for question banks
+    const [questionBanks, setQuestionBanks] = useState<Array<{ id: string }>>([]);
+
     // Add filtering effect
     useEffect(() => {
         const filtered = availableQuestions.filter(question => {
-            const matchesSearch = question.text.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = question.question_text.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesLevel = selectedLevels.length === 0 ||
                 selectedLevels.includes(question.taxonomyLevel?.toLowerCase() || '');
             const matchesBank = !selectedBankId || question.id.startsWith(selectedBankId);
@@ -153,18 +97,22 @@ const EditTest = () => {
         return text.substring(0, maxLength) + '...';
     };
 
+    // Load test data
     useEffect(() => {
         const loadTest = async () => {
+            if (!courseId || !testId) return;
+            
             setLoading(true);
             try {
-                // In a real app, fetch the test data here
-                setTest(mockTest);
-                // Mark questions as selected if they're in the test
-                const updatedAvailableQuestions = mockQuestionBank.questions.map(q => ({
-                    ...q,
-                    selected: test.questions.some(tq => tq.id === q.id)
-                }));
-                setAvailableQuestions(updatedAvailableQuestions);
+                const testData = await fetchTestDetail(courseId, testId);
+                setTest({
+                    ...testData,
+                    questions: testData.questions.map((q: any) => ({
+                        id: q.question,
+                        question: q.question,
+                        question_data: q.question_data
+                    }))
+                });
             } catch (err) {
                 setError('Failed to load test');
             } finally {
@@ -172,15 +120,47 @@ const EditTest = () => {
             }
         };
         loadTest();
-    }, [testId]);
+    }, [courseId, testId]);
+
+    // Update the loadQuestions function
+    useEffect(() => {
+        const loadQuestions = async () => {
+            if (!courseId) return;
+            
+            try {
+                // First fetch question banks
+                const banks = await fetchQuestionBanks(courseId);
+                setQuestionBanks(banks);
+
+                // Then fetch questions from all banks
+                const allQuestions = [];
+                for (const bank of banks) {
+                    const bankQuestions = await fetchQuestions(courseId, bank.id);
+                    allQuestions.push(...bankQuestions);
+                }
+                setAvailableQuestions(allQuestions);
+            } catch (err) {
+                setError('Failed to load questions');
+            }
+        };
+        loadQuestions();
+    }, [courseId]);
 
     const handleSave = async () => {
+        if (!courseId || !testId) return;
+        
         try {
-            // In a real app, make an API call to save the test
-            console.log('Saving test:', test);
+            setLoading(true);
+            await updateTest(courseId, testId, {
+                title: test.title,
+                config: test.configuration,
+                question_ids: test.questions.map(q => q.id)
+            });
             navigate(`/test-bank/${courseId}`);
         } catch (err) {
             setError('Failed to save test');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -194,41 +174,24 @@ const EditTest = () => {
     };
 
     const toggleQuestionSelection = (question: Question) => {
-        if (question.selected) {
-            // If question is being removed from selected list
-            // 1. Remove from test questions
+        if (test.questions.some(q => q.id === question.id)) {
+            // Remove question
             setTest(prev => ({
                 ...prev,
                 questions: prev.questions.filter(q => q.id !== question.id)
             }));
-            // 2. Add back to available questions if it's not already there
-            setAvailableQuestions(prev => {
-                const exists = prev.some(q => q.id === question.id);
-                if (!exists) {
-                    return [...prev, { ...question, selected: false }];
-                }
-                return prev.map(q =>
-                    q.id === question.id ? { ...q, selected: false } : q
-                );
-            });
         } else {
-            // If question is being added to selected list
-            // 1. Add to test questions
+            // Add question
             setTest(prev => ({
                 ...prev,
-                questions: [...prev.questions, { ...question, selected: true }]
+                questions: [...prev.questions, { id: question.id, question_data: question }]
             }));
-            // 2. Mark as selected in available questions
-            setAvailableQuestions(prev =>
-                prev.map(q =>
-                    q.id === question.id ? { ...q, selected: true } : q
-                )
-            );
         }
     };
 
     if (loading) return <div>Loading...</div>;
     if (error) return <div className="text-danger">{error}</div>;
+    if (!test) return <div>No test found</div>;
 
     return (
         <div className="mx-auto max-w-270">
@@ -268,6 +231,11 @@ const EditTest = () => {
                             className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                         />
                     </div>
+                    <TestConfiguration 
+                        configuration={test.configuration} 
+                        isEditing={true}
+                        onConfigChange={(newConfig) => setTest(prev => ({ ...prev, configuration: newConfig }))}
+                    />
                 </div>
             </div>
 
@@ -358,39 +326,20 @@ const EditTest = () => {
                                 .filter(q => !test.questions.some(tq => tq.id === q.id))
                                 .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                 .map((question, index) => (
-                                    <div
+                                    <QuestionDisplay
                                         key={question.id}
-                                        className="p-4 border rounded-sm dark:border-strokedark"
-                                    >
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex-1">
-                                                <span className="text-gray-500 mr-2">{index + 1}.</span>
-                                                <span
-                                                    className="cursor-pointer hover:text-primary inline"
-                                                    onClick={() => handleQuestionClick(question)}
-                                                >
-                                                    {truncateText(question.text)}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-8">
-                                                <span className={`text-xs px-2 py-1 rounded w-24 text-center ${question.difficulty === 'easy' ? 'bg-success/10 text-success' :
-                                                    question.difficulty === 'medium' ? 'bg-warning/10 text-warning' :
-                                                        'bg-danger/10 text-danger'
-                                                    }`}>
-                                                    {question.difficulty}
-                                                </span>
-                                                <span className="text-xs px-2 py-1 rounded bg-primary/10 text-primary w-24 text-center">
-                                                    {question.taxonomyLevel}
-                                                </span>
-                                                <button
-                                                    onClick={() => toggleQuestionSelection(question)}
-                                                    className="text-success hover:text-meta-3 w-12"
-                                                >
-                                                    Add
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
+                                        question={question}
+                                        index={index}
+                                        onQuestionClick={handleQuestionClick}
+                                        actionButton={
+                                            <button
+                                                onClick={() => toggleQuestionSelection(question)}
+                                                className="text-success hover:text-meta-3 w-12"
+                                            >
+                                                Add
+                                            </button>
+                                        }
+                                    />
                                 ))}
                         </div>
                     </div>
@@ -414,40 +363,22 @@ const EditTest = () => {
                             </div>
 
                             {/* Selected Questions List */}
-                            {test.questions.map((question, index) => (
-                                <div
-                                    key={question.id}
-                                    className="p-4 border border-primary bg-primary/5 rounded-sm"
-                                >
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex-1">
-                                            <span className="text-gray-500 mr-2">{index + 1}.</span>
-                                            <span
-                                                className="cursor-pointer hover:text-primary inline"
-                                                onClick={() => handleQuestionClick(question)}
-                                            >
-                                                {truncateText(question.text)}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-8">
-                                            <span className={`text-xs px-2 py-1 rounded w-24 text-center ${question.difficulty === 'easy' ? 'bg-success/10 text-success' :
-                                                question.difficulty === 'medium' ? 'bg-warning/10 text-warning' :
-                                                    'bg-danger/10 text-danger'
-                                                }`}>
-                                                {question.difficulty}
-                                            </span>
-                                            <span className="text-xs px-2 py-1 rounded bg-primary/10 text-primary w-24 text-center">
-                                                {question.taxonomyLevel}
-                                            </span>
-                                            <button
-                                                onClick={() => toggleQuestionSelection(question)}
-                                                className="text-danger hover:text-meta-1 w-12"
-                                            >
-                                                Remove
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                            {test.questions.map((questionWrapper, index) => (
+                                <QuestionDisplay
+                                    key={questionWrapper.id}
+                                    question={questionWrapper.question_data}
+                                    index={index}
+                                    onQuestionClick={() => handleQuestionClick(questionWrapper.question_data)}
+                                    className="border-primary bg-primary/5"
+                                    actionButton={
+                                        <button
+                                            onClick={() => toggleQuestionSelection(questionWrapper.question_data)}
+                                            className="text-danger hover:text-meta-1 w-12"
+                                        >
+                                            Remove
+                                        </button>
+                                    }
+                                />
                             ))}
                         </div>
                     </div>
@@ -491,11 +422,11 @@ const EditTest = () => {
                                 <tbody>
                                     {['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].map(taxonomy => {
                                         const questions = test.questions.filter(q =>
-                                            q.taxonomyLevel?.toLowerCase() === taxonomy.toLowerCase()
+                                            q.question_data.taxonomyLevel?.toLowerCase() === taxonomy.toLowerCase()
                                         );
-                                        const easy = questions.filter(q => q.difficulty === 'easy').length;
-                                        const medium = questions.filter(q => q.difficulty === 'medium').length;
-                                        const hard = questions.filter(q => q.difficulty === 'hard').length;
+                                        const easy = questions.filter(q => q.question_data.difficulty === 'easy').length;
+                                        const medium = questions.filter(q => q.question_data.difficulty === 'medium').length;
+                                        const hard = questions.filter(q => q.question_data.difficulty === 'hard').length;
                                         const total = easy + medium + hard;
 
                                         return (
@@ -522,13 +453,13 @@ const EditTest = () => {
                                     <tr className="bg-gray-2 dark:bg-meta-4">
                                         <td className="py-3 px-4 font-medium">Total</td>
                                         <td className="py-3 px-4 text-center font-medium">
-                                            {test.questions.filter(q => q.difficulty === 'easy').length}
+                                            {test.questions.filter(q => q.question_data.difficulty === 'easy').length}
                                         </td>
                                         <td className="py-3 px-4 text-center font-medium">
-                                            {test.questions.filter(q => q.difficulty === 'medium').length}
+                                            {test.questions.filter(q => q.question_data.difficulty === 'medium').length}
                                         </td>
                                         <td className="py-3 px-4 text-center font-medium">
-                                            {test.questions.filter(q => q.difficulty === 'hard').length}
+                                            {test.questions.filter(q => q.question_data.difficulty === 'hard').length}
                                         </td>
                                         <td className="py-3 px-4 text-center font-medium">
                                             {test.questions.length}
@@ -587,10 +518,10 @@ const EditTest = () => {
                                         Question Text
                                     </label>
                                     <textarea
-                                        value={selectedQuestion.text}
+                                        value={selectedQuestion.question_text}
                                         onChange={(e) => setSelectedQuestion({
                                             ...selectedQuestion,
-                                            text: e.target.value
+                                            question_text: e.target.value
                                         })}
                                         className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
                                         rows={4}
@@ -602,35 +533,35 @@ const EditTest = () => {
                                         Options
                                     </label>
                                     <div className="space-y-2">
-                                        {selectedQuestion.options.map((option, index) => (
+                                        {selectedQuestion.answers.map((option, index) => (
                                             <div key={option.id} className="flex items-center gap-4">
                                                 <input
                                                     type="radio"
-                                                    checked={option.isCorrect}
+                                                    checked={option.is_correct}
                                                     onChange={() => {
-                                                        const newOptions = selectedQuestion.options.map((opt, i) => ({
+                                                        const newAnswers = selectedQuestion.answers.map((opt, i) => ({
                                                             ...opt,
-                                                            isCorrect: i === index
+                                                            is_correct: i === index
                                                         }));
                                                         setSelectedQuestion({
                                                             ...selectedQuestion,
-                                                            options: newOptions
+                                                            answers: newAnswers
                                                         });
                                                     }}
                                                     className="form-radio"
                                                 />
                                                 <input
                                                     type="text"
-                                                    value={option.text}
+                                                    value={option.answer_text}
                                                     onChange={(e) => {
-                                                        const newOptions = [...selectedQuestion.options];
-                                                        newOptions[index] = {
-                                                            ...newOptions[index],
-                                                            text: e.target.value
+                                                        const newAnswers = [...selectedQuestion.answers];
+                                                        newAnswers[index] = {
+                                                            ...newAnswers[index],
+                                                            answer_text: e.target.value
                                                         };
                                                         setSelectedQuestion({
                                                             ...selectedQuestion,
-                                                            options: newOptions
+                                                            answers: newAnswers
                                                         });
                                                     }}
                                                     className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
@@ -707,7 +638,7 @@ const EditTest = () => {
                                             setTest(prev => ({
                                                 ...prev,
                                                 questions: prev.questions.map(q =>
-                                                    q.id === selectedQuestion.id ? selectedQuestion : q
+                                                    q.id === selectedQuestion.id ? selectedQuestion : q.question_data
                                                 )
                                             }));
                                             setIsQuestionDialogOpen(false);

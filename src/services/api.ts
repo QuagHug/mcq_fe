@@ -335,46 +335,44 @@ export const fetchCourseTests = async (courseId: string) => {
 };
 
 export const fetchTestDetail = async (courseId: string, testId: string) => {
-  try {
-    const token = await getValidToken();
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch test details');
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
     }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching test details:', error);
-    throw error;
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch test details');
   }
+  return response.json();
 };
 
-export const updateTest = async (courseId: string, testId: string, testData: any) => {
-  try {
+interface UpdateTestRequest {
+    title: string;
+    config: {
+        letterCase: 'uppercase' | 'lowercase';
+        separator: string;
+        includeAnswerKey: boolean;
+    };
+    question_ids: number[];
+}
+
+export const updateTest = async (courseId: string, testId: string, data: UpdateTestRequest) => {
     const token = await getValidToken();
     const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(testData),
+        method: 'PUT',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to update test');
+        throw new Error('Failed to update test');
     }
 
-    return await response.json();
-  } catch (error) {
-    console.error('Error updating test:', error);
-    throw error;
-  }
+    return response.json();
 };
 
 export const deleteTest = async (courseId: string, testId: string) => {
