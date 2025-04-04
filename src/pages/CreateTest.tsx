@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import Pagination from '../components/Pagination';
 import { Link, useParams, useNavigate } from 'react-router-dom';
@@ -158,6 +158,20 @@ const CreateTest = () => {
         'Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'
     ];
 
+    const titleInputRef = useRef<HTMLInputElement>(null);
+    const questionsSectionRef = useRef<HTMLDivElement>(null);
+
+    const scrollToElement = (element: HTMLElement | null) => {
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Add temporary highlight effect
+            element.classList.add('border-primary', 'ring-2', 'ring-primary');
+            setTimeout(() => {
+                element.classList.remove('ring-2', 'ring-primary');
+            }, 2000);
+        }
+    };
+
     // Fetch courses on component mount
     useEffect(() => {
         const loadCourses = async () => {
@@ -258,6 +272,78 @@ const CreateTest = () => {
 
         setFilteredQuestions(filtered);
     }, [searchQuery, selectedLevels, selectedBankId, questionBanks]);
+
+    const [showTitleWarning, setShowTitleWarning] = useState(false);
+    const [showQuestionWarning, setShowQuestionWarning] = useState(false);
+
+    const handleCreateTest = async () => {
+        const hasTitleError = !testData.title.trim();
+        const hasQuestionError = selectedQuestions.length === 0;
+
+        // Reset both warnings initially
+        setShowTitleWarning(false);
+        setShowQuestionWarning(false);
+
+        // Check title first
+        if (hasTitleError) {
+            setShowTitleWarning(true);
+            setTimeout(() => {
+                scrollToElement(titleInputRef.current);
+            }, 0);
+            return;
+        }
+
+        // If title is valid but no questions, show warning and scroll
+        if (hasQuestionError) {
+            setShowQuestionWarning(true);
+            setTimeout(() => {
+                scrollToElement(questionsSectionRef.current);
+            }, 0);
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const response = await createTest(selectedCourse, {
+                title: testData.title,
+                question_ids: selectedQuestions.map(q => q.id),
+                config: {
+                    letterCase: answerFormat.case,
+                    separator: answerFormat.separator,
+                    includeAnswerKey: includeKey
+                }
+            });
+
+            console.log('API response:', response);
+            navigate(`/courses/${selectedCourse}/tests`);
+        } catch (error) {
+            console.error('Failed to create test:', error);
+            setError('Failed to create test. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Clear title warning when user types in title
+    const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setTestData({ ...testData, title: e.target.value });
+        if (showTitleWarning && e.target.value.trim()) {
+            setShowTitleWarning(false);
+        }
+    };
+
+    // Add handler for question selection
+    const handleQuestionSelection = (question: Question) => {
+        if (selectedQuestions.find(q => q.id === question.id)) {
+            setSelectedQuestions(prev => prev.filter(q => q.id !== question.id));
+        } else {
+            setSelectedQuestions(prev => [...prev, question]);
+        }
+        // Clear question warning if at least one question is selected
+        if (showQuestionWarning && selectedQuestions.length > 0) {
+            setShowQuestionWarning(false);
+        }
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -555,48 +641,6 @@ const CreateTest = () => {
         });
     };
 
-    const handleCreateTest = async () => {
-        if (!testData.title || selectedQuestions.length === 0 || !selectedCourse) {
-            console.log('Validation failed:', {
-                hasTitle: !!testData.title,
-                hasQuestions: selectedQuestions.length > 0,
-                hasSelectedCourse: !!selectedCourse
-            });
-            return;
-        }
-
-        try {
-            console.log('Making API call with data:', {
-                title: testData.title,
-                question_ids: selectedQuestions.map(q => q.id),
-                config: {
-                    letterCase: answerFormat.case,
-                    separator: answerFormat.separator,
-                    includeAnswerKey: includeKey
-                }
-            });
-
-            setLoading(true);
-            const response = await createTest(selectedCourse, {
-                title: testData.title,
-                question_ids: selectedQuestions.map(q => q.id),
-                config: {
-                    letterCase: answerFormat.case,
-                    separator: answerFormat.separator,
-                    includeAnswerKey: includeKey
-                }
-            });
-
-            console.log('API response:', response);
-            navigate(`/courses/${selectedCourse}/tests`);
-        } catch (error) {
-            console.error('Failed to create test:', error);
-            setError('Failed to create test. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     // Add this function before the return statement
     const calculateDistribution = () => {
         const distribution: QuestionDistribution = {
@@ -683,35 +727,30 @@ const CreateTest = () => {
                             <div className="p-6.5">
                                 <div className="mb-4.5">
                                     <input
+                                        ref={titleInputRef}
                                         type="text"
                                         placeholder="Enter test title"
                                         value={testData.title}
-                                        onChange={(e) => setTestData({ ...testData, title: e.target.value })}
-                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                                        required
+                                        onChange={handleTitleChange}
+                                        className={`w-full rounded border-[1.5px] bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary ${showTitleWarning ? 'border-danger' : 'border-stroke'
+                                            }`}
                                     />
-                                </div>
-                                <div className="mb-4.5">
-                                    <select
-                                        value={selectedSubject}
-                                        onChange={(e) => handleSubjectChange(e.target.value)}
-                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                                    >
-                                        <option value="">Select a subject</option>
-                                        {mockSubjects.map(subject => (
-                                            <option key={subject.id} value={subject.id}>{subject.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    {/* Editor component commented out */}
+                                    {showTitleWarning && (
+                                        <div className="mt-2 text-danger text-sm">
+                                            Please enter a test title
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
                     </div>
 
                     {/* Question Selection Block */}
-                    <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark">
+                    <div
+                        ref={questionsSectionRef}
+                        className={`rounded-sm border bg-white shadow-default dark:border-strokedark dark:bg-boxdark mb-6 ${showQuestionWarning ? 'border-danger' : 'border-stroke'
+                            }`}
+                    >
                         <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
                             <div className="flex justify-between items-center">
                                 <div>
@@ -719,6 +758,11 @@ const CreateTest = () => {
                                         Questions
                                         <span className="text-danger text-lg">*</span>
                                     </h3>
+                                    {showQuestionWarning && (
+                                        <div className="mt-1 text-danger text-sm">
+                                            Please select at least one question
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -838,14 +882,14 @@ const CreateTest = () => {
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-gray-500">{questionNumber}.</span>
-                                                            <div 
+                                                            <div
                                                                 className="flex items-center gap-2 text-sm font-medium text-black dark:text-white hover:text-primary"
                                                                 onClick={() => handleQuestionClick(question)}
                                                             >
                                                                 <div className="inline" dangerouslySetInnerHTML={{ __html: question.question_text }} />
                                                                 {question.statistics && (
                                                                     <span className="text-xs text-gray-500 shrink-0">
-                                                                        (D: {question.statistics.scaled_difficulty.toFixed(2)}, 
+                                                                        (D: {question.statistics.scaled_difficulty.toFixed(2)},
                                                                         Disc: {question.statistics.scaled_discrimination.toFixed(2)})
                                                                     </span>
                                                                 )}
@@ -1056,11 +1100,10 @@ const CreateTest = () => {
                                         </label>
                                         <button
                                             onClick={() => setIncludeKey(!includeKey)}
-                                            className={`px-4 py-2 rounded border ${
-                                                includeKey 
-                                                    ? 'bg-primary text-white border-primary' 
-                                                    : 'bg-white dark:bg-meta-4 border-stroke'
-                                            } hover:bg-primary hover:text-white hover:border-primary transition-all duration-200`}
+                                            className={`px-4 py-2 rounded border ${includeKey
+                                                ? 'bg-primary text-white border-primary'
+                                                : 'bg-white dark:bg-meta-4 border-stroke'
+                                                } hover:bg-primary hover:text-white hover:border-primary transition-all duration-200`}
                                         >
                                             <div className="flex items-center gap-2">
                                                 <svg
@@ -1212,27 +1255,19 @@ const CreateTest = () => {
                     <div className="mt-6 flex gap-4">
                         <button
                             onClick={handleCancel}
-                            className="flex flex-1 justify-center rounded bg-danger py-4 px-10 font-medium text-white hover:bg-opacity-90"
+                            className="flex flex-1 justify-center rounded bg-danger py-4 px-10 font-medium text-white hover:bg-opacity-90 cursor-pointer"
                         >
                             Cancel
                         </button>
-
                         <button
-                            type="button"
-                            onClick={() => {
-                                console.log('Save button clicked');
-                                handleCreateTest();
-                            }}
-                            className="flex flex-1 justify-center rounded bg-primary py-4 px-10 font-medium text-white hover:bg-opacity-90"
-                            disabled={!testData.title || selectedQuestions.length === 0 || !selectedCourse}
+                            onClick={handleCreateTest}
+                            className="flex flex-1 justify-center rounded bg-primary py-4 px-10 font-medium text-white hover:bg-opacity-90 cursor-pointer"
                         >
                             Save
                         </button>
-
                         <button
                             onClick={exportToWord}
-                            className="flex flex-1 justify-center rounded bg-success py-4 px-10 font-medium text-white hover:bg-opacity-90"
-                            disabled={selectedQuestions.length === 0}
+                            className="flex flex-1 justify-center rounded bg-success py-4 px-10 font-medium text-white hover:bg-opacity-90 cursor-pointer"
                         >
                             Export to Word
                         </button>
