@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { fetchQuestionBanks } from '../services/api';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
@@ -56,7 +56,12 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
     const [testData, setTestData] = useState<TestData>({
         title: '',
         description: '',
-        combinations: [],
+        combinations: [{
+            numberOfQuestions: 1,
+            taxonomyLevel: 'remember',
+            difficulty: 'easy',
+            learningOutcome: 'lo1'
+        }],
         topics: []
     });
 
@@ -68,13 +73,6 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
     const [showTopics, setShowTopics] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [validationErrors, setValidationErrors] = useState<{
-        title: boolean;
-        combinations: boolean;
-    }>({
-        title: false,
-        combinations: false
-    });
     const [subjects, setSubjects] = useState<Array<{ id: string, name: string }>>([]);
     const [selectedSubject, setSelectedSubject] = useState('');
     const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -84,12 +82,6 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
         case: 'uppercase',
         separator: ')',
     });
-    const [showTitleWarning, setShowTitleWarning] = useState(false);
-    const [showSubjectWarning, setShowSubjectWarning] = useState(false);
-    const [showCombinationWarning, setShowCombinationWarning] = useState(false);
-    const titleInputRef = useRef<HTMLInputElement>(null);
-    const subjectSelectRef = useRef<HTMLSelectElement>(null);
-    const combinationsSectionRef = useRef<HTMLDivElement>(null);
 
     const topics = [
         'PPL', 'DSA', 'Discrete Math', 'Dynamic Programming', 'Math'
@@ -173,96 +165,12 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
         }));
     };
 
-    const scrollToElement = (element: HTMLElement | null) => {
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Add temporary highlight effect
-            element.classList.add('border-primary', 'ring-2', 'ring-primary');
-            setTimeout(() => {
-                element.classList.remove('ring-2', 'ring-primary');
-            }, 2000);
-        }
-    };
-
-    // Clear title warning when user types in title
-    const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setTestData({ ...testData, title: e.target.value });
-        if (showTitleWarning && e.target.value.trim()) {
-            setShowTitleWarning(false);
-        }
-    };
-
-    // Clear subject warning when user selects a subject
-    const handleSubjectChange = (subjectId: string) => {
-        setSelectedSubject(subjectId);
-        setSelectedChapter(''); // Reset chapter selection when subject changes
-        if (subjectId) {
-            setChapters(mockChaptersMap[subjectId] || []);
-            if (showSubjectWarning) {
-                setShowSubjectWarning(false);
-            }
-        } else {
-            setChapters([]);
-        }
-    };
-
     const handleSubmit = async () => {
-        const hasTitleError = !testData.title.trim();
-        const hasSubjectError = !selectedSubject;
-        const hasCombinationError = testData.combinations.length === 0;
-
-        // Reset all warnings initially
-        setShowTitleWarning(false);
-        setShowSubjectWarning(false);
-        setShowCombinationWarning(false);
-
-        // Check title first
-        if (hasTitleError) {
-            setShowTitleWarning(true);
-            setTimeout(() => {
-                scrollToElement(titleInputRef.current);
-            }, 0);
-            return;
-        }
-
-
-        if (hasSubjectError) {
-            setShowSubjectWarning(true);
-            setTimeout(() => {
-                scrollToElement(subjectSelectRef.current);
-            }, 0);
-            return;
-        }
-
-        if (hasCombinationError) {
-            setShowCombinationWarning(true);
-            setTimeout(() => {
-                const element = document.getElementById('questionChoicesSection');
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    element.classList.add('border-danger', 'ring-2', 'ring-danger');
-                    setTimeout(() => {
-                        element.classList.remove('ring-2', 'ring-danger');
-                    }, 2000);
-                }
-            }, 0);
-            return;
-        }
-
         try {
             // Add your submission logic here
             console.log('Submitting test data:', testData);
         } catch (error) {
             console.error('Error submitting test:', error);
-        }
-    };
-
-    // Add handler for combination changes
-    const handleCombinationChange = (index: number, field: keyof TestCombination, value: string | number) => {
-        updateCombination(index, field, value);
-        if (showCombinationWarning && testData.combinations.length > 0 &&
-            !testData.combinations.some(comb => comb.numberOfQuestions === 0)) {
-            setShowCombinationWarning(false);
         }
     };
 
@@ -298,6 +206,18 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
             } finally {
                 setLoading(false);
             }
+        } else {
+            setChapters([]);
+        }
+    };
+
+    // Add this function to handle subject changes
+    const handleSubjectChange = (subjectId: string) => {
+        setSelectedSubject(subjectId);
+        setSelectedChapter(''); // Reset chapter selection when subject changes
+
+        if (subjectId) {
+            setChapters(mockChaptersMap[subjectId] || []);
         } else {
             setChapters([]);
         }
@@ -450,60 +370,37 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                     <div className="p-6.5">
                         <div className="mb-4.5">
                             <input
-                                ref={titleInputRef}
                                 type="text"
                                 placeholder="Enter test title"
                                 value={testData.title}
-                                onChange={handleTitleChange}
-                                className={`w-full rounded border-[1.5px] bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary ${showTitleWarning ? 'border-danger' : 'border-stroke'
-                                    }`}
+                                onChange={(e) => setTestData({ ...testData, title: e.target.value })}
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                required
                             />
-                            {showTitleWarning && (
-                                <div className="mt-2 text-danger text-sm">
-                                    Please enter a test title
-                                </div>
-                            )}
                         </div>
                         <div className="mb-4.5">
                             <select
-                                ref={subjectSelectRef}
                                 value={selectedSubject}
                                 onChange={(e) => handleSubjectChange(e.target.value)}
-                                className={`w-full rounded border-[1.5px] bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary ${showSubjectWarning ? 'border-danger' : 'border-stroke'
-                                    }`}
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                             >
                                 <option value="">Select a subject</option>
                                 {mockSubjects.map(subject => (
                                     <option key={subject.id} value={subject.id}>{subject.name}</option>
                                 ))}
                             </select>
-                            {showSubjectWarning && (
-                                <div className="mt-2 text-danger text-sm">
-                                    Please select a subject
-                                </div>
-                            )}
                         </div>
                     </div>
                 )}
             </div>
 
             {/* Test Details Block */}
-            <div
-                id="questionChoicesSection"
-                ref={combinationsSectionRef}
-                className={`rounded-sm border bg-white shadow-default dark:border-strokedark dark:bg-boxdark mb-6 ${showCombinationWarning ? 'border-danger' : 'border-stroke'
-                    }`}
-            >
+            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mb-6">
                 <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
                     <h3 className="font-medium text-black dark:text-white flex items-center gap-1">
                         Question Choices
                         <span className="text-danger text-lg">*</span>
                     </h3>
-                    {showCombinationWarning && (
-                        <div className="mt-1 text-danger text-sm">
-                            Please add at least one question
-                        </div>
-                    )}
                 </div>
                 <div className="p-6.5">
 
@@ -519,10 +416,9 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                                     <input
                                         type="number"
                                         value={combination.numberOfQuestions}
-                                        onChange={(e) => handleCombinationChange(index, 'numberOfQuestions', Number(e.target.value))}
+                                        onChange={(e) => updateCombination(index, 'numberOfQuestions', Number(e.target.value))}
                                         min="1"
-                                        className={`w-full rounded border-[1.5px] bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input ${showCombinationWarning && combination.numberOfQuestions === 0 ? 'border-danger' : 'border-stroke'
-                                            }`}
+                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
                                     />
                                 </div>
                                 <div>
@@ -531,7 +427,7 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                                     </label>
                                     <select
                                         value={combination.taxonomyLevel}
-                                        onChange={(e) => handleCombinationChange(index, 'taxonomyLevel', e.target.value)}
+                                        onChange={(e) => updateCombination(index, 'taxonomyLevel', e.target.value)}
                                         className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
                                     >
                                         <option value="">Select Level</option>
@@ -550,7 +446,7 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                                     <div className="flex items-center gap-2">
                                         <select
                                             value={combination.difficulty}
-                                            onChange={(e) => handleCombinationChange(index, 'difficulty', e.target.value)}
+                                            onChange={(e) => updateCombination(index, 'difficulty', e.target.value)}
                                             className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
                                         >
                                             <option value="">Select Difficulty</option>
@@ -586,7 +482,23 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
 
                     {/* Course and Test Bank Selection */}
                     <div className="mt-6 space-y-4">
-                        {/* Remove the chapter selection section */}
+                        {selectedSubject && (
+                            <div>
+                                <label className="mb-2.5 block text-black dark:text-white">
+                                    Select Chapter
+                                </label>
+                                <select
+                                    value={selectedChapter}
+                                    onChange={(e) => setSelectedChapter(e.target.value)}
+                                    className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                >
+                                    <option value="">Select a chapter</option>
+                                    {chapters.map(chapter => (
+                                        <option key={chapter.id} value={chapter.id}>{chapter.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -719,25 +631,18 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
 
                         {/* Preview Sample */}
                         <div className="space-y-4">
-                            {testData.combinations.length > 0 ? (
-                                testData.combinations.map((combination, index) => (
-                                    <div key={index} className="p-4 border rounded-sm dark:border-strokedark">
-                                        <div className="font-medium text-black dark:text-white mb-2">
-                                            Combination {index + 1}:
-                                        </div>
-                                        <div className="pl-4 space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                            <div>Number of Questions: {combination.numberOfQuestions}</div>
-                                            <div>Taxonomy Level: {combination.taxonomyLevel}</div>
-                                            <div>Difficulty: {combination.difficulty}</div>
-                                        </div>
+                            {testData.combinations.map((combination, index) => (
+                                <div key={index} className="p-4 border rounded-sm dark:border-strokedark">
+                                    <div className="font-medium text-black dark:text-white mb-2">
+                                        Combination {index + 1}:
                                     </div>
-                                ))
-                            ) : (
-                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                                    <p>No questions selected yet.</p>
-                                    <p className="text-sm mt-2">Please configure your question choices to see the preview.</p>
+                                    <div className="pl-4 space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                                        <div>Number of Questions: {combination.numberOfQuestions}</div>
+                                        <div>Taxonomy Level: {combination.taxonomyLevel}</div>
+                                        <div>Difficulty: {combination.difficulty}</div>
+                                    </div>
                                 </div>
-                            )}
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -827,23 +732,26 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                 </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-4 mb-6">
+            {/* Update the Save button to be disabled when form is invalid */}
+            <div className="mt-6 flex gap-4">
                 <button
                     onClick={() => window.history.back()}
-                    className="flex flex-1 justify-center rounded bg-danger py-4 px-10 font-medium text-white hover:bg-opacity-90 cursor-pointer"
+                    className="flex flex-1 justify-center rounded bg-danger py-4 px-10 font-medium text-white hover:bg-opacity-90"
                 >
                     Cancel
                 </button>
+
                 <button
                     onClick={handleSubmit}
-                    className="flex flex-1 justify-center rounded bg-primary py-4 px-10 font-medium text-white hover:bg-opacity-90 cursor-pointer"
+                    // disabled={!isFormValid}
+                    className="flex flex-1 justify-center rounded bg-primary py-4 px-10 font-medium text-white hover:bg-opacity-90"
                 >
                     Save
                 </button>
+
                 <button
                     onClick={exportToWord}
-                    className="flex flex-1 justify-center rounded bg-success py-4 px-10 font-medium text-white hover:bg-opacity-90 cursor-pointer"
+                    className="flex flex-1 justify-center rounded bg-success py-4 px-10 font-medium text-white hover:bg-opacity-90"
                     disabled={!isFormValid}
                 >
                     Export to Word
