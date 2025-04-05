@@ -417,4 +417,80 @@ export const uploadTestResults = async (courseId: string, testId: string, file: 
     }
 
     return response.json();
+};
+
+export const saveTestDraft = async (courseId: string, draftData: any) => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/test-drafts/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      courseId,
+      ...draftData
+    }),
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to save test draft');
+  }
+  
+  return await response.json();
+};
+
+export const getTestDraft = async (courseId: string) => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/test-drafts/${courseId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+  });
+  
+  if (response.status === 404) {
+    return null; // No draft found
+  }
+  
+  if (!response.ok) {
+    throw new Error('Failed to get test draft');
+  }
+  
+  return await response.json();
+};
+
+export const deleteTestDraft = async () => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/test-drafts/`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to delete test draft');
+  }
+  
+  return true;
+};
+
+export const getTestDrafts = async () => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/test-drafts/list`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch test drafts');
+  }
+  
+  return await response.json();
 }; 

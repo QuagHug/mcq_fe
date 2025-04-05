@@ -72,15 +72,44 @@ export const TestConfiguration: React.FC<TestConfigProps> = ({
                     <div className="flex items-center">
                         <span className="mr-2.5 text-sm font-medium text-black dark:text-white">Answer Key:</span>
                         {isEditing ? (
-                            <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={configuration.includeAnswerKey}
-                                    onChange={(e) => onConfigChange?.({ ...configuration, includeAnswerKey: e.target.checked })}
-                                    className="sr-only peer"
-                                />
-                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
-                            </label>
+                            <button
+                                onClick={() => onConfigChange?.({ ...configuration, includeAnswerKey: !configuration.includeAnswerKey })}
+                                className={`px-4 py-2 rounded border transition-all duration-200 group relative
+                                    ${configuration.includeAnswerKey 
+                                        ? 'bg-primary text-white border-primary' 
+                                        : 'bg-white dark:bg-meta-4 border-stroke hover:bg-primary hover:text-white hover:border-primary'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <svg
+                                        className="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        {configuration.includeAnswerKey ? (
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M5 13l4 4L19 7"
+                                            />
+                                        ) : (
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M6 18L18 6M6 6l12 12"
+                                            />
+                                        )}
+                                    </svg>
+                                    <span>Include Key</span>
+                                </div>
+                                {/* Tooltip */}
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none">
+                                    {configuration.includeAnswerKey ? 'Hide Answer Key' : 'Show Answer Key'}
+                                </div>
+                            </button>
                         ) : (
                             <span className="text-sm text-body-color dark:text-gray-400">
                                 {configuration.includeAnswerKey ? 'Included' : 'Not Included'}
@@ -93,4 +122,4 @@ export const TestConfiguration: React.FC<TestConfigProps> = ({
     );
 };
 
-export default TestConfiguration; 
+export default TestConfiguration;

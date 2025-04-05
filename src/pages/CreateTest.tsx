@@ -1,15 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import Pagination from '../components/Pagination';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { fetchQuestionBanks, fetchCourses, createTest, fetchCourseTests } from '../services/api';
+import { 
+  fetchQuestionBanks, 
+  fetchCourses, 
+  createTest, 
+  fetchCourseTests, 
+  saveTestDraft, 
+  getTestDraft, 
+  deleteTestDraft,
+  getTestDrafts  // Add this import
+} from '../services/api';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { Dialog } from '@headlessui/react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 import React from 'react';
-import TestConfiguration from '../components/TestConfiguration';
+import axios from 'axios';
 
 interface Question {
     id: number;
@@ -83,25 +92,17 @@ interface QuestionDistribution {
     };
 }
 
-interface TestConfig {
-    letterCase: 'uppercase' | 'lowercase';
-    separator: string;
-    includeAnswerKey: boolean;
-}
-
 const CreateTest = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
     const [courses, setCourses] = useState<Array<{ id: string, name: string }>>([]);
     const [selectedCourse, setSelectedCourse] = useState('');
-    const [configuration, setConfiguration] = useState({
-        letterCase: 'lowercase' as const,
-        separator: ')',
-        includeAnswerKey: true
-    });
     const [testData, setTestData] = useState({
         title: '',
         description: '',
+        duration: 60,
+        passingScore: 60,
+        lastSaved: null,
     });
 
     const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
@@ -120,7 +121,7 @@ const CreateTest = () => {
     const [selectedQuestionDetail, setSelectedQuestionDetail] = useState<Question | null>(null);
     const [showBloomsLevels, setShowBloomsLevels] = useState(false);
     const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
-    const [isPreviewDialogOpen, setPreviewDialogOpen] = useState(false);
+    const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
     const [answerFormat, setAnswerFormat] = useState<AnswerFormat>({
         case: 'uppercase',
         separator: ')',
@@ -130,9 +131,9 @@ const CreateTest = () => {
     const [editedQuestions, setEditedQuestions] = useState<{ [key: number]: EditedQuestion }>({});
     const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: boolean[] }>({});
 
-    // Add these new state variables at the top with other state declarations
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+    // Add these separate state variables for pagination
+    const [availableQuestionsPage, setAvailableQuestionsPage] = useState(1);
+    const [selectedQuestionsPage, setSelectedQuestionsPage] = useState(1);
 
     // Add new state for including answer key
     const [includeKey, setIncludeKey] = useState(false);
@@ -146,6 +147,25 @@ const CreateTest = () => {
         { id: "3", name: "Computer Science" },
         { id: "4", name: "Chemistry" }
     ];
+
+    // Add this state variable for items per page
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    // Add this state for the alert
+    const [showAlert, setShowAlert] = useState(false);
+    const [alertMessage, setAlertMessage] = useState('');
+    const [alertType, setAlertType] = useState<'error' | 'success' | 'warning'>('error');
+
+    // Add this state for preview pagination
+    const [previewShowAll, setPreviewShowAll] = useState(false);
+    const [previewPage, setPreviewPage] = useState(1);
+    const previewItemsPerPage = 2; // Default to show only 2 questions initially
+
+    // Add these state variables for the custom confirmation modal
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmAction, setConfirmAction] = useState<() => void>(() => {});
+    const [confirmTitle, setConfirmTitle] = useState('');
+    const [confirmMessage, setConfirmMessage] = useState('');
 
     const handleSubjectChange = (subjectId: string) => {
         setSelectedSubject(subjectId);
@@ -170,36 +190,83 @@ const CreateTest = () => {
         'Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'
     ];
 
-    // Fetch courses on component mount
-    useEffect(() => {
-        const loadCourses = async () => {
-            try {
-                const coursesData = await fetchCourses();
-                setCourses(coursesData);
-            } catch (err) {
-                setError('Failed to load courses');
-            }
-        };
-        loadCourses();
-    }, []);
+    const titleInputRef = useRef<HTMLInputElement>(null);
+    const questionsSectionRef = useRef<HTMLDivElement>(null);
 
-    // Update the course selection handler
-    const handleCourseChange = async (courseId: string) => {
-        setSelectedCourse(courseId);
-        if (courseId) {
+    const scrollToElement = (element: HTMLElement | null) => {
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Add temporary highlight effect
+            element.classList.add('border-primary', 'ring-2', 'ring-primary');
+            setTimeout(() => {
+                element.classList.remove('ring-2', 'ring-primary');
+            }, 2000);
+        }
+    };
+
+    // Update the useEffect to load draft immediately when entering the page
+    useEffect(() => {
+        const fetchInitialData = async () => {
             try {
                 setLoading(true);
-                // Only fetch question banks
-                const banksData = await fetchQuestionBanks(courseId);
-                setQuestionBanks(banksData);
-            } catch (err) {
-                console.error('Failed to load data:', err);
-                setError('Failed to load question banks');
+                
+                // Fetch courses first
+                const coursesData = await fetchCourses();
+                setCourses(coursesData);
+                
+                // Try to load draft immediately
+                await loadTestDraftFromBackend();
+                
+                // If courseId is provided in URL and no draft was loaded with a course
+                if (courseId && !selectedCourse) {
+                    setSelectedCourse(courseId);
+                    const banks = await fetchQuestionBanks(courseId);
+                    setQuestionBanks(banks);
+                } else if (selectedCourse) {
+                    // If we have a selected course (from draft or URL), load its question banks
+                    const banks = await fetchQuestionBanks(selectedCourse);
+                    setQuestionBanks(banks);
+                }
+            } catch (error) {
+                console.error('Error fetching initial data:', error);
+                setError('Failed to load initial data');
             } finally {
                 setLoading(false);
             }
-        } else {
-            setQuestionBanks([]);
+        };
+        
+        fetchInitialData();
+        
+        // Set up auto-save interval
+        const autoSaveInterval = setInterval(() => {
+            if (selectedCourse && (testData.title || selectedQuestions.length > 0)) {
+                saveTestDraftToBackend(false);
+            }
+        }, 2 * 60 * 1000); // 2 minutes
+        
+        return () => {
+            clearInterval(autoSaveInterval);
+        };
+    }, [courseId]);
+
+    // Update the handleCourseChange function to not load drafts
+    const handleCourseChange = async (courseId: string) => {
+        setSelectedCourse(courseId);
+        
+        try {
+            setLoading(true);
+            
+            // Fetch question banks for the selected course
+            const banks = await fetchQuestionBanks(courseId);
+            setQuestionBanks(banks);
+            
+            // Don't load draft here anymore, as we already loaded it on page load
+            
+        } catch (error) {
+            console.error('Error fetching question banks:', error);
+            setError('Failed to load question banks');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -271,6 +338,360 @@ const CreateTest = () => {
         setFilteredQuestions(filtered);
     }, [searchQuery, selectedLevels, selectedBankId, questionBanks]);
 
+    const [showTitleWarning, setShowTitleWarning] = useState(false);
+    const [showQuestionWarning, setShowQuestionWarning] = useState(false);
+
+    // Auto-save functionality
+    useEffect(() => {
+        // Only save if a course is selected and there's data to save
+        if (selectedCourse && (testData.title || selectedQuestions.length > 0)) {
+            const autoSaveTimer = setTimeout(() => {
+                saveTestDraftToBackend(false); // Pass false to not show alerts for auto-save
+            }, 5000); // Save every 5 seconds when changes are detected
+            
+            return () => clearTimeout(autoSaveTimer);
+        }
+    }, [
+        selectedCourse, 
+        testData, 
+        selectedQuestions, 
+        answerFormat, 
+        includeKey, 
+        shuffleQuestions, 
+        shuffleAnswers, 
+        selectedTopics, 
+        selectedLevels, 
+        editedQuestions
+    ]);
+
+    // Load draft when course is selected
+    // useEffect(() => {
+    //     if (selectedCourse) {
+    //         loadTestDraftFromBackend();
+    //     }
+    // }, [selectedCourse]);
+
+    // Function to save draft to backend using the API service
+    const saveTestDraftToBackend = async (showAlerts = true) => {
+        try {
+            const draftData = {
+                courseId: selectedCourse,
+                testData,
+                selectedQuestions,
+                answerFormat,
+                includeKey,
+                shuffleQuestions,
+                shuffleAnswers,
+                selectedTopics,
+                selectedLevels,
+                editedQuestions,
+                lastUpdated: new Date().toISOString()
+            };
+            
+            // Call API service function to save draft
+            await saveTestDraft(selectedCourse, draftData);
+            
+            // Update last saved timestamp
+            setTestData(prev => ({
+                ...prev,
+                lastSaved: new Date().toISOString()
+            }));
+            
+            // Show success message only if showAlerts is true
+            if (showAlerts) {
+                setAlertMessage('Draft saved successfully');
+                setAlertType('success');
+                setShowAlert(true);
+                
+                // Auto-hide after 3 seconds
+                setTimeout(() => {
+                    setShowAlert(false);
+                }, 3000);
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('Error saving draft:', error);
+            
+            // Show error message only if showAlerts is true
+            if (showAlerts) {
+                setAlertMessage('Failed to save draft. Please try again.');
+                setAlertType('error');
+                setShowAlert(true);
+                
+                // Auto-hide after 3 seconds
+                setTimeout(() => {
+                    setShowAlert(false);
+                }, 3000);
+            }
+            
+            return false;
+        }
+    };
+
+    // Update the loadTestDraftFromBackend function to fetch question banks after loading a draft
+    const loadTestDraftFromBackend = async () => {
+        try {
+            // Use the API service to get all drafts
+            const drafts = await getTestDrafts();
+            console.log('All drafts:', drafts);
+            
+            // Check if drafts is an array before proceeding
+            if (!Array.isArray(drafts) || drafts.length === 0) {
+                console.log('No drafts found');
+                return false;
+            }
+            
+            // Get the most recent draft (assuming one draft per user)
+            const latestDraft = drafts.sort((a, b) => {
+                // Handle missing updated_at
+                if (!a.updated_at) return 1;
+                if (!b.updated_at) return -1;
+                return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+            })[0];
+            
+            console.log('Latest draft:', latestDraft);
+            
+            if (latestDraft && latestDraft.draft_data) {
+                // The actual data is in draft_data
+                const draftData = latestDraft.draft_data;
+                
+                // Set the course from the draft
+                let courseFromDraft = null;
+                if (latestDraft.course) {
+                    courseFromDraft = latestDraft.course.toString();
+                    setSelectedCourse(courseFromDraft);
+                }
+                
+                // Set all the state from the draft with defensive programming
+                setTestData({
+                    title: draftData.testData?.title || '',
+                    description: draftData.testData?.description || '',
+                    duration: draftData.testData?.duration || 60,
+                    passingScore: draftData.testData?.passingScore || 60,
+                    lastSaved: latestDraft.updated_at || new Date().toISOString()
+                });
+                
+                // Set other state with null checks
+                if (Array.isArray(draftData.selectedQuestions)) {
+                    setSelectedQuestions(draftData.selectedQuestions);
+                }
+                
+                if (draftData.answerFormat) {
+                    setAnswerFormat(draftData.answerFormat);
+                }
+                
+                setIncludeKey(Boolean(draftData.includeKey));
+                setShuffleQuestions(Boolean(draftData.shuffleQuestions));
+                setShuffleAnswers(Boolean(draftData.shuffleAnswers));
+                
+                if (Array.isArray(draftData.selectedTopics)) {
+                    setSelectedTopics(draftData.selectedTopics);
+                }
+                
+                if (Array.isArray(draftData.selectedLevels)) {
+                    setSelectedLevels(draftData.selectedLevels);
+                }
+                
+                if (draftData.editedQuestions) {
+                    setEditedQuestions(draftData.editedQuestions);
+                }
+                
+                // Fetch question banks for the course from the draft
+                if (courseFromDraft) {
+                    try {
+                        const banks = await fetchQuestionBanks(courseFromDraft);
+                        setQuestionBanks(banks);
+                        
+                        // This will trigger the useEffect that filters questions
+                        setSelectedBankId('');
+                    } catch (bankError) {
+                        console.error('Error fetching question banks:', bankError);
+                    }
+                }
+                
+                // Show success message
+                setAlertMessage('Draft loaded successfully');
+                setAlertType('success');
+                setShowAlert(true);
+                
+                // Auto-hide after 3 seconds
+                setTimeout(() => {
+                    setShowAlert(false);
+                }, 3000);
+                
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Error loading draft:', error);
+            
+            // Show error message
+            setAlertMessage('Failed to load draft. Starting with a new test.');
+            setAlertType('warning');
+            setShowAlert(true);
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                setShowAlert(false);
+            }, 3000);
+            
+            return false;
+        }
+    };
+
+    // Function to delete draft from backend with confirmation
+    const deleteTestDraftFromBackend = async () => {
+        // Show confirmation dialog before deleting
+        if (!window.confirm('Are you sure you want to delete this draft? This action cannot be undone.')) {
+            // User cancelled the deletion
+            setAlertMessage('Draft deletion cancelled');
+            setAlertType('warning');
+            setShowAlert(true);
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                setShowAlert(false);
+            }, 3000);
+            
+            return false;
+        }
+        
+        try {
+            await deleteTestDraft(selectedCourse);
+            
+            // Show success message
+            setAlertMessage('Draft deleted successfully');
+            setAlertType('success');
+            setShowAlert(true);
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                setShowAlert(false);
+            }, 3000);
+            
+            // Reset form to default values
+            setTestData({
+                title: '',
+                description: '',
+                duration: 60,
+                passingScore: 60,
+                lastSaved: null
+            });
+            setSelectedQuestions([]);
+            setEditedQuestions({});
+            
+            return true;
+        } catch (error) {
+            console.error('Error deleting draft:', error);
+            
+            // Show error message
+            setAlertMessage('Failed to delete draft. Please try again.');
+            setAlertType('error');
+            setShowAlert(true);
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                setShowAlert(false);
+            }, 3000);
+            
+            return false;
+        }
+    };
+
+    // Update the handleCreateTest function to delete the draft after successful test creation
+    const handleCreateTest = async () => {
+        // Validate test data
+        if (!testData.title.trim()) {
+            setShowTitleWarning(true);
+            scrollToElement(titleInputRef.current);
+            return;
+        }
+        
+        if (selectedQuestions.length === 0) {
+            setShowQuestionWarning(true);
+            scrollToElement(questionsSectionRef.current);
+            return;
+        }
+        
+        try {
+            setLoading(true);
+            
+            // Prepare the test data
+            const testPayload = {
+                title: testData.title,
+                description: testData.description,
+                duration: testData.duration,
+                passing_score: testData.passingScore,
+                shuffle_questions: shuffleQuestions,
+                shuffle_answers: shuffleAnswers,
+                include_answer_key: includeKey,
+                answer_format: answerFormat,
+                questions: selectedQuestions.map(q => ({
+                    id: q.id,
+                    // Include any edited question data
+                    ...(editedQuestions[q.id] ? {
+                        edited_text: editedQuestions[q.id].question_text,
+                        hidden_answers: editedQuestions[q.id].hiddenAnswers
+                    } : {})
+                }))
+            };
+            
+            // Create the test
+            await createTest(selectedCourse, testPayload);
+            
+            // After successful test creation, delete the draft
+            try {
+                await deleteTestDraft();
+                console.log('Draft deleted after test creation');
+            } catch (draftError) {
+                console.error('Error deleting draft after test creation:', draftError);
+                // Continue even if draft deletion fails
+            }
+            
+            // Show success message
+            setAlertMessage('Test created successfully!');
+            setAlertType('success');
+            setShowAlert(true);
+            
+            // Navigate to the test bank after a short delay
+            setTimeout(() => {
+                navigate(`/test-bank/${selectedCourse}`);
+            }, 1500);
+        } catch (error) {
+            console.error('Error creating test:', error);
+            setError('Failed to create test');
+            
+            // Show error message
+            setAlertMessage('Failed to create test. Please try again.');
+            setAlertType('error');
+            setShowAlert(true);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Clear title warning when user types in title
+    const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setTestData({ ...testData, title: e.target.value });
+        if (showTitleWarning && e.target.value.trim()) {
+            setShowTitleWarning(false);
+        }
+    };
+
+    // Add handler for question selection
+    const handleQuestionSelection = (question: Question) => {
+        if (selectedQuestions.find(q => q.id === question.id)) {
+            setSelectedQuestions(prev => prev.filter(q => q.id !== question.id));
+        } else {
+            setSelectedQuestions(prev => [...prev, question]);
+        }
+        // Clear question warning if at least one question is selected
+        if (showQuestionWarning && selectedQuestions.length > 0) {
+            setShowQuestionWarning(false);
+        }
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         console.log('Test Data:', {
@@ -312,10 +733,39 @@ const CreateTest = () => {
         setShuffleAnswers(!shuffleAnswers);
     };
 
-    // Modify the exportToWord function to handle answer key
+    // Update the exportToWord function
     const exportToWord = async () => {
-        if (!testData.title || selectedQuestions.length === 0) {
-            setError('Please add a title and select questions before exporting');
+        if (!testData.title.trim()) {
+            setAlertMessage('Please add a title before exporting');
+            setAlertType('warning');
+            setShowAlert(true);
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                setShowAlert(false);
+            }, 3000);
+            
+            // Scroll to title input
+            setTimeout(() => {
+                scrollToElement(titleInputRef.current);
+            }, 100);
+            return;
+        }
+        
+        if (selectedQuestions.length === 0) {
+            setAlertMessage('Please select at least one question before exporting');
+            setAlertType('warning');
+            setShowAlert(true);
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                setShowAlert(false);
+            }, 3000);
+            
+            // Scroll to questions section
+            setTimeout(() => {
+                scrollToElement(questionsSectionRef.current);
+            }, 100);
             return;
         }
 
@@ -403,8 +853,35 @@ const CreateTest = () => {
         }
     };
 
+    // Update the handleCancel function to use the custom modal
     const handleCancel = () => {
-        navigate('/');
+        // Only show confirmation if there are changes
+        if (testData.title || selectedQuestions.length > 0) {
+            setConfirmTitle('Delete Draft');
+            setConfirmMessage('Are you sure you want to exit? Your draft will be deleted. This action cannot be undone.');
+            setConfirmAction(() => async () => {
+                // User confirmed deletion - delete the draft
+                try {
+                    if (selectedCourse) {
+                        await deleteTestDraft(selectedCourse);
+                        setAlertMessage('Draft deleted successfully');
+                        setAlertType('success');
+                        setShowAlert(true);
+                    }
+                } catch (error) {
+                    console.error('Error deleting draft:', error);
+                    setAlertMessage('Failed to delete draft, but exiting anyway');
+                    setAlertType('warning');
+                    setShowAlert(true);
+                }
+                // Navigate back to the course page
+                navigate(`/courses/${selectedCourse}`);
+            });
+            setShowConfirmModal(true);
+        } else {
+            // No changes, just navigate away
+            navigate(`/courses/${selectedCourse}`);
+        }
     };
 
     const handleQuestionClick = (question: Question) => {
@@ -554,6 +1031,7 @@ const CreateTest = () => {
         return [...bankQuestions, ...childQuestions];
     };
 
+    // Update the filterQuestions function to handle pagination better
     const filterQuestions = () => {
         const allQuestions = questionBanks.flatMap(bank => getAllQuestionsFromBank(bank));
 
@@ -563,30 +1041,25 @@ const CreateTest = () => {
             const matchesBank = !selectedBankId ||
                 question.bank_id === selectedBankId ||
                 questionBanks.some(bank => findQuestionInBank(bank, selectedBankId));
-            return matchesSearch && matchesBank;
+            const matchesTaxonomy = selectedLevels.length === 0 || 
+                selectedLevels.includes(
+                    question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'Remember'
+                );
+            return matchesSearch && matchesBank && matchesTaxonomy;
         });
     };
 
-    const handleCreateTest = async () => {
-        if (!testData.title || selectedQuestions.length === 0 || !selectedCourse) {
-            setError('Please fill in all required fields');
-            return;
-        }
-
-        try {
-            setLoading(true);
-            const response = await createTest(selectedCourse, {
-                title: testData.title,
-                description: testData.description,
-                question_ids: selectedQuestions.map(q => q.id),
-                config: configuration
-            });
-            navigate(`/test-bank/${selectedCourse}`);
-        } catch (err) {
-            setError('Failed to create test');
-        } finally {
-            setLoading(false);
-        }
+    // Add this function to handle pagination properly
+    const getPagedQuestions = (questions, page, perPage) => {
+        // Filter out questions that are already selected
+        const availableQuestions = questions.filter(q => !selectedQuestions.some(sq => sq.id === q.id));
+        
+        // Calculate start and end indices
+        const startIndex = (page - 1) * perPage;
+        const endIndex = startIndex + perPage;
+        
+        // Return the slice of questions for the current page
+        return availableQuestions.slice(startIndex, endIndex);
     };
 
     // Add this function before the return statement
@@ -617,8 +1090,56 @@ const CreateTest = () => {
         return distribution;
     };
 
+    // Create a single handler for showing all questions
+    const handleShowAllQuestions = () => {
+        setPreviewShowAll(true);
+        setPreviewDialogOpen(true);
+    };
+
     return (
-        <div className="mx-auto max-w-270">
+        <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
+            {/* Alert message */}
+            {showAlert && (
+                <div className={`fixed top-24 right-4 z-50 p-4 rounded-lg shadow-lg max-w-md transition-all duration-300 transform translate-y-0 
+                    ${alertType === 'error' ? 'bg-danger text-white' : 
+                     alertType === 'success' ? 'bg-success text-white' : 
+                     'bg-warning text-black'}`}
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="flex-shrink-0">
+                            {alertType === 'error' && (
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                            )}
+                            {alertType === 'warning' && (
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                            )}
+                            {alertType === 'success' && (
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                            )}
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium">{alertMessage}</p>
+                        </div>
+                        <div className="ml-auto">
+                            <button 
+                                onClick={() => setShowAlert(false)}
+                                className="text-white hover:text-gray-200 focus:outline-none"
+                            >
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <Breadcrumb
                 pageName="Create Test Manually"
                 currentName="Create Test"
@@ -675,35 +1196,30 @@ const CreateTest = () => {
                             <div className="p-6.5">
                                 <div className="mb-4.5">
                                     <input
+                                        ref={titleInputRef}
                                         type="text"
                                         placeholder="Enter test title"
                                         value={testData.title}
-                                        onChange={(e) => setTestData({ ...testData, title: e.target.value })}
-                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                                        required
+                                        onChange={handleTitleChange}
+                                        className={`w-full rounded border-[1.5px] bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary ${showTitleWarning ? 'border-danger' : 'border-stroke'
+                                            }`}
                                     />
-                                </div>
-                                <div className="mb-4.5">
-                                    <select
-                                        value={selectedSubject}
-                                        onChange={(e) => handleSubjectChange(e.target.value)}
-                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                                    >
-                                        <option value="">Select a subject</option>
-                                        {mockSubjects.map(subject => (
-                                            <option key={subject.id} value={subject.id}>{subject.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    {/* Editor component commented out */}
+                                    {showTitleWarning && (
+                                        <div className="mt-2 text-danger text-sm">
+                                            Please enter a test title
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
                     </div>
 
                     {/* Question Selection Block */}
-                    <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark">
+                    <div
+                        ref={questionsSectionRef}
+                        className={`rounded-sm border bg-white shadow-default dark:border-strokedark dark:bg-boxdark mb-6 ${showQuestionWarning ? 'border-danger' : 'border-stroke'
+                            }`}
+                    >
                         <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
                             <div className="flex justify-between items-center">
                                 <div>
@@ -711,6 +1227,11 @@ const CreateTest = () => {
                                         Questions
                                         <span className="text-danger text-lg">*</span>
                                     </h3>
+                                    {showQuestionWarning && (
+                                        <div className="mt-1 text-danger text-sm">
+                                            Please select at least one question
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -811,16 +1332,10 @@ const CreateTest = () => {
                                     </div>
                                 </div>
 
-                                {filteredQuestions
-                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                {getPagedQuestions(filteredQuestions, availableQuestionsPage, itemsPerPage)
                                     .map((question, index) => {
-                                        const isSelected = selectedQuestions.some(q => q.id === question.id);
-                                        if (isSelected) return null;
-                                        const availableQuestionIndex = filteredQuestions
-                                            .filter(q => !selectedQuestions.some(sq => sq.id === q.id))
-                                            .findIndex(q => q.id === question.id);
-                                        const questionNumber = availableQuestionIndex + 1;
-
+                                        const questionNumber = ((availableQuestionsPage - 1) * itemsPerPage) + index + 1;
+                                        
                                         return (
                                             <div
                                                 key={question.id}
@@ -830,14 +1345,14 @@ const CreateTest = () => {
                                                     <div className="flex-1">
                                                         <div className="flex items-center gap-2">
                                                             <span className="text-gray-500">{questionNumber}.</span>
-                                                            <div 
+                                                            <div
                                                                 className="flex items-center gap-2 text-sm font-medium text-black dark:text-white hover:text-primary"
                                                                 onClick={() => handleQuestionClick(question)}
                                                             >
                                                                 <div className="inline" dangerouslySetInnerHTML={{ __html: question.question_text }} />
                                                                 {question.statistics && (
                                                                     <span className="text-xs text-gray-500 shrink-0">
-                                                                        (D: {question.statistics.scaled_difficulty.toFixed(2)}, 
+                                                                        (D: {question.statistics.scaled_difficulty.toFixed(2)},
                                                                         Disc: {question.statistics.scaled_discrimination.toFixed(2)})
                                                                     </span>
                                                                 )}
@@ -867,11 +1382,12 @@ const CreateTest = () => {
                             <Pagination
                                 totalItems={filteredQuestions.filter(q => !selectedQuestions.some(sq => sq.id === q.id)).length}
                                 itemsPerPage={itemsPerPage}
-                                currentPage={currentPage}
-                                onPageChange={(page) => setCurrentPage(page)}
+                                currentPage={availableQuestionsPage}
+                                onPageChange={(page) => setAvailableQuestionsPage(page)}
                                 onItemsPerPageChange={(items) => {
                                     setItemsPerPage(items);
-                                    setCurrentPage(1);
+                                    setAvailableQuestionsPage(1);
+                                    setSelectedQuestionsPage(1);
                                 }}
                             />
                         </div>
@@ -896,9 +1412,9 @@ const CreateTest = () => {
                                     </div>
 
                                     {selectedQuestions
-                                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                        .slice((selectedQuestionsPage - 1) * itemsPerPage, selectedQuestionsPage * itemsPerPage)
                                         .map((question, index) => {
-                                            const questionNumber = (currentPage - 1) * itemsPerPage + index + 1;
+                                            const questionNumber = ((selectedQuestionsPage - 1) * itemsPerPage) + index + 1;
                                             return (
                                                 <div
                                                     key={question.id}
@@ -941,11 +1457,12 @@ const CreateTest = () => {
                                 <Pagination
                                     totalItems={selectedQuestions.length}
                                     itemsPerPage={itemsPerPage}
-                                    currentPage={currentPage}
-                                    onPageChange={(page) => setCurrentPage(page)}
+                                    currentPage={selectedQuestionsPage}
+                                    onPageChange={(page) => setSelectedQuestionsPage(page)}
                                     onItemsPerPageChange={(items) => {
                                         setItemsPerPage(items);
-                                        setCurrentPage(1);
+                                        setAvailableQuestionsPage(1);
+                                        setSelectedQuestionsPage(1);
                                     }}
                                 />
                             </div>
@@ -961,11 +1478,140 @@ const CreateTest = () => {
                         </div>
 
                         <div className="p-6.5">
-                            <TestConfiguration
-                                configuration={configuration}
-                                isEditing={true}
-                                onConfigChange={setConfiguration}
-                            />
+                            {/* Test Configuration */}
+                            <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
+                                <h4 className="text-lg font-medium text-black dark:text-white mb-4">
+                                    Test Configuration
+                                </h4>
+                                <div className="flex gap-6 flex-wrap">
+                                    <div>
+                                        <label className="mb-2.5 block text-black dark:text-white">
+                                            Letter Case
+                                        </label>
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'uppercase' }))}
+                                                className={`px-4 py-2 rounded ${answerFormat.case === 'uppercase'
+                                                    ? 'bg-primary text-white'
+                                                    : 'bg-white dark:bg-meta-4 border border-stroke'
+                                                    }`}
+                                            >
+                                                ABC
+                                            </button>
+                                            <button
+                                                onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'lowercase' }))}
+                                                className={`px-4 py-2 rounded ${answerFormat.case === 'lowercase'
+                                                    ? 'bg-primary text-white'
+                                                    : 'bg-white dark:bg-meta-4 border border-stroke'
+                                                    }`}
+                                            >
+                                                abc
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-2.5 block text-black dark:text-white">
+                                            Separator
+                                        </label>
+                                        <div className="flex gap-3">
+                                            {[')', '.', '/'].map(separator => (
+                                                <button
+                                                    key={separator}
+                                                    onClick={() => setAnswerFormat(prev => ({ ...prev, separator }))}
+                                                    className={`px-4 py-2 rounded ${answerFormat.separator === separator
+                                                        ? 'bg-primary text-white'
+                                                        : 'bg-white dark:bg-meta-4 border border-stroke'
+                                                        }`}
+                                                >
+                                                    A{separator}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-2.5 block text-black dark:text-white">
+                                            Answer Key
+                                        </label>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => setIncludeKey(!includeKey)}
+                                                className="relative w-[46px] h-[24px] rounded-full transition-colors duration-300 ease-in-out focus:outline-none"
+                                                style={{
+                                                    backgroundColor: includeKey ? '#4318FF' : '#E2E8F0'
+                                                }}
+                                            >
+                                                {/* Sliding circle button */}
+                                                <div
+                                                    className={`absolute top-[2px] left-[2px] w-[20px] h-[20px] rounded-full bg-white shadow-md transform transition-transform duration-300 ease-in-out
+                                                        ${includeKey ? 'translate-x-[22px]' : 'translate-x-0'}`}
+                                                />
+                                            </button>
+                                            <span className="text-sm text-black dark:text-white">
+                                                {includeKey ? 'Show' : 'Hide'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Test Preview */}
+                            <div className="border border-stroke dark:border-strokedark rounded-sm p-6 relative">
+                                <div className="mb-4 flex justify-between items-center">
+                                    <h4 className="text-lg font-medium text-black dark:text-white">
+                                        Test Preview
+                                    </h4>
+                                    
+                                    {/* Update the Show All button */}
+                                    {selectedQuestions.length > 2 && (
+                                        <button
+                                            onClick={handleShowAllQuestions}
+                                            className="text-primary hover:text-opacity-80 text-sm font-medium flex items-center gap-1"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                            </svg>
+                                            Show All Questions
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Preview Sample */}
+                                <div className="space-y-4">
+                                    {selectedQuestions.slice(0, 2).map((question, index) => (
+                                        <div key={index} className="space-y-2">
+                                            <div className="font-medium">
+                                                Question {index + 1}: {sanitizeHtml(question.question_text)}
+                                            </div>
+                                            <div className="pl-4 space-y-1">
+                                                {question.answers?.map((answer, ansIndex) => (
+                                                    <div key={ansIndex}>
+                                                        {answerFormat.case === 'uppercase'
+                                                            ? String.fromCharCode(65 + ansIndex)
+                                                            : String.fromCharCode(97 + ansIndex)}
+                                                        {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                
+                                {/* Update the message at the bottom with a more visible button */}
+                                {selectedQuestions.length > 2 && (
+                                    <div className="mt-4 text-sm text-gray-500">
+                                        {selectedQuestions.length - 2} more question{selectedQuestions.length - 2 !== 1 ? 's' : ''} not shown. 
+                                        <button 
+                                            onClick={handleShowAllQuestions}
+                                            className="ml-2 px-3 py-1 bg-primary text-white rounded-md text-xs hover:bg-opacity-90"
+                                        >
+                                            Preview All
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -1053,33 +1699,99 @@ const CreateTest = () => {
                         </div>
                     </div>
 
-                    {/* Export Buttons */}
+                    {/* Export Buttons - REMOVED Save Draft button */}
                     <div className="mt-6 flex gap-4">
                         <button
-                            onClick={handleCancel}
-                            className="flex flex-1 justify-center rounded bg-danger py-4 px-10 font-medium text-white hover:bg-opacity-90"
-                        >
-                            Cancel
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => {
-                                console.log('Save button clicked');
-                                handleCreateTest();
-                            }}
-                            className="flex flex-1 justify-center rounded bg-primary py-4 px-10 font-medium text-white hover:bg-opacity-90"
-                            disabled={!testData.title || selectedQuestions.length === 0 || !selectedCourse}
-                        >
-                            Save
-                        </button>
-
-                        <button
                             onClick={exportToWord}
-                            className="flex flex-1 justify-center rounded bg-success py-4 px-10 font-medium text-white hover:bg-opacity-90"
-                            disabled={selectedQuestions.length === 0}
+                            className={`inline-flex items-center justify-center gap-2.5 rounded-md bg-primary py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10 ${
+                                !selectedCourse || selectedQuestions.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            disabled={!selectedCourse || selectedQuestions.length === 0}
                         >
+                            <span>
+                                <svg className="fill-current" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M16.8754 11.6719C16.5379 11.6719 16.2285 11.9531 16.2285 12.3187V14.8219C16.2285 15.075 16.0316 15.2719 15.7785 15.2719H2.22227C1.96914 15.2719 1.77227 15.075 1.77227 14.8219V12.3187C1.77227 11.9812 1.49102 11.6719 1.12539 11.6719C0.759766 11.6719 0.478516 11.9531 0.478516 12.3187V14.8219C0.478516 15.7781 1.23789 16.5375 2.19414 16.5375H15.7785C16.7348 16.5375 17.4941 15.7781 17.4941 14.8219V12.3187C17.5223 11.9531 17.2129 11.6719 16.8754 11.6719Z" fill=""></path>
+                                    <path d="M8.55074 12.3469C8.66324 12.4594 8.83199 12.5156 9.00074 12.5156C9.16949 12.5156 9.31012 12.4594 9.45074 12.3469L13.4726 8.43752C13.7257 8.1844 13.7257 7.79065 13.4726 7.53752C13.2195 7.2844 12.8257 7.2844 12.5726 7.53752L9.64762 10.4063V2.1094C9.64762 1.7719 9.36637 1.46252 9.00074 1.46252C8.66324 1.46252 8.35387 1.74377 8.35387 2.1094V10.4063L5.45699 7.53752C5.20387 7.2844 4.81012 7.2844 4.55699 7.53752C4.30387 7.79065 4.30387 8.1844 4.55699 8.43752L8.55074 12.3469Z" fill=""></path>
+                                </svg>
+                            </span>
                             Export to Word
+                        </button>
+                        
+                        <button
+                            onClick={() => setPreviewDialogOpen(true)}
+                            className={`inline-flex items-center justify-center gap-2.5 rounded-md bg-meta-3 py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10 ${
+                                !selectedCourse || selectedQuestions.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            disabled={!selectedCourse || selectedQuestions.length === 0}
+                        >
+                            <span>
+                                <svg className="fill-current" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" fill=""></path>
+                                </svg>
+                            </span>
+                            Preview Test
+                        </button>
+                        
+                        <button
+                            onClick={handleCreateTest}
+                            className={`inline-flex items-center justify-center gap-2.5 rounded-md bg-meta-3 py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10 ${
+                                !selectedCourse ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            disabled={!selectedCourse}
+                        >
+                            <span>
+                                <svg
+                                    className="fill-current"
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 18 18"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <path
+                                        d="M9 3.75C4.65 3.75 1.125 6.75 0 10.5C1.125 14.25 4.65 17.25 9 17.25C13.35 17.25 16.875 14.25 18 10.5C16.875 6.75 13.35 3.75 9 3.75ZM9 15C6.525 15 4.5 12.975 4.5 10.5C4.5 8.025 6.525 6 9 6C11.475 6 13.5 8.025 13.5 10.5C13.5 12.975 11.475 15 9 15ZM9 7.5C7.35 7.5 6 8.85 6 10.5C6 12.15 7.35 13.5 9 13.5C10.65 13.5 12 12.15 12 10.5C12 8.85 10.65 7.5 9 7.5Z"
+                                        fill=""
+                                    ></path>
+                                </svg>
+                            </span>
+                            Create Test
+                        </button>
+                        
+                        <button
+                            onClick={handleCancel}
+                            className={`inline-flex items-center justify-center gap-2.5 rounded-md bg-danger py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10 ${
+                                !selectedCourse ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                            disabled={!selectedCourse}
+                        >
+                            <span>
+                                <svg
+                                    className="fill-current"
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 18 18"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <path
+                                        d="M13.7535 2.47502H11.5879V1.9969C11.5879 1.15315 10.9129 0.478149 10.0691 0.478149H7.90352C7.05977 0.478149 6.38477 1.15315 6.38477 1.9969V2.47502H4.21914C3.40352 2.47502 2.72852 3.15002 2.72852 3.96565V4.8094C2.72852 5.42815 3.09414 5.9344 3.62852 6.1594L4.07852 15.4688C4.13477 16.6219 5.09102 17.5219 6.24414 17.5219H11.7004C12.8535 17.5219 13.8098 16.6219 13.866 15.4688L14.3441 6.13127C14.8785 5.90627 15.2441 5.3719 15.2441 4.78127V3.93752C15.2441 3.15002 14.5691 2.47502 13.7535 2.47502ZM7.67852 1.9969C7.67852 1.85627 7.79102 1.74377 7.93164 1.74377H10.0973C10.2379 1.74377 10.3504 1.85627 10.3504 1.9969V2.47502H7.70664V1.9969H7.67852ZM4.02227 3.96565C4.02227 3.85315 4.10664 3.74065 4.24727 3.74065H13.7535C13.866 3.74065 13.9785 3.82502 13.9785 3.96565V4.8094C13.9785 4.9219 13.8941 5.0344 13.7535 5.0344H4.24727C4.13477 5.0344 4.02227 4.95002 4.02227 4.8094V3.96565ZM11.7285 16.2563H6.27227C5.79414 16.2563 5.40039 15.8906 5.37227 15.3844L4.95039 6.2719H13.0785L12.6566 15.3844C12.6004 15.8625 12.2066 16.2563 11.7285 16.2563Z"
+                                        fill=""
+                                    ></path>
+                                    <path
+                                        d="M9.00039 9.11255C8.66289 9.11255 8.35352 9.3938 8.35352 9.75942V13.3313C8.35352 13.6688 8.63477 13.9782 9.00039 13.9782C9.33789 13.9782 9.64727 13.6969 9.64727 13.3313V9.75942C9.64727 9.3938 9.33789 9.11255 9.00039 9.11255Z"
+                                        fill=""
+                                    ></path>
+                                    <path
+                                        d="M11.2502 9.67504C10.8846 9.64692 10.6033 9.90004 10.5752 10.2657L10.4064 12.7407C10.3783 13.0782 10.6314 13.3875 10.9971 13.4157C11.0252 13.4157 11.0252 13.4157 11.0533 13.4157C11.3908 13.4157 11.6721 13.1625 11.6721 12.825L11.8408 10.35C11.8408 9.98442 11.5877 9.70317 11.2502 9.67504Z"
+                                        fill=""
+                                    ></path>
+                                    <path
+                                        d="M6.72245 9.67504C6.38495 9.70317 6.1037 10.0125 6.13182 10.35L6.3287 12.825C6.35683 13.1625 6.63808 13.4157 6.94745 13.4157C6.97558 13.4157 6.97558 13.4157 7.0037 13.4157C7.3412 13.3875 7.62245 13.0782 7.59433 12.7407L7.39745 10.2657C7.39745 9.90004 7.08808 9.64692 6.72245 9.67504Z"
+                                        fill=""
+                                    ></path>
+                                </svg>
+                            </span>
+                            Cancel
                         </button>
                     </div>
                 </>
@@ -1211,9 +1923,13 @@ const CreateTest = () => {
 
             {/* Preview Dialog */}
             <Dialog
-                open={isPreviewDialogOpen}
-                onClose={() => setPreviewDialogOpen(false)}
-                className="relative z-50"
+                open={previewDialogOpen}
+                onClose={() => {
+                    setPreviewDialogOpen(false);
+                    setPreviewShowAll(false);
+                    setPreviewPage(1);
+                }}
+                className="relative z-[100]"
             >
                 <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
@@ -1263,6 +1979,46 @@ const CreateTest = () => {
                     </div>
                 </div>
             </Dialog>
+
+            {/* Last saved indicator */}
+            {testData.lastSaved && (
+                <div className="mb-2">
+                    <span className="text-sm text-gray-500">
+                        Auto-saved: {new Date(testData.lastSaved).toLocaleString()}
+                    </span>
+                </div>
+            )}
+
+            {/* Custom Confirmation Modal */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg dark:bg-boxdark">
+                        <h3 className="mb-4 text-xl font-semibold text-black dark:text-white">
+                            {confirmTitle}
+                        </h3>
+                        <p className="mb-6 text-body-color dark:text-body-color-dark">
+                            {confirmMessage}
+                        </p>
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                onClick={() => setShowConfirmModal(false)}
+                                className="rounded border border-stroke px-4 py-2 text-black transition hover:bg-gray-100 dark:border-strokedark dark:text-white dark:hover:bg-meta-4"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowConfirmModal(false);
+                                    confirmAction();
+                                }}
+                                className="rounded bg-danger px-4 py-2 text-white transition hover:bg-opacity-90"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

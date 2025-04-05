@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import Breadcrumb from '../components/Breadcrumb';
 import { fetchCourses, fetchCourseTests, deleteTest } from '../services/api';
 import { Dialog } from '@headlessui/react';
+import TestDifficultyBadge from '../components/TestDifficultyBadge';
 
 interface Test {
     id: string;
@@ -85,6 +86,23 @@ const TestBank = () => {
         } catch (err) {
             setError('Failed to delete test');
         }
+    };
+
+    const calculateAverageDifficulty = (test) => {
+        if (!test.questions || test.questions.length === 0) return 0;
+        
+        const questionsWithDifficulty = test.questions.filter(
+            q => q.question_data?.statistics?.scaled_difficulty !== undefined
+        );
+        
+        if (questionsWithDifficulty.length === 0) return 0;
+        
+        const sum = questionsWithDifficulty.reduce(
+            (acc, q) => acc + (q.question_data.statistics.scaled_difficulty || 0), 
+            0
+        );
+        
+        return sum / questionsWithDifficulty.length;
     };
 
     return (
@@ -185,6 +203,9 @@ const TestBank = () => {
                                         <th className="min-w-[250px] py-4 px-4 font-medium text-black dark:text-white">
                                             Title
                                         </th>
+                                        <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
+                                            Difficulty
+                                        </th>
                                         <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
                                             Questions
                                         </th>
@@ -219,6 +240,12 @@ const TestBank = () => {
                                                     >
                                                         {test.title}
                                                     </Link>
+                                                </td>
+                                                <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                                                    <TestDifficultyBadge 
+                                                        difficulty={calculateAverageDifficulty(test)} 
+                                                        showLabel={true}
+                                                    />
                                                 </td>
                                                 <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                                                     <span className="text-meta-3">
