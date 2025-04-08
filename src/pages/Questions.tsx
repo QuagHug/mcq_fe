@@ -177,25 +177,32 @@ const Questions = () => {
     };
 
     const handleExport = () => {
-        const exportData = questions.map(q => ({
-            question_text: q.question_text,
-            image_url: q.image_url,
-            answers: q.answers.map(a => ({
-                answer_text: a.answer_text,
-                is_correct: a.is_correct,
-                explanation: a.explanation
-            })),
-            taxonomies: q.taxonomies.map(t => ({
-                taxonomy_id: t.taxonomy.id,
-                level: t.level,
-                difficulty: t.difficulty
-            }))
-        }));
-        
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const sanitizedBankName = chapterName.replace(/[^a-zA-Z0-9-_]/g, '_');
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-        saveAs(blob, `${sanitizedBankName}-${timestamp}.json`);
+        try {
+            // Check if questions exists and is an array before mapping
+            if (!questions || !Array.isArray(questions)) {
+                console.error("No questions available to export");
+                // Show a notification to the user
+                return;
+            }
+            
+            // Now safely map over the questions array
+            const csvData = questions.map(question => ({
+                id: question.id,
+                question_text: truncateText(question.question_text),
+                difficulty: question.taxonomies?.find((tax: { taxonomy: { name: string } }) => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A',
+                taxonomy_level: question.taxonomies?.find((tax: { taxonomy: { name: string } }) => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A',
+                // Add any other fields you need
+            }));
+            
+            // Proceed with export logic
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const sanitizedBankName = chapterName.replace(/[^a-zA-Z0-9-_]/g, '_');
+            const blob = new Blob([JSON.stringify(csvData, null, 2)], { type: 'application/json' });
+            saveAs(blob, `${sanitizedBankName}-${timestamp}.json`);
+        } catch (error) {
+            console.error("Export error:", error);
+            // Show error notification to user
+        }
     };
 
     const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {

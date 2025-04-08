@@ -174,7 +174,7 @@ const QuestionEdit = () => {
                 </div>
                 <div className="px-6.5 py-4">
                     <Editor
-                        apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
+                        apiKey="it0vzbrjmv1qzhgge99xqz12j84evhl7q00gf4b0v3ylwlfx"
                         value={questionContent}
                         init={{
                             height: 250,
@@ -222,7 +222,7 @@ const QuestionEdit = () => {
                                         Answer Text
                                     </label>
                                     <Editor
-                                        apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
+                                        apiKey="it0vzbrjmv1qzhgge99xqz12j84evhl7q00gf4b0v3ylwlfx"
                                         value={answer.text}
                                         init={{
                                             height: 250,
@@ -267,7 +267,7 @@ const QuestionEdit = () => {
                                         Explanation
                                     </label>
                                     <Editor
-                                        apiKey="gwxmqxpn8j1388tusd75evl4dpgvbwiqy6c4me5acrwqplum"
+                                        apiKey="it0vzbrjmv1qzhgge99xqz12j84evhl7q00gf4b0v3ylwlfx"
                                         value={answer.explanation}
                                         init={{
                                             height: 250,
