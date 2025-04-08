@@ -144,7 +144,25 @@ const QuestionBanks = () => {
 
         try {
             await deleteQuestionBank(courseId, bankToDelete.id.toString());
-            setQuestionBanks(questionBanks.filter(bank => bank.id !== bankToDelete.id));
+            
+            // Create a recursive function to filter out the deleted bank from the entire tree
+            const filterBankTree = (banks: QuestionBank[]): QuestionBank[] => {
+                return banks
+                    .filter(bank => bank.id !== bankToDelete!.id)
+                    .map(bank => {
+                        if (bank.children && bank.children.length > 0) {
+                            return {
+                                ...bank,
+                                children: filterBankTree(bank.children)
+                            };
+                        }
+                        return bank;
+                    });
+            };
+            
+            // Apply the recursive filter to the question banks
+            setQuestionBanks(filterBankTree(questionBanks));
+            
             setShowDeleteModal(false);
             setBankToDelete(null);
         } catch (err) {
