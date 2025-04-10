@@ -5,6 +5,7 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
+import { Dialog } from '@mui/material';
 
 interface QuestionBank {
     id: number;
@@ -20,6 +21,7 @@ interface TestCombination {
     taxonomyLevel: string;
     difficulty: string;
     learningOutcome: string;
+    chapter: string;
 }
 
 interface TestData {
@@ -52,6 +54,18 @@ interface QuestionDistribution {
     };
 }
 
+// Add these interfaces before the generatePreviewQuestions function
+interface PreviewQuestion {
+    id: string;
+    question_text: string;
+    answers: PreviewAnswer[];
+}
+
+interface PreviewAnswer {
+    answer_text: string;
+    is_correct: boolean;
+}
+
 const CreateTestAuto: React.FC = (): JSX.Element => {
     const [testData, setTestData] = useState<TestData>({
         title: '',
@@ -60,7 +74,8 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
             numberOfQuestions: 1,
             taxonomyLevel: 'remember',
             difficulty: 'easy',
-            learningOutcome: 'lo1'
+            learningOutcome: 'lo1',
+            chapter: ''
         }],
         topics: []
     });
@@ -82,6 +97,11 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
         case: 'uppercase',
         separator: ')',
     });
+    const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+    const [previewShowAll, setPreviewShowAll] = useState(false);
+    const [previewPage, setPreviewPage] = useState(1);
+    const previewItemsPerPage = 2; // Default to show only 2 questions initially
+    const [includeKey, setIncludeKey] = useState(false);
 
     const topics = [
         'PPL', 'DSA', 'Discrete Math', 'Dynamic Programming', 'Math'
@@ -142,7 +162,8 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                 numberOfQuestions: 1,
                 taxonomyLevel: 'remember',
                 difficulty: 'easy',
-                learningOutcome: 'lo1'
+                learningOutcome: 'lo1',
+                chapter: ''
             }]
         }));
     };
@@ -330,6 +351,169 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
         return distribution;
     };
 
+    // Add this helper function for text sanitization
+    const sanitizeHtml = (html: string) => {
+        return html.replace(/<\/?[^>]+(>|$)/g, '');
+    };
+
+    // Update the generatePreviewQuestions function with proper types
+    const generatePreviewQuestions = (): PreviewQuestion[] => {
+        let previewQuestions: PreviewQuestion[] = [];
+        testData.combinations.forEach((combination, index) => {
+            for (let i = 0; i < combination.numberOfQuestions; i++) {
+                previewQuestions.push({
+                    id: `${index}-${i}`,
+                    question_text: `Sample ${combination.taxonomyLevel} level question (${combination.difficulty} difficulty)`,
+                    answers: [
+                        { answer_text: 'Sample answer 1', is_correct: true },
+                        { answer_text: 'Sample answer 2', is_correct: false },
+                        { answer_text: 'Sample answer 3', is_correct: false },
+                        { answer_text: 'Sample answer 4', is_correct: false },
+                    ]
+                });
+            }
+        });
+        return previewQuestions;
+    };
+
+    // Update the answer mapping in the preview blocks with proper types
+    const renderAnswerOption = (answer: PreviewAnswer, ansIndex: number) => (
+        <div key={ansIndex} className="text-black dark:text-white">
+            {answerFormat.case === 'uppercase'
+                ? String.fromCharCode(65 + ansIndex)
+                : String.fromCharCode(97 + ansIndex)}
+            {answerFormat.separator} {answer.answer_text}
+            {includeKey && answer.is_correct && (
+                <span className="text-meta-3 ml-2">✓</span>
+            )}
+        </div>
+    );
+
+    // Replace the entire renderPreviewBlock function with a simpler version
+    const renderPreviewBlock = () => (
+        <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+            <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
+                <h3 className="font-medium text-black dark:text-white">
+                    Preview
+                </h3>
+            </div>
+
+            <div className="p-6.5">
+                {/* Test Configuration */}
+                <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
+                    <h4 className="text-lg font-medium text-black dark:text-white mb-4">
+                        Test Configuration
+                    </h4>
+                    <div className="flex gap-6 flex-wrap items-end">
+                        <div>
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Letter Case
+                            </label>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'uppercase' }))}
+                                    className={`px-4 py-2 rounded ${answerFormat.case === 'uppercase'
+                                        ? 'bg-primary text-white'
+                                        : 'bg-white dark:bg-meta-4 border border-stroke'
+                                        }`}
+                                >
+                                    ABC
+                                </button>
+                                <button
+                                    onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'lowercase' }))}
+                                    className={`px-4 py-2 rounded ${answerFormat.case === 'lowercase'
+                                        ? 'bg-primary text-white'
+                                        : 'bg-white dark:bg-meta-4 border border-stroke'
+                                        }`}
+                                >
+                                    abc
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Separator
+                            </label>
+                            <div className="flex gap-3">
+                                {[')', '.', '/'].map(separator => (
+                                    <button
+                                        key={separator}
+                                        onClick={() => setAnswerFormat(prev => ({ ...prev, separator }))}
+                                        className={`px-4 py-2 rounded ${answerFormat.separator === separator
+                                            ? 'bg-primary text-white'
+                                            : 'bg-white dark:bg-meta-4 border border-stroke'
+                                            }`}
+                                    >
+                                        A{separator}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Question Order
+                            </label>
+                            <button
+                                onClick={handleShuffle}
+                                className="inline-flex items-center justify-center gap-2 rounded-md bg-primary py-2 px-4 text-white hover:bg-opacity-90"
+                            >
+                                <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                    />
+                                </svg>
+                                Shuffle Questions
+                            </button>
+                        </div>
+
+                        <div>
+                            <label className="mb-2.5 block text-black dark:text-white">
+                                Correct Answers
+                            </label>
+                            <div className="flex items-center gap-2 h-[38px]">
+                                <button
+                                    onClick={() => setIncludeKey(!includeKey)}
+                                    className="relative w-[46px] h-[24px] rounded-full transition-colors duration-300 ease-in-out focus:outline-none"
+                                    style={{
+                                        backgroundColor: includeKey ? '#4318FF' : '#E2E8F0'
+                                    }}
+                                >
+                                    <div
+                                        className={`absolute top-[2px] left-[2px] w-[20px] h-[20px] rounded-full bg-white shadow-md transform transition-transform duration-300 ease-in-out
+                                            ${includeKey ? 'translate-x-[22px]' : 'translate-x-0'}`}
+                                    />
+                                </button>
+                                <span className="text-sm text-black dark:text-white">
+                                    {includeKey ? 'Show' : 'Hide'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Test Preview */}
+                <div className="border border-stroke dark:border-strokedark rounded-sm p-6">
+                    <h4 className="text-lg font-medium text-black dark:text-white">
+                        Test Preview
+                    </h4>
+                </div>
+            </div>
+        </div>
+    );
+
+    // Remove the Preview Dialog since it's not needed yet
+    const renderPreviewDialog = () => null;
+
     return (
         <div className="mx-auto max-w-270">
             <Breadcrumb
@@ -423,6 +607,21 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                                 </div>
                                 <div>
                                     <label className="mb-2.5 block text-black dark:text-white">
+                                        Chapter
+                                    </label>
+                                    <select
+                                        value={combination.chapter}
+                                        onChange={(e) => updateCombination(index, 'chapter', e.target.value)}
+                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
+                                    >
+                                        <option value="">Chapter 1</option>
+                                        {chapters.map(chapter => (
+                                            <option key={chapter.id} value={chapter.id}>{chapter.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="mb-2.5 block text-black dark:text-white">
                                         Taxonomy Level
                                     </label>
                                     <select
@@ -439,11 +638,11 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                                         <option value="create">Create</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="mb-2.5 block text-black dark:text-white">
-                                        Difficulty
-                                    </label>
-                                    <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-full">
+                                        <label className="mb-2.5 block text-black dark:text-white">
+                                            Difficulty
+                                        </label>
                                         <select
                                             value={combination.difficulty}
                                             onChange={(e) => updateCombination(index, 'difficulty', e.target.value)}
@@ -454,17 +653,17 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                                             <option value="medium">Medium</option>
                                             <option value="hard">Hard</option>
                                         </select>
-                                        {testData.combinations.length > 1 && (
-                                            <button
-                                                onClick={() => removeCombination(index)}
-                                                className="p-2 text-danger hover:text-danger/80"
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                            </button>
-                                        )}
                                     </div>
+                                    {testData.combinations.length > 1 && (
+                                        <button
+                                            onClick={() => removeCombination(index)}
+                                            className="mt-8 p-2 text-danger hover:text-danger/80"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -503,156 +702,11 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                 </div>
             </div>
 
-            {/* Preview Block */}
-            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mt-6">
-                <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                    <h3 className="font-medium text-black dark:text-white">
-                        Preview
-                    </h3>
-                </div>
-
-                <div className="p-6.5">
-                    {/* Test Configuration */}
-                    <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
-                        <h4 className="text-lg font-medium text-black dark:text-white mb-4">
-                            Test Configuration
-                        </h4>
-                        <div className="flex gap-6 flex-wrap">
-                            <div>
-                                <label className="mb-2.5 block text-black dark:text-white">
-                                    Letter Case
-                                </label>
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'uppercase' }))}
-                                        className={`px-4 py-2 rounded ${answerFormat.case === 'uppercase'
-                                            ? 'bg-primary text-white'
-                                            : 'bg-white dark:bg-meta-4 border border-stroke'
-                                            }`}
-                                    >
-                                        ABC
-                                    </button>
-                                    <button
-                                        onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'lowercase' }))}
-                                        className={`px-4 py-2 rounded ${answerFormat.case === 'lowercase'
-                                            ? 'bg-primary text-white'
-                                            : 'bg-white dark:bg-meta-4 border border-stroke'
-                                            }`}
-                                    >
-                                        abc
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="mb-2.5 block text-black dark:text-white">
-                                    Separator
-                                </label>
-                                <div className="flex gap-3">
-                                    {[')', '.', '/'].map(separator => (
-                                        <button
-                                            key={separator}
-                                            onClick={() => setAnswerFormat(prev => ({ ...prev, separator }))}
-                                            className={`px-4 py-2 rounded ${answerFormat.separator === separator
-                                                ? 'bg-primary text-white'
-                                                : 'bg-white dark:bg-meta-4 border border-stroke'
-                                                }`}
-                                        >
-                                            A{separator}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="mb-2.5 block text-black dark:text-white">
-                                    Question Order
-                                </label>
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={handleShuffle}
-                                        className="px-4 py-2 rounded bg-white dark:bg-meta-4 border border-stroke hover:bg-primary hover:text-white hover:border-primary active:bg-opacity-80 transition-all duration-200 group"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <svg
-                                                className="w-4 h-4 transform group-hover:rotate-180 transition-transform duration-300"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                                />
-                                            </svg>
-                                            <span className="whitespace-nowrap">Shuffle Questions</span>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="mb-2.5 block text-black dark:text-white">
-                                    Answer Key
-                                </label>
-                                <button
-                                    className={`px-4 py-2 rounded border bg-white dark:bg-meta-4 border-stroke hover:bg-primary hover:text-white hover:border-primary transition-all duration-200`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <svg
-                                            className="w-4 h-4"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth="2"
-                                                d="M6 18L18 6M6 6l12 12"
-                                            />
-                                        </svg>
-                                        <span>Include Key</span>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Test Preview */}
-                    <div className="border border-stroke dark:border-strokedark rounded-sm p-6 relative">
-                        <div className="mb-4">
-                            <h4 className="text-lg font-medium text-black dark:text-white">
-                                Test Preview
-                            </h4>
-                        </div>
-
-                        {/* Preview Sample */}
-                        <div className="space-y-4">
-                            {testData.combinations.map((combination, index) => (
-                                <div key={index} className="p-4 border rounded-sm dark:border-strokedark">
-                                    <div className="font-medium text-black dark:text-white mb-2">
-                                        Combination {index + 1}:
-                                    </div>
-                                    <div className="pl-4 space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                        <div>Number of Questions: {combination.numberOfQuestions}</div>
-                                        <div>Taxonomy Level: {combination.taxonomyLevel}</div>
-                                        <div>Difficulty: {combination.difficulty}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Summary Section */}
+            {/* Question Distribution Section */}
             <div className="mt-6 rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
                 <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
                     <h3 className="font-medium text-black dark:text-white">
-                        Summary
+                        Question Distribution
                     </h3>
                 </div>
 
@@ -661,9 +715,6 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
 
                         {/* Distribution Table */}
                         <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm overflow-x-auto">
-                            <h5 className="font-medium text-black dark:text-white mb-3">
-                                Question Distribution
-                            </h5>
                             <table className="w-full">
                                 <thead>
                                     <tr className="bg-gray-2 dark:bg-meta-4">
@@ -732,28 +783,85 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                 </div>
             </div>
 
-            {/* Update the Save button to be disabled when form is invalid */}
+            {renderPreviewBlock()}
+
+            {renderPreviewDialog()}
+
             <div className="mt-6 flex gap-4">
                 <button
                     onClick={() => window.history.back()}
-                    className="flex flex-1 justify-center rounded bg-danger py-4 px-10 font-medium text-white hover:bg-opacity-90"
+                    className={`flex w-1/3 items-center justify-center gap-2.5 rounded-md bg-danger py-4 px-10 text-center font-medium text-white hover:bg-opacity-90`}
                 >
+                    <span>
+                        <svg
+                            className="fill-current"
+                            width="18"
+                            height="18"
+                            viewBox="0 0 18 18"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <path
+                                d="M13.7535 2.47502H11.5879V1.9969C11.5879 1.15315 10.9129 0.478149 10.0691 0.478149H7.90352C7.05977 0.478149 6.38477 1.15315 6.38477 1.9969V2.47502H4.21914C3.40352 2.47502 2.72852 3.15002 2.72852 3.96565V4.8094C2.72852 5.42815 3.09414 5.9344 3.62852 6.1594L4.07852 15.4688C4.13477 16.6219 5.09102 17.5219 6.24414 17.5219H11.7004C12.8535 17.5219 13.8098 16.6219 13.866 15.4688L14.3441 6.13127C14.8785 5.90627 15.2441 5.3719 15.2441 4.78127V3.93752C15.2441 3.15002 14.5691 2.47502 13.7535 2.47502ZM7.67852 1.9969C7.67852 1.85627 7.79102 1.74377 7.93164 1.74377H10.0973C10.2379 1.74377 10.3504 1.85627 10.3504 1.9969V2.47502H7.70664V1.9969H7.67852ZM4.02227 3.96565C4.02227 3.85315 4.10664 3.74065 4.24727 3.74065H13.7535C13.866 3.74065 13.9785 3.82502 13.9785 3.96565V4.8094C13.9785 4.9219 13.8941 5.0344 13.7535 5.0344H4.24727C4.13477 5.0344 4.02227 4.95002 4.02227 4.8094V3.96565ZM11.7285 16.2563H6.27227C5.79414 16.2563 5.40039 15.8906 5.37227 15.3844L4.95039 6.2719H13.0785L12.6566 15.3844C12.6004 15.8625 12.2066 16.2563 11.7285 16.2563Z"
+                                fill=""
+                            ></path>
+                            <path
+                                d="M9.00039 9.11255C8.66289 9.11255 8.35352 9.3938 8.35352 9.75942V13.3313C8.35352 13.6688 8.63477 13.9782 9.00039 13.9782C9.33789 13.9782 9.64727 13.6969 9.64727 13.3313V9.75942C9.64727 9.3938 9.33789 9.11255 9.00039 9.11255Z"
+                                fill=""
+                            ></path>
+                            <path
+                                d="M11.2502 9.67504C10.8846 9.64692 10.6033 9.90004 10.5752 10.2657L10.4064 12.7407C10.3783 13.0782 10.6314 13.3875 10.9971 13.4157C11.0252 13.4157 11.0252 13.4157 11.0533 13.4157C11.3908 13.4157 11.6721 13.1625 11.6721 12.825L11.8408 10.35C11.8408 9.98442 11.5877 9.70317 11.2502 9.67504Z"
+                                fill=""
+                            ></path>
+                            <path
+                                d="M6.72245 9.67504C6.38495 9.70317 6.1037 10.0125 6.13182 10.35L6.3287 12.825C6.35683 13.1625 6.63808 13.4157 6.94745 13.4157C6.97558 13.4157 6.97558 13.4157 7.0037 13.4157C7.3412 13.3875 7.62245 13.0782 7.59433 12.7407L7.39745 10.2657C7.39745 9.90004 7.08808 9.64692 6.72245 9.67504Z"
+                                fill=""
+                            ></path>
+                        </svg>
+                    </span>
                     Cancel
                 </button>
 
                 <button
                     onClick={handleSubmit}
-                    // disabled={!isFormValid}
-                    className="flex flex-1 justify-center rounded bg-primary py-4 px-10 font-medium text-white hover:bg-opacity-90"
+                    className={`flex w-1/3 items-center justify-center gap-2.5 rounded-md bg-meta-3 py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 ${!selectedCourse ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={!selectedCourse}
                 >
-                    Save
+                    <span>
+                        <svg
+                            className="fill-current"
+                            width="18"
+                            height="18"
+                            viewBox="0 0 18 18"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <path
+                                d="M16.5 1.5H1.5C0.675 1.5 0 2.175 0 3V15C0 15.825 0.675 16.5 1.5 16.5H16.5C17.325 16.5 18 15.825 18 15V3C18 2.175 17.325 1.5 16.5 1.5ZM16.5 15H1.5V3H16.5V15ZM4.5 7.5H13.5V9H4.5V7.5ZM4.5 10.5H13.5V12H4.5V10.5ZM4.5 4.5H13.5V6H4.5V4.5Z"
+                                fill=""
+                            ></path>
+                        </svg>
+                    </span>
+                    Create Test
                 </button>
 
                 <button
                     onClick={exportToWord}
-                    className="flex flex-1 justify-center rounded bg-success py-4 px-10 font-medium text-white hover:bg-opacity-90"
-                    disabled={!isFormValid}
+                    className={`flex w-1/3 items-center justify-center gap-2.5 rounded-md bg-primary py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 ${!selectedCourse || testData.combinations.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={!selectedCourse || testData.combinations.length === 0}
                 >
+                    <span>
+                        <svg className="fill-current" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path
+                                d="M16.8754 11.6719C16.5379 11.6719 16.2285 11.9531 16.2285 12.3187V14.8219C16.2285 15.075 16.0316 15.2719 15.7785 15.2719H2.22227C1.96914 15.2719 1.77227 15.075 1.77227 14.8219V12.3187C1.77227 11.9812 1.46289 11.6719 1.12539 11.6719C0.787891 11.6719 0.478516 11.9531 0.478516 12.3187V14.8219C0.478516 15.7781 1.23789 16.5375 2.19414 16.5375H15.7785C16.7348 16.5375 17.4941 15.7781 17.4941 14.8219V12.3187C17.5223 11.9531 17.2129 11.6719 16.8754 11.6719Z"
+                                fill=""
+                            ></path>
+                            <path
+                                d="M8.55074 12.3469C8.66324 12.4594 8.83199 12.5156 9.00074 12.5156C9.16949 12.5156 9.31012 12.4594 9.45074 12.3469L13.4726 8.43752C13.7257 8.1844 13.7257 7.79065 13.4726 7.53752C13.2195 7.2844 12.8257 7.2844 12.5726 7.53752L9.64762 10.4063V2.1094C9.64762 1.7719 9.36637 1.46252 9.00074 1.46252C8.66324 1.46252 8.35387 1.74377 8.35387 2.1094V10.4063L5.45074 7.53752C5.19762 7.2844 4.80387 7.2844 4.55074 7.53752C4.29762 7.79065 4.29762 8.1844 4.55074 8.43752L8.55074 12.3469Z"
+                                fill=""
+                            ></path>
+                        </svg>
+                    </span>
                     Export to Word
                 </button>
             </div>

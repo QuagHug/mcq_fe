@@ -14,11 +14,15 @@
     "url": "https://tailadmin.com"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
     "@headlessui/react": "^2.2.0",
+    "@mui/material": "^7.0.2",
     "@tinymce/tinymce-react": "^5.1.1",
     "@types/chart.js": "^2.9.41",
     "@types/file-saver": "^2.0.7",
     "apexcharts": "^3.41.0",
+    "axios": "^1.8.4",
     "chart.js": "^4.4.8",
     "docx": "^9.2.0",
     "file-saver": "^2.0.5",
