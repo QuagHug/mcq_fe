@@ -257,9 +257,15 @@ const TestResults = () => {
             const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
             if (fileInput) fileInput.value = '';
             
-        } catch (error) {
+        } catch (error: any) {
             console.error('Upload failed:', error);
-            setUploadError('Failed to upload file. Please try again.');
+            
+            if (error.response?.status === 400) {
+                const errorData = error.response.data;
+                setUploadError(errorData.error || 'Invalid request. Please check your file format.');
+            } else {
+                setUploadError('Failed to upload file. Please try again.');
+            }
         } finally {
             setIsUploading(false);
         }

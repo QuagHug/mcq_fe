@@ -396,11 +396,10 @@ export const deleteTest = async (courseId: string, testId: string) => {
   }
 };
 
-export const uploadTestResults = async (courseId: string, testId: string, file: File, testCode: string) => {
+export const uploadTestResults = async (courseId: string, testId: string, file: File) => {
     const token = await getValidToken();
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('test_code', testCode);
 
     const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/results/upload/`, {
         method: 'POST',
@@ -412,8 +411,7 @@ export const uploadTestResults = async (courseId: string, testId: string, file: 
 
     if (!response.ok) {
         const errorData = await response.json();
-        console.error('Upload error:', errorData);
-        throw new Error('Failed to upload test results');
+        throw { response: { status: response.status, data: errorData } };
     }
 
     return response.json();
