@@ -2,15 +2,15 @@ import { useState, useEffect, useRef } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import Pagination from '../components/Pagination';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { 
-  fetchQuestionBanks, 
-  fetchCourses, 
-  createTest, 
-  fetchCourseTests, 
-  saveTestDraft, 
-  getTestDraft, 
-  deleteTestDraft,
-  getTestDrafts  // Add this import
+import {
+    fetchQuestionBanks,
+    fetchCourses,
+    createTest,
+    fetchCourseTests,
+    saveTestDraft,
+    getTestDraft,
+    deleteTestDraft,
+    getTestDrafts  // Add this import
 } from '../services/api';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
@@ -33,6 +33,7 @@ interface Question {
         scaled_difficulty: number;
         scaled_discrimination: number;
     };
+    difficulty?: 'easy' | 'medium' | 'hard';
 }
 
 interface QuestionBank {
@@ -61,6 +62,14 @@ interface SubjectLOs {
 interface AnswerFormat {
     case: 'uppercase' | 'lowercase';
     separator: string;
+}
+
+// Add this interface near the other interfaces at the top
+interface Taxonomy {
+    taxonomy: {
+        name: string;
+    };
+    level: string;
 }
 
 // Register ChartJS components
@@ -92,12 +101,38 @@ interface QuestionDistribution {
     };
 }
 
+// Add this helper function at the top with other utility functions
+const sanitizeHtml = (html: string) => {
+    if (!html) return '';
+
+    // First remove any HTML tags, including p tags
+    const withoutTags = html.replace(/<\/?[^>]+(>|$)/g, '');
+
+    // Then decode HTML entities
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = withoutTags;
+
+    // Trim any extra whitespace that might have been left
+    return textarea.value.trim();
+};
+
+// Add this helper function near the top with other utility functions
+const capitalizeFirstLetter = (string: string) => {
+    return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+};
+
 const CreateTest = () => {
     const { courseId } = useParams();
     const navigate = useNavigate();
     const [courses, setCourses] = useState<Array<{ id: string, name: string }>>([]);
     const [selectedCourse, setSelectedCourse] = useState('');
-    const [testData, setTestData] = useState({
+    const [testData, setTestData] = useState<{
+        title: string;
+        description: string;
+        duration: number;
+        passingScore: number;
+        lastSaved: string | null;
+    }>({
         title: '',
         description: '',
         duration: 60,
@@ -163,9 +198,20 @@ const CreateTest = () => {
 
     // Add these state variables for the custom confirmation modal
     const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [confirmAction, setConfirmAction] = useState<() => void>(() => {});
+    const [confirmAction, setConfirmAction] = useState<() => void>(() => { });
     const [confirmTitle, setConfirmTitle] = useState('');
     const [confirmMessage, setConfirmMessage] = useState('');
+
+    const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
+
+    const [editMode, setEditMode] = useState(false);
+    const [editedQuestionText, setEditedQuestionText] = useState('');
+    const [editedAnswers, setEditedAnswers] = useState<{ answer_text: string; is_correct: boolean }[]>([]);
+
+    const [editingQuestionText, setEditingQuestionText] = useState(false);
+    const [editingAnswerIndex, setEditingAnswerIndex] = useState<number | null>(null);
+    const [tempQuestionText, setTempQuestionText] = useState('');
+    const [tempAnswerText, setTempAnswerText] = useState('');
 
     const handleSubjectChange = (subjectId: string) => {
         setSelectedSubject(subjectId);
@@ -209,14 +255,14 @@ const CreateTest = () => {
         const fetchInitialData = async () => {
             try {
                 setLoading(true);
-                
+
                 // Fetch courses first
                 const coursesData = await fetchCourses();
                 setCourses(coursesData);
-                
+
                 // Try to load draft immediately
                 await loadTestDraftFromBackend();
-                
+
                 // If courseId is provided in URL and no draft was loaded with a course
                 if (courseId && !selectedCourse) {
                     setSelectedCourse(courseId);
@@ -234,16 +280,16 @@ const CreateTest = () => {
                 setLoading(false);
             }
         };
-        
+
         fetchInitialData();
-        
+
         // Set up auto-save interval
         const autoSaveInterval = setInterval(() => {
             if (selectedCourse && (testData.title || selectedQuestions.length > 0)) {
                 saveTestDraftToBackend(false);
             }
         }, 2 * 60 * 1000); // 2 minutes
-        
+
         return () => {
             clearInterval(autoSaveInterval);
         };
@@ -252,16 +298,16 @@ const CreateTest = () => {
     // Update the handleCourseChange function to not load drafts
     const handleCourseChange = async (courseId: string) => {
         setSelectedCourse(courseId);
-        
+
         try {
             setLoading(true);
-            
+
             // Fetch question banks for the selected course
             const banks = await fetchQuestionBanks(courseId);
             setQuestionBanks(banks);
-            
+
             // Don't load draft here anymore, as we already loaded it on page load
-            
+
         } catch (error) {
             console.error('Error fetching question banks:', error);
             setError('Failed to load question banks');
@@ -291,7 +337,7 @@ const CreateTest = () => {
 
             const matchesLevels = selectedLevels.length === 0 ||
                 selectedLevels.some(level =>
-                    question.taxonomies?.some((tax: { taxonomy: { name: string }; level: string }) =>
+                    question.taxonomies?.some((tax: Taxonomy) =>
                         tax.taxonomy.name === "Bloom's Taxonomy" &&
                         tax.level === level
                     )
@@ -348,19 +394,19 @@ const CreateTest = () => {
             const autoSaveTimer = setTimeout(() => {
                 saveTestDraftToBackend(false); // Pass false to not show alerts for auto-save
             }, 5000); // Save every 5 seconds when changes are detected
-            
+
             return () => clearTimeout(autoSaveTimer);
         }
     }, [
-        selectedCourse, 
-        testData, 
-        selectedQuestions, 
-        answerFormat, 
-        includeKey, 
-        shuffleQuestions, 
-        shuffleAnswers, 
-        selectedTopics, 
-        selectedLevels, 
+        selectedCourse,
+        testData,
+        selectedQuestions,
+        answerFormat,
+        includeKey,
+        shuffleQuestions,
+        shuffleAnswers,
+        selectedTopics,
+        selectedLevels,
         editedQuestions
     ]);
 
@@ -387,44 +433,44 @@ const CreateTest = () => {
                 editedQuestions,
                 lastUpdated: new Date().toISOString()
             };
-            
+
             // Call API service function to save draft
             await saveTestDraft(selectedCourse, draftData);
-            
+
             // Update last saved timestamp
             setTestData(prev => ({
                 ...prev,
                 lastSaved: new Date().toISOString()
             }));
-            
+
             // Show success message only if showAlerts is true
             if (showAlerts) {
                 setAlertMessage('Draft saved successfully');
                 setAlertType('success');
                 setShowAlert(true);
-                
+
                 // Auto-hide after 3 seconds
                 setTimeout(() => {
                     setShowAlert(false);
                 }, 3000);
             }
-            
+
             return true;
         } catch (error) {
             console.error('Error saving draft:', error);
-            
+
             // Show error message only if showAlerts is true
             if (showAlerts) {
                 setAlertMessage('Failed to save draft. Please try again.');
                 setAlertType('error');
                 setShowAlert(true);
-                
+
                 // Auto-hide after 3 seconds
                 setTimeout(() => {
                     setShowAlert(false);
                 }, 3000);
             }
-            
+
             return false;
         }
     };
@@ -435,13 +481,13 @@ const CreateTest = () => {
             // Use the API service to get all drafts
             const drafts = await getTestDrafts();
             console.log('All drafts:', drafts);
-            
+
             // Check if drafts is an array before proceeding
             if (!Array.isArray(drafts) || drafts.length === 0) {
                 console.log('No drafts found');
                 return false;
             }
-            
+
             // Get the most recent draft (assuming one draft per user)
             const latestDraft = drafts.sort((a, b) => {
                 // Handle missing updated_at
@@ -449,20 +495,20 @@ const CreateTest = () => {
                 if (!b.updated_at) return -1;
                 return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
             })[0];
-            
+
             console.log('Latest draft:', latestDraft);
-            
+
             if (latestDraft && latestDraft.draft_data) {
                 // The actual data is in draft_data
                 const draftData = latestDraft.draft_data;
-                
+
                 // Set the course from the draft
                 let courseFromDraft = null;
                 if (latestDraft.course) {
                     courseFromDraft = latestDraft.course.toString();
                     setSelectedCourse(courseFromDraft);
                 }
-                
+
                 // Set all the state from the draft with defensive programming
                 setTestData({
                     title: draftData.testData?.title || '',
@@ -471,71 +517,71 @@ const CreateTest = () => {
                     passingScore: draftData.testData?.passingScore || 60,
                     lastSaved: latestDraft.updated_at || new Date().toISOString()
                 });
-                
+
                 // Set other state with null checks
                 if (Array.isArray(draftData.selectedQuestions)) {
                     setSelectedQuestions(draftData.selectedQuestions);
                 }
-                
+
                 if (draftData.answerFormat) {
                     setAnswerFormat(draftData.answerFormat);
                 }
-                
+
                 setIncludeKey(Boolean(draftData.includeKey));
                 setShuffleQuestions(Boolean(draftData.shuffleQuestions));
                 setShuffleAnswers(Boolean(draftData.shuffleAnswers));
-                
+
                 if (Array.isArray(draftData.selectedTopics)) {
                     setSelectedTopics(draftData.selectedTopics);
                 }
-                
+
                 if (Array.isArray(draftData.selectedLevels)) {
                     setSelectedLevels(draftData.selectedLevels);
                 }
-                
+
                 if (draftData.editedQuestions) {
                     setEditedQuestions(draftData.editedQuestions);
                 }
-                
+
                 // Fetch question banks for the course from the draft
                 if (courseFromDraft) {
                     try {
                         const banks = await fetchQuestionBanks(courseFromDraft);
                         setQuestionBanks(banks);
-                        
+
                         // This will trigger the useEffect that filters questions
                         setSelectedBankId('');
                     } catch (bankError) {
                         console.error('Error fetching question banks:', bankError);
                     }
                 }
-                
+
                 // Show success message
                 setAlertMessage('Draft loaded successfully');
                 setAlertType('success');
                 setShowAlert(true);
-                
+
                 // Auto-hide after 3 seconds
                 setTimeout(() => {
                     setShowAlert(false);
                 }, 3000);
-                
+
                 return true;
             }
             return false;
         } catch (error) {
             console.error('Error loading draft:', error);
-            
+
             // Show error message
             setAlertMessage('Failed to load draft. Starting with a new test.');
             setAlertType('warning');
             setShowAlert(true);
-            
+
             // Auto-hide after 3 seconds
             setTimeout(() => {
                 setShowAlert(false);
             }, 3000);
-            
+
             return false;
         }
     };
@@ -548,28 +594,28 @@ const CreateTest = () => {
             setAlertMessage('Draft deletion cancelled');
             setAlertType('warning');
             setShowAlert(true);
-            
+
             // Auto-hide after 3 seconds
             setTimeout(() => {
                 setShowAlert(false);
             }, 3000);
-            
+
             return false;
         }
-        
+
         try {
-            await deleteTestDraft(selectedCourse);
-            
+            await deleteTestDraft();
+
             // Show success message
             setAlertMessage('Draft deleted successfully');
             setAlertType('success');
             setShowAlert(true);
-            
+
             // Auto-hide after 3 seconds
             setTimeout(() => {
                 setShowAlert(false);
             }, 3000);
-            
+
             // Reset form to default values
             setTestData({
                 title: '',
@@ -580,21 +626,21 @@ const CreateTest = () => {
             });
             setSelectedQuestions([]);
             setEditedQuestions({});
-            
+
             return true;
         } catch (error) {
             console.error('Error deleting draft:', error);
-            
+
             // Show error message
             setAlertMessage('Failed to delete draft. Please try again.');
             setAlertType('error');
             setShowAlert(true);
-            
+
             // Auto-hide after 3 seconds
             setTimeout(() => {
                 setShowAlert(false);
             }, 3000);
-            
+
             return false;
         }
     };
@@ -607,39 +653,34 @@ const CreateTest = () => {
             scrollToElement(titleInputRef.current);
             return;
         }
-        
+
         if (selectedQuestions.length === 0) {
             setShowQuestionWarning(true);
             scrollToElement(questionsSectionRef.current);
             return;
         }
-        
+
         try {
             setLoading(true);
-            
+
+            // Use shuffled questions if available, otherwise use selected questions
+            const questionsToUse = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
+
             // Prepare the test data
             const testPayload = {
                 title: testData.title,
                 description: testData.description,
-                duration: testData.duration,
-                passing_score: testData.passingScore,
-                shuffle_questions: shuffleQuestions,
-                shuffle_answers: shuffleAnswers,
-                include_answer_key: includeKey,
-                answer_format: answerFormat,
-                questions: selectedQuestions.map(q => ({
-                    id: q.id,
-                    // Include any edited question data
-                    ...(editedQuestions[q.id] ? {
-                        edited_text: editedQuestions[q.id].question_text,
-                        hidden_answers: editedQuestions[q.id].hiddenAnswers
-                    } : {})
-                }))
+                question_ids: questionsToUse.map(q => q.id),
+                config: {
+                    letterCase: answerFormat.case,
+                    separator: answerFormat.separator,
+                    includeAnswerKey: includeKey
+                }
             };
-            
+
             // Create the test
             await createTest(selectedCourse, testPayload);
-            
+
             // After successful test creation, delete the draft
             try {
                 await deleteTestDraft();
@@ -648,12 +689,12 @@ const CreateTest = () => {
                 console.error('Error deleting draft after test creation:', draftError);
                 // Continue even if draft deletion fails
             }
-            
+
             // Show success message
             setAlertMessage('Test created successfully!');
             setAlertType('success');
             setShowAlert(true);
-            
+
             // Navigate to the test bank after a short delay
             setTimeout(() => {
                 navigate(`/test-bank/${selectedCourse}`);
@@ -661,7 +702,7 @@ const CreateTest = () => {
         } catch (error) {
             console.error('Error creating test:', error);
             setError('Failed to create test');
-            
+
             // Show error message
             setAlertMessage('Failed to create test. Please try again.');
             setAlertType('error');
@@ -739,29 +780,29 @@ const CreateTest = () => {
             setAlertMessage('Please add a title before exporting');
             setAlertType('warning');
             setShowAlert(true);
-            
+
             // Auto-hide after 3 seconds
             setTimeout(() => {
                 setShowAlert(false);
             }, 3000);
-            
+
             // Scroll to title input
             setTimeout(() => {
                 scrollToElement(titleInputRef.current);
             }, 100);
             return;
         }
-        
+
         if (selectedQuestions.length === 0) {
             setAlertMessage('Please select at least one question before exporting');
             setAlertType('warning');
             setShowAlert(true);
-            
+
             // Auto-hide after 3 seconds
             setTimeout(() => {
                 setShowAlert(false);
             }, 3000);
-            
+
             // Scroll to questions section
             setTimeout(() => {
                 scrollToElement(questionsSectionRef.current);
@@ -863,7 +904,7 @@ const CreateTest = () => {
                 // User confirmed deletion - delete the draft
                 try {
                     if (selectedCourse) {
-                        await deleteTestDraft(selectedCourse);
+                        await deleteTestDraft();
                         setAlertMessage('Draft deleted successfully');
                         setAlertType('success');
                         setShowAlert(true);
@@ -886,6 +927,22 @@ const CreateTest = () => {
 
     const handleQuestionClick = (question: Question) => {
         setSelectedQuestionDetail(question);
+        // Initialize selected answers if the question is in the test
+        if (isQuestionInTest(question.id)) {
+            const existingQuestion = editedQuestions[question.id];
+            const initialAnswerStates = question.answers?.map(() => true) || [];
+            if (existingQuestion?.hiddenAnswers) {
+                existingQuestion.hiddenAnswers.forEach((isHidden, index) => {
+                    if (isHidden) {
+                        initialAnswerStates[index] = false;
+                    }
+                });
+            }
+            setSelectedAnswers(prev => ({
+                ...prev,
+                [question.id]: initialAnswerStates
+            }));
+        }
         setIsQuestionDialogOpen(true);
     };
 
@@ -922,9 +979,25 @@ const CreateTest = () => {
 
         const selectedAnswersList = selectedAnswers[selectedQuestionDetail.id] || [];
 
+        // Create updated taxonomies array
+        const updatedTaxonomies = selectedQuestionDetail.taxonomies?.map(tax => {
+            if (tax.taxonomy.name === "Bloom's Taxonomy") {
+                return {
+                    ...tax,
+                    level: selectedQuestionDetail.taxonomies?.find(t => t.taxonomy.name === "Bloom's Taxonomy")?.level || 'Remember'
+                };
+            }
+            return tax;
+        }) || [{
+            taxonomy: { name: "Bloom's Taxonomy" },
+            level: selectedQuestionDetail.taxonomies?.find(t => t.taxonomy.name === "Bloom's Taxonomy")?.level || 'Remember'
+        }];
+
         const updatedQuestion = {
             ...selectedQuestionDetail,
-            hiddenAnswers: selectedAnswersList.map(selected => !selected)
+            hiddenAnswers: selectedAnswersList.map(selected => !selected),
+            difficulty: selectedQuestionDetail.difficulty,
+            taxonomies: updatedTaxonomies
         };
 
         if (overwrite) {
@@ -945,6 +1018,7 @@ const CreateTest = () => {
             prev.map(q => q.id === updatedQuestion.id ? updatedQuestion : q)
         );
 
+        setEditMode(false);
         setIsQuestionDialogOpen(false);
     };
 
@@ -972,12 +1046,15 @@ const CreateTest = () => {
         return selectedQuestions.some(q => q.id === questionId);
     };
 
-    // Add shuffle answers function
+    // Update the shuffleQuestionAnswers function
     const shuffleQuestionAnswers = (questionId: number) => {
         if (!selectedQuestionDetail?.answers) return;
 
-        // Create a copy of the current answers array
-        const currentAnswers = [...selectedQuestionDetail.answers];
+        // Determine which answers array to shuffle
+        const answersToUse = editMode && editedAnswers ? editedAnswers : selectedQuestionDetail.answers;
+        if (!Array.isArray(answersToUse)) return;
+
+        const currentAnswers = [...answersToUse];
         const currentSelected = selectedAnswers[questionId] || currentAnswers.map(() => true);
 
         // Create array of indices and shuffle them
@@ -988,14 +1065,19 @@ const CreateTest = () => {
         }
 
         // Reorder answers and selected states based on shuffled indices
-        const shuffledAnswers = indices.map(i => currentAnswers[i]);
+        const shuffledAnswers = indices.map(i => ({ ...currentAnswers[i] }));
         const shuffledSelected = indices.map(i => currentSelected[i]);
 
-        // Update the question with shuffled answers
-        setSelectedQuestionDetail({
-            ...selectedQuestionDetail,
-            answers: shuffledAnswers
-        });
+        if (editMode) {
+            // Update edited answers if in edit mode
+            setEditedAnswers(shuffledAnswers);
+        } else {
+            // Update the question with shuffled answers
+            setSelectedQuestionDetail({
+                ...selectedQuestionDetail,
+                answers: shuffledAnswers
+            });
+        }
 
         // Update selected answers state
         setSelectedAnswers(prev => ({
@@ -1041,23 +1123,23 @@ const CreateTest = () => {
             const matchesBank = !selectedBankId ||
                 question.bank_id === selectedBankId ||
                 questionBanks.some(bank => findQuestionInBank(bank, selectedBankId));
-            const matchesTaxonomy = selectedLevels.length === 0 || 
+            const matchesTaxonomy = selectedLevels.length === 0 ||
                 selectedLevels.includes(
-                    question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'Remember'
+                    question.taxonomies?.find((tax: Taxonomy) => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'Remember'
                 );
             return matchesSearch && matchesBank && matchesTaxonomy;
         });
     };
 
     // Add this function to handle pagination properly
-    const getPagedQuestions = (questions, page, perPage) => {
+    const getPagedQuestions = (questions: Question[], page: number, perPage: number) => {
         // Filter out questions that are already selected
-        const availableQuestions = questions.filter(q => !selectedQuestions.some(sq => sq.id === q.id));
-        
+        const availableQuestions = questions.filter((q: Question) => !selectedQuestions.some(sq => sq.id === q.id));
+
         // Calculate start and end indices
         const startIndex = (page - 1) * perPage;
         const endIndex = startIndex + perPage;
-        
+
         // Return the slice of questions for the current page
         return availableQuestions.slice(startIndex, endIndex);
     };
@@ -1074,14 +1156,19 @@ const CreateTest = () => {
         };
 
         selectedQuestions.forEach(question => {
-            const taxonomy = question.taxonomies?.find(tax =>
+            // Get the edited version of the question if it exists
+            const editedQuestion = editedQuestions[question.id];
+            const questionToUse = editedQuestion || question;
+
+            // Get taxonomy level
+            const taxonomy = questionToUse.taxonomies?.find(tax =>
                 tax.taxonomy.name === "Bloom's Taxonomy"
             )?.level || 'Remember';
 
-            // For this example, we'll set all questions as 'medium' difficulty
-            // You can modify this once you have actual difficulty data
-            const difficulty = 'medium';
+            // Get difficulty (use edited difficulty if available)
+            const difficulty = (questionToUse.difficulty || 'medium').toLowerCase() as 'easy' | 'medium' | 'hard';
 
+            // Update the distribution
             if (distribution[taxonomy]) {
                 distribution[taxonomy][difficulty]++;
             }
@@ -1096,14 +1183,98 @@ const CreateTest = () => {
         setPreviewDialogOpen(true);
     };
 
+    // Add this helper function for better shuffling
+    const fisherYatesShuffle = (array: Question[]): Question[] => {
+        const shuffled = [...array];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        return shuffled;
+    };
+
+    // Update the handleShuffleQuestions function
+    const handleShuffleQuestions = () => {
+        // Get new shuffled order
+        let newShuffled = fisherYatesShuffle(selectedQuestions);
+
+        // If the new order is the same as current, shuffle again
+        if (shuffledQuestions.length > 0 &&
+            newShuffled.map(q => q.id).join(',') === shuffledQuestions.map(q => q.id).join(',')) {
+            newShuffled = fisherYatesShuffle(selectedQuestions);
+        }
+
+        setShuffledQuestions(newShuffled);
+
+        // Show success message
+        setAlertMessage('Questions shuffled successfully');
+        setAlertType('success');
+        setShowAlert(true);
+
+        // Force a re-render of the preview section
+        setTimeout(() => {
+            setPreviewPage(prev => prev);
+        }, 0);
+    };
+
+    // Add this function to handle editing completion
+    const handleEditComplete = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (editingQuestionText) {
+                setSelectedQuestionDetail(prev => prev ? {
+                    ...prev,
+                    question_text: tempQuestionText
+                } : null);
+                setEditingQuestionText(false);
+            } else if (editingAnswerIndex !== null && selectedQuestionDetail) {
+                const updatedAnswers = [...selectedQuestionDetail.answers || []];
+                updatedAnswers[editingAnswerIndex] = {
+                    ...updatedAnswers[editingAnswerIndex],
+                    answer_text: tempAnswerText
+                };
+                setSelectedQuestionDetail(prev => prev ? {
+                    ...prev,
+                    answers: updatedAnswers
+                } : null);
+                setEditingAnswerIndex(null);
+            }
+        } else if (e.key === 'Escape') {
+            setEditingQuestionText(false);
+            setEditingAnswerIndex(null);
+        }
+    };
+
+    // Add this function to handle blur events
+    const handleBlur = () => {
+        if (editingQuestionText) {
+            setSelectedQuestionDetail(prev => prev ? {
+                ...prev,
+                question_text: tempQuestionText
+            } : null);
+            setEditingQuestionText(false);
+        } else if (editingAnswerIndex !== null && selectedQuestionDetail) {
+            const updatedAnswers = [...selectedQuestionDetail.answers || []];
+            updatedAnswers[editingAnswerIndex] = {
+                ...updatedAnswers[editingAnswerIndex],
+                answer_text: tempAnswerText
+            };
+            setSelectedQuestionDetail(prev => prev ? {
+                ...prev,
+                answers: updatedAnswers
+            } : null);
+            setEditingAnswerIndex(null);
+        }
+    };
+
     return (
         <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
             {/* Alert message */}
             {showAlert && (
                 <div className={`fixed top-24 right-4 z-50 p-4 rounded-lg shadow-lg max-w-md transition-all duration-300 transform translate-y-0 
-                    ${alertType === 'error' ? 'bg-danger text-white' : 
-                     alertType === 'success' ? 'bg-success text-white' : 
-                     'bg-warning text-black'}`}
+                    ${alertType === 'error' ? 'bg-danger text-white' :
+                        alertType === 'success' ? 'bg-success text-white' :
+                            'bg-warning text-black'}`}
                 >
                     <div className="flex items-center gap-3">
                         <div className="flex-shrink-0">
@@ -1127,7 +1298,7 @@ const CreateTest = () => {
                             <p className="text-sm font-medium">{alertMessage}</p>
                         </div>
                         <div className="ml-auto">
-                            <button 
+                            <button
                                 onClick={() => setShowAlert(false)}
                                 className="text-white hover:text-gray-200 focus:outline-none"
                             >
@@ -1335,28 +1506,28 @@ const CreateTest = () => {
                                 {getPagedQuestions(filteredQuestions, availableQuestionsPage, itemsPerPage)
                                     .map((question, index) => {
                                         const questionNumber = ((availableQuestionsPage - 1) * itemsPerPage) + index + 1;
-                                        
+
                                         return (
                                             <div
                                                 key={question.id}
                                                 className="p-4 border rounded-sm dark:border-strokedark"
                                             >
-                                                <div className="flex justify-between items-center">
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-gray-500">{questionNumber}.</span>
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex gap-4 flex-1">
+                                                        <span className="text-gray-500">{questionNumber}.</span>
+                                                        <div className="flex-1">
                                                             <div
-                                                                className="flex items-center gap-2 text-sm font-medium text-black dark:text-white hover:text-primary"
+                                                                className="cursor-pointer hover:text-primary"
                                                                 onClick={() => handleQuestionClick(question)}
                                                             >
-                                                                <div className="inline" dangerouslySetInnerHTML={{ __html: question.question_text }} />
-                                                                {question.statistics && (
-                                                                    <span className="text-xs text-gray-500 shrink-0">
-                                                                        (D: {question.statistics.scaled_difficulty.toFixed(2)},
-                                                                        Disc: {question.statistics.scaled_discrimination.toFixed(2)})
-                                                                    </span>
-                                                                )}
+                                                                {sanitizeHtml(question.question_text)}
                                                             </div>
+                                                            {question.statistics && (
+                                                                <span className="text-xs text-gray-500 ml-2">
+                                                                    (D: {question.statistics.scaled_difficulty.toFixed(2)},
+                                                                    Disc: {question.statistics.scaled_discrimination.toFixed(2)})
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-8">
@@ -1364,7 +1535,7 @@ const CreateTest = () => {
                                                             N/A
                                                         </span>
                                                         <span className="text-sm text-gray-500 w-24 text-center">
-                                                            {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
+                                                            {question.taxonomies?.find((tax: Taxonomy) => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
                                                         </span>
                                                         <button
                                                             onClick={() => toggleQuestionSelection(question)}
@@ -1427,16 +1598,18 @@ const CreateTest = () => {
                                                                 <div
                                                                     className="cursor-pointer hover:text-primary"
                                                                     onClick={() => handleQuestionClick(question)}
-                                                                    dangerouslySetInnerHTML={{ __html: question.question_text }}
-                                                                />
+                                                                >
+                                                                    {sanitizeHtml(question.question_text)}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-8">
                                                             <span className="text-sm text-gray-500 w-24 text-center">
-                                                                N/A
+                                                                {capitalizeFirstLetter(editedQuestions[question.id]?.difficulty || question.difficulty || 'N/A')}
                                                             </span>
                                                             <span className="text-sm text-gray-500 w-24 text-center">
-                                                                {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
+                                                                {editedQuestions[question.id]?.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level ||
+                                                                    question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
                                                             </span>
                                                             <button
                                                                 onClick={(e) => {
@@ -1469,157 +1642,11 @@ const CreateTest = () => {
                         )}
                     </div>
 
-                    {/* Preview Block */}
-                    <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mt-6">
-                        <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                            <h3 className="font-medium text-black dark:text-white">
-                                Preview
-                            </h3>
-                        </div>
-
-                        <div className="p-6.5">
-                            {/* Test Configuration */}
-                            <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
-                                <h4 className="text-lg font-medium text-black dark:text-white mb-4">
-                                    Test Configuration
-                                </h4>
-                                <div className="flex gap-6 flex-wrap">
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Letter Case
-                                        </label>
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'uppercase' }))}
-                                                className={`px-4 py-2 rounded ${answerFormat.case === 'uppercase'
-                                                    ? 'bg-primary text-white'
-                                                    : 'bg-white dark:bg-meta-4 border border-stroke'
-                                                    }`}
-                                            >
-                                                ABC
-                                            </button>
-                                            <button
-                                                onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'lowercase' }))}
-                                                className={`px-4 py-2 rounded ${answerFormat.case === 'lowercase'
-                                                    ? 'bg-primary text-white'
-                                                    : 'bg-white dark:bg-meta-4 border border-stroke'
-                                                    }`}
-                                            >
-                                                abc
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Separator
-                                        </label>
-                                        <div className="flex gap-3">
-                                            {[')', '.', '/'].map(separator => (
-                                                <button
-                                                    key={separator}
-                                                    onClick={() => setAnswerFormat(prev => ({ ...prev, separator }))}
-                                                    className={`px-4 py-2 rounded ${answerFormat.separator === separator
-                                                        ? 'bg-primary text-white'
-                                                        : 'bg-white dark:bg-meta-4 border border-stroke'
-                                                        }`}
-                                                >
-                                                    A{separator}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Answer Key
-                                        </label>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                onClick={() => setIncludeKey(!includeKey)}
-                                                className="relative w-[46px] h-[24px] rounded-full transition-colors duration-300 ease-in-out focus:outline-none"
-                                                style={{
-                                                    backgroundColor: includeKey ? '#4318FF' : '#E2E8F0'
-                                                }}
-                                            >
-                                                {/* Sliding circle button */}
-                                                <div
-                                                    className={`absolute top-[2px] left-[2px] w-[20px] h-[20px] rounded-full bg-white shadow-md transform transition-transform duration-300 ease-in-out
-                                                        ${includeKey ? 'translate-x-[22px]' : 'translate-x-0'}`}
-                                                />
-                                            </button>
-                                            <span className="text-sm text-black dark:text-white">
-                                                {includeKey ? 'Show' : 'Hide'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Test Preview */}
-                            <div className="border border-stroke dark:border-strokedark rounded-sm p-6 relative">
-                                <div className="mb-4 flex justify-between items-center">
-                                    <h4 className="text-lg font-medium text-black dark:text-white">
-                                        Test Preview
-                                    </h4>
-                                    
-                                    {/* Update the Show All button */}
-                                    {selectedQuestions.length > 2 && (
-                                        <button
-                                            onClick={handleShowAllQuestions}
-                                            className="text-primary hover:text-opacity-80 text-sm font-medium flex items-center gap-1"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            </svg>
-                                            Show All Questions
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* Preview Sample */}
-                                <div className="space-y-4">
-                                    {selectedQuestions.slice(0, 2).map((question, index) => (
-                                        <div key={index} className="space-y-2">
-                                            <div className="font-medium">
-                                                Question {index + 1}: {sanitizeHtml(question.question_text)}
-                                            </div>
-                                            <div className="pl-4 space-y-1">
-                                                {question.answers?.map((answer, ansIndex) => (
-                                                    <div key={ansIndex}>
-                                                        {answerFormat.case === 'uppercase'
-                                                            ? String.fromCharCode(65 + ansIndex)
-                                                            : String.fromCharCode(97 + ansIndex)}
-                                                        {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                
-                                {/* Update the message at the bottom with a more visible button */}
-                                {selectedQuestions.length > 2 && (
-                                    <div className="mt-4 text-sm text-gray-500">
-                                        {selectedQuestions.length - 2} more question{selectedQuestions.length - 2 !== 1 ? 's' : ''} not shown. 
-                                        <button 
-                                            onClick={handleShowAllQuestions}
-                                            className="ml-2 px-3 py-1 bg-primary text-white rounded-md text-xs hover:bg-opacity-90"
-                                        >
-                                            Preview All
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Summary Section */}
+                    {/* Question Distribution Section */}
                     <div className="mt-6 rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
                         <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
                             <h3 className="font-medium text-black dark:text-white">
-                                Summary
+                                Question Distribution
                             </h3>
                         </div>
 
@@ -1628,9 +1655,6 @@ const CreateTest = () => {
 
                                 {/* Distribution Table */}
                                 <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm overflow-x-auto">
-                                    <h5 className="font-medium text-black dark:text-white mb-3">
-                                        Question Distribution
-                                    </h5>
                                     <table className="w-full">
                                         <thead>
                                             <tr className="bg-gray-2 dark:bg-meta-4">
@@ -1699,69 +1723,181 @@ const CreateTest = () => {
                         </div>
                     </div>
 
+                    {/* Preview Block */}
+                    <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mt-6">
+                        <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
+                            <h3 className="font-medium text-black dark:text-white">
+                                Preview
+                            </h3>
+                        </div>
+
+                        <div className="p-6.5">
+                            {/* Test Configuration */}
+                            <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
+                                <h4 className="text-lg font-medium text-black dark:text-white mb-4">
+                                    Test Configuration
+                                </h4>
+                                <div className="flex gap-6 flex-wrap items-end">
+                                    <div>
+                                        <label className="mb-2.5 block text-black dark:text-white">
+                                            Letter Case
+                                        </label>
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'uppercase' }))}
+                                                className={`px-4 py-2 rounded ${answerFormat.case === 'uppercase'
+                                                    ? 'bg-primary text-white'
+                                                    : 'bg-white dark:bg-meta-4 border border-stroke'
+                                                    }`}
+                                            >
+                                                ABC
+                                            </button>
+                                            <button
+                                                onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'lowercase' }))}
+                                                className={`px-4 py-2 rounded ${answerFormat.case === 'lowercase'
+                                                    ? 'bg-primary text-white'
+                                                    : 'bg-white dark:bg-meta-4 border border-stroke'
+                                                    }`}
+                                            >
+                                                abc
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-2.5 block text-black dark:text-white">
+                                            Separator
+                                        </label>
+                                        <div className="flex gap-3">
+                                            {[')', '.', '/'].map(separator => (
+                                                <button
+                                                    key={separator}
+                                                    onClick={() => setAnswerFormat(prev => ({ ...prev, separator }))}
+                                                    className={`px-4 py-2 rounded ${answerFormat.separator === separator
+                                                        ? 'bg-primary text-white'
+                                                        : 'bg-white dark:bg-meta-4 border border-stroke'
+                                                        }`}
+                                                >
+                                                    A{separator}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-2.5 block text-black dark:text-white">
+                                            Question Order
+                                        </label>
+                                        <button
+                                            onClick={handleShuffleQuestions}
+                                            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary py-2 px-4 text-white hover:bg-opacity-90"
+                                        >
+                                            <svg
+                                                className="w-4 h-4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth="2"
+                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                                />
+                                            </svg>
+                                            Shuffle Questions
+                                        </button>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-2.5 block text-black dark:text-white">
+                                            Correct Answers
+                                        </label>
+                                        <div className="flex items-center gap-2 h-[38px]">
+                                            <button
+                                                onClick={() => setIncludeKey(!includeKey)}
+                                                className="relative w-[46px] h-[24px] rounded-full transition-colors duration-300 ease-in-out focus:outline-none"
+                                                style={{
+                                                    backgroundColor: includeKey ? '#4318FF' : '#E2E8F0'
+                                                }}
+                                            >
+                                                <div
+                                                    className={`absolute top-[2px] left-[2px] w-[20px] h-[20px] rounded-full bg-white shadow-md transform transition-transform duration-300 ease-in-out
+                                                        ${includeKey ? 'translate-x-[22px]' : 'translate-x-0'}`}
+                                                />
+                                            </button>
+                                            <span className="text-sm text-black dark:text-white">
+                                                {includeKey ? 'Show' : 'Hide'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Test Preview */}
+                            <div className="border border-stroke dark:border-strokedark rounded-sm p-6 relative">
+                                <div className="mb-4 flex justify-between items-center">
+                                    <h4 className="text-lg font-medium text-black dark:text-white">
+                                        Test Preview
+                                    </h4>
+                                </div>
+
+                                {/* Preview Sample */}
+                                <div className="space-y-4">
+                                    {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions)
+                                        .slice(0, previewShowAll ? undefined : 2).map((question, index) => {
+                                            // Get the edited version of the question if it exists
+                                            const editedQuestion = editedQuestions[question.id];
+                                            const questionToShow = editedQuestion || question;
+
+                                            // Filter out hidden answers
+                                            const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
+                                                !editedQuestion?.hiddenAnswers?.[idx]
+                                            );
+
+                                            return (
+                                                <div key={index} className="space-y-2">
+                                                    <div className="font-medium">
+                                                        Question {index + 1}: {sanitizeHtml(questionToShow.question_text)}
+                                                    </div>
+                                                    <div className="pl-4 space-y-1">
+                                                        {visibleAnswers?.map((answer, ansIndex) => (
+                                                            <div key={ansIndex}>
+                                                                {answerFormat.case === 'uppercase'
+                                                                    ? String.fromCharCode(65 + ansIndex)
+                                                                    : String.fromCharCode(97 + ansIndex)}
+                                                                {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                </div>
+
+                                {/* Update the message at the bottom with a more visible button */}
+                                {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions).length > 2 && (
+                                    <div className="mt-4 text-sm text-gray-500">
+                                        {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions).length - 2} more question{shuffledQuestions.length - 2 !== 1 ? 's' : ''} not shown.
+                                        <button
+                                            onClick={handleShowAllQuestions}
+                                            className="ml-2 px-3 py-1 bg-primary text-white rounded-md text-xs hover:bg-opacity-90"
+                                        >
+                                            Preview All
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+
+
                     {/* Export Buttons - REMOVED Save Draft button */}
                     <div className="mt-6 flex gap-4">
                         <button
-                            onClick={exportToWord}
-                            className={`inline-flex items-center justify-center gap-2.5 rounded-md bg-primary py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10 ${
-                                !selectedCourse || selectedQuestions.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
-                            disabled={!selectedCourse || selectedQuestions.length === 0}
-                        >
-                            <span>
-                                <svg className="fill-current" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M16.8754 11.6719C16.5379 11.6719 16.2285 11.9531 16.2285 12.3187V14.8219C16.2285 15.075 16.0316 15.2719 15.7785 15.2719H2.22227C1.96914 15.2719 1.77227 15.075 1.77227 14.8219V12.3187C1.77227 11.9812 1.49102 11.6719 1.12539 11.6719C0.759766 11.6719 0.478516 11.9531 0.478516 12.3187V14.8219C0.478516 15.7781 1.23789 16.5375 2.19414 16.5375H15.7785C16.7348 16.5375 17.4941 15.7781 17.4941 14.8219V12.3187C17.5223 11.9531 17.2129 11.6719 16.8754 11.6719Z" fill=""></path>
-                                    <path d="M8.55074 12.3469C8.66324 12.4594 8.83199 12.5156 9.00074 12.5156C9.16949 12.5156 9.31012 12.4594 9.45074 12.3469L13.4726 8.43752C13.7257 8.1844 13.7257 7.79065 13.4726 7.53752C13.2195 7.2844 12.8257 7.2844 12.5726 7.53752L9.64762 10.4063V2.1094C9.64762 1.7719 9.36637 1.46252 9.00074 1.46252C8.66324 1.46252 8.35387 1.74377 8.35387 2.1094V10.4063L5.45699 7.53752C5.20387 7.2844 4.81012 7.2844 4.55699 7.53752C4.30387 7.79065 4.30387 8.1844 4.55699 8.43752L8.55074 12.3469Z" fill=""></path>
-                                </svg>
-                            </span>
-                            Export to Word
-                        </button>
-                        
-                        <button
-                            onClick={() => setPreviewDialogOpen(true)}
-                            className={`inline-flex items-center justify-center gap-2.5 rounded-md bg-meta-3 py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10 ${
-                                !selectedCourse || selectedQuestions.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
-                            disabled={!selectedCourse || selectedQuestions.length === 0}
-                        >
-                            <span>
-                                <svg className="fill-current" width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" fill=""></path>
-                                </svg>
-                            </span>
-                            Preview Test
-                        </button>
-                        
-                        <button
-                            onClick={handleCreateTest}
-                            className={`inline-flex items-center justify-center gap-2.5 rounded-md bg-meta-3 py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10 ${
-                                !selectedCourse ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
-                            disabled={!selectedCourse}
-                        >
-                            <span>
-                                <svg
-                                    className="fill-current"
-                                    width="18"
-                                    height="18"
-                                    viewBox="0 0 18 18"
-                                    fill="none"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                >
-                                    <path
-                                        d="M9 3.75C4.65 3.75 1.125 6.75 0 10.5C1.125 14.25 4.65 17.25 9 17.25C13.35 17.25 16.875 14.25 18 10.5C16.875 6.75 13.35 3.75 9 3.75ZM9 15C6.525 15 4.5 12.975 4.5 10.5C4.5 8.025 6.525 6 9 6C11.475 6 13.5 8.025 13.5 10.5C13.5 12.975 11.475 15 9 15ZM9 7.5C7.35 7.5 6 8.85 6 10.5C6 12.15 7.35 13.5 9 13.5C10.65 13.5 12 12.15 12 10.5C12 8.85 10.65 7.5 9 7.5Z"
-                                        fill=""
-                                    ></path>
-                                </svg>
-                            </span>
-                            Create Test
-                        </button>
-                        
-                        <button
                             onClick={handleCancel}
-                            className={`inline-flex items-center justify-center gap-2.5 rounded-md bg-danger py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 lg:px-8 xl:px-10 ${
-                                !selectedCourse ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
+                            className={`flex w-1/3 items-center justify-center gap-2.5 rounded-md bg-danger py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 ${!selectedCourse ? 'opacity-50 cursor-not-allowed' : ''}`}
                             disabled={!selectedCourse}
                         >
                             <span>
@@ -1793,6 +1929,49 @@ const CreateTest = () => {
                             </span>
                             Cancel
                         </button>
+
+                        <button
+                            onClick={handleCreateTest}
+                            className={`flex w-1/3 items-center justify-center gap-2.5 rounded-md bg-meta-3 py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 ${!selectedCourse ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={!selectedCourse}
+                        >
+                            <span>
+                                <svg
+                                    className="fill-current"
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 18 18"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <path
+                                        d="M16.5 1.5H1.5C0.675 1.5 0 2.175 0 3V15C0 15.825 0.675 16.5 1.5 16.5H16.5C17.325 16.5 18 15.825 18 15V3C18 2.175 17.325 1.5 16.5 1.5ZM16.5 15H1.5V3H16.5V15ZM4.5 7.5H13.5V9H4.5V7.5ZM4.5 10.5H13.5V12H4.5V10.5ZM4.5 4.5H13.5V6H4.5V4.5Z"
+                                        fill=""
+                                    ></path>
+                                </svg>
+                            </span>
+                            Create Test
+                        </button>
+
+                        <button
+                            onClick={exportToWord}
+                            className={`flex w-1/3 items-center justify-center gap-2.5 rounded-md bg-primary py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 ${!selectedCourse || selectedQuestions.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={!selectedCourse || selectedQuestions.length === 0}
+                        >
+                            <span>
+                                <svg className="fill-current" width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M16.8754 11.6719C16.5379 11.6719 16.2285 11.9531 16.2285 12.3187V14.8219C16.2285 15.075 16.0316 15.2719 15.7785 15.2719H2.22227C1.96914 15.2719 1.77227 15.075 1.77227 14.8219V12.3187C1.77227 11.9812 1.46289 11.6719 1.12539 11.6719C0.787891 11.6719 0.478516 11.9531 0.478516 12.3187V14.8219C0.478516 15.7781 1.23789 16.5375 2.19414 16.5375H15.7785C16.7348 16.5375 17.4941 15.7781 17.4941 14.8219V12.3187C17.5223 11.9531 17.2129 11.6719 16.8754 11.6719Z"
+                                        fill=""
+                                    ></path>
+                                    <path
+                                        d="M8.55074 12.3469C8.66324 12.4594 8.83199 12.5156 9.00074 12.5156C9.16949 12.5156 9.31012 12.4594 9.45074 12.3469L13.4726 8.43752C13.7257 8.1844 13.7257 7.79065 13.4726 7.53752C13.2195 7.2844 12.8257 7.2844 12.5726 7.53752L9.64762 10.4063V2.1094C9.64762 1.7719 9.36637 1.46252 9.00074 1.46252C8.66324 1.46252 8.35387 1.74377 8.35387 2.1094V10.4063L5.45074 7.53752C5.19762 7.2844 4.80387 7.2844 4.55074 7.53752C4.29762 7.79065 4.29762 8.1844 4.55074 8.43752L8.55074 12.3469Z"
+                                        fill=""
+                                    ></path>
+                                </svg>
+                            </span>
+                            Export to Word
+                        </button>
                     </div>
                 </>
             )}
@@ -1800,119 +1979,226 @@ const CreateTest = () => {
             {/* Question Detail Dialog */}
             <Dialog
                 open={isQuestionDialogOpen}
-                onClose={() => setIsQuestionDialogOpen(false)}
+                onClose={() => {
+                    setIsQuestionDialogOpen(false);
+                    setEditMode(false);  // Reset edit mode when closing dialog
+                }}
                 className="relative z-50"
             >
                 <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
-                <div className="fixed inset-0 flex items-center justify-end pr-[15%] p-4">
-                    <Dialog.Panel className="w-full max-w-3xl rounded-lg bg-white dark:bg-boxdark p-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-semibold text-black dark:text-white">
+                <div className="fixed inset-0 flex items-center justify-center p-4">
+                    <Dialog.Panel className="w-full max-w-2xl h-[450px] rounded-lg bg-white dark:bg-boxdark p-4 max-h-[90vh] overflow-y-auto mx-auto transform translate-x-[100px] translate-y-[50px]">
+                        <div className="flex justify-between items-center mb-4 sticky top-0 bg-white dark:bg-boxdark z-10 pb-2">
+                            <h2 className="text-lg font-semibold text-black dark:text-white">
                                 Question Details
                             </h2>
-                            {isQuestionInTest(selectedQuestionDetail?.id || 0) && (
-                                <button
-                                    onClick={() => shuffleQuestionAnswers(selectedQuestionDetail?.id || 0)}
-                                    className="flex items-center gap-2 rounded bg-primary px-4 py-2 text-white hover:bg-opacity-90 transition-all duration-200"
-                                >
-                                    <svg
-                                        className="w-4 h-4"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth="2"
-                                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                        />
-                                    </svg>
-                                    Shuffle Answers
-                                </button>
-                            )}
+
                         </div>
 
                         {selectedQuestionDetail && (
-                            <div className="space-y-4">
-                                <div className="text-black dark:text-white">
-                                    <div dangerouslySetInnerHTML={{ __html: selectedQuestionDetail.question_text }} />
-                                </div>
-
-                                <div className="mt-4">
-                                    <h4 className="font-medium text-black dark:text-white mb-2">Answers:</h4>
-                                    <div className="space-y-2">
-                                        {selectedQuestionDetail.answers?.map((answer, index) => {
-                                            const isSelected = selectedAnswers[selectedQuestionDetail.id]?.[index] || false;
-                                            const isHidden = editedQuestions[selectedQuestionDetail.id]?.hiddenAnswers?.[index];
-                                            return (
+                            <div className="space-y-3 flex flex-col h-[calc(100%-60px)]">
+                                <div className="flex-grow">
+                                    <div className="text-black dark:text-white">
+                                        {editMode ? (
+                                            editingQuestionText ? (
+                                                <textarea
+                                                    value={tempQuestionText}
+                                                    onChange={(e) => setTempQuestionText(e.target.value)}
+                                                    onKeyDown={handleEditComplete}
+                                                    onBlur={handleBlur}
+                                                    className="w-full p-2 border rounded-md"
+                                                    autoFocus
+                                                />
+                                            ) : (
                                                 <div
-                                                    key={index}
-                                                    className={`p-2 rounded transition-all duration-200 ${isQuestionInTest(selectedQuestionDetail.id)
-                                                        ? `cursor-pointer ${isSelected
-                                                            ? answer.is_correct
-                                                                ? 'bg-meta-3/10 border border-meta-3'
-                                                                : 'bg-gray-100 dark:bg-meta-4'
-                                                            : 'bg-gray-50 dark:bg-meta-4/50'
-                                                        }`
-                                                        : answer.is_correct
-                                                            ? 'bg-meta-3/10 border border-meta-3'
-                                                            : 'bg-gray-100 dark:bg-meta-4'
-                                                        }`}
+                                                    onDoubleClick={() => {
+                                                        setTempQuestionText(sanitizeHtml(selectedQuestionDetail.question_text));
+                                                        setEditingQuestionText(true);
+                                                    }}
+                                                    className="cursor-text hover:bg-gray-100 dark:hover:bg-meta-4 p-2 rounded-md"
                                                 >
-                                                    <div className="flex items-start gap-2">
-                                                        {isQuestionInTest(selectedQuestionDetail.id) && (
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={isSelected}
-                                                                onChange={() => toggleAnswer(selectedQuestionDetail.id, index)}
-                                                                className="mt-1 cursor-pointer"
-                                                            />
-                                                        )}
-                                                        <div className={`flex-1 transition-all duration-200 ${!isSelected ? 'text-gray-400 font-normal' : 'text-black dark:text-white font-medium'}`}>
-                                                            <span>{String.fromCharCode(65 + index)})</span>
-                                                            <div className="inline-block ml-2" dangerouslySetInnerHTML={{ __html: answer.answer_text }} />
-                                                            {answer.is_correct && (
-                                                                <span className="text-meta-3 ml-2">✓</span>
+                                                    Question: {sanitizeHtml(selectedQuestionDetail.question_text)}
+                                                </div>
+                                            )
+                                        ) : (
+                                            <div>Question: {sanitizeHtml(selectedQuestionDetail.question_text)}</div>
+                                        )}
+                                    </div>
+
+                                    {editMode && (
+                                        <div className="mt-4 grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="mb-1.5 block text-black dark:text-white">
+                                                    Difficulty Level
+                                                </label>
+                                                <select
+                                                    value={selectedQuestionDetail?.difficulty || 'medium'}
+                                                    onChange={(e) => setSelectedQuestionDetail(prev => prev ? {
+                                                        ...prev,
+                                                        difficulty: e.target.value as 'easy' | 'medium' | 'hard'
+                                                    } : null)}
+                                                    className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
+                                                >
+                                                    <option value="easy">Easy</option>
+                                                    <option value="medium">Medium</option>
+                                                    <option value="hard">Hard</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="mb-1.5 block text-black dark:text-white">
+                                                    Taxonomy Level
+                                                </label>
+                                                <select
+                                                    value={selectedQuestionDetail?.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'Remember'}
+                                                    onChange={(e) => {
+                                                        const newLevel = e.target.value;
+                                                        setSelectedQuestionDetail(prev => {
+                                                            if (!prev) return null;
+
+                                                            // Create a new taxonomies array
+                                                            let newTaxonomies;
+                                                            if (prev.taxonomies && prev.taxonomies.length > 0) {
+                                                                // If taxonomies exist, update the Bloom's taxonomy
+                                                                newTaxonomies = prev.taxonomies.map(tax => {
+                                                                    if (tax.taxonomy.name === "Bloom's Taxonomy") {
+                                                                        return { ...tax, level: newLevel };
+                                                                    }
+                                                                    return tax;
+                                                                });
+                                                            } else {
+                                                                // If no taxonomies exist, create a new one
+                                                                newTaxonomies = [{
+                                                                    taxonomy: { name: "Bloom's Taxonomy" },
+                                                                    level: newLevel
+                                                                }];
+                                                            }
+
+                                                            return {
+                                                                ...prev,
+                                                                taxonomies: newTaxonomies
+                                                            };
+                                                        });
+                                                    }}
+                                                    className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
+                                                >
+                                                    {['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].map(level => (
+                                                        <option key={level} value={level}>{level}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="mt-3">
+                                        <h4 className="font-medium text-black dark:text-white mb-2">Answers:</h4>
+                                        <div className="space-y-2">
+                                            {selectedQuestionDetail.answers?.map((answer, index) => {
+                                                const isSelected = selectedAnswers[selectedQuestionDetail.id]?.[index] || false;
+                                                return (
+                                                    <div
+                                                        key={index}
+                                                        className={`p-2 rounded-sm ${answer.is_correct ? 'bg-success/10' : ''} ${editMode ? 'hover:bg-gray-50 dark:hover:bg-meta-4' : ''}`}
+                                                    >
+                                                        <div className="flex items-start gap-2">
+                                                            {editMode && (
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected}
+                                                                    onChange={() => toggleAnswer(selectedQuestionDetail.id, index)}
+                                                                    className="mt-1 cursor-pointer"
+                                                                />
                                                             )}
+                                                            <div className="flex-grow">
+                                                                <span>{String.fromCharCode(65 + index)}) </span>
+                                                                {editMode ? (
+                                                                    editingAnswerIndex === index ? (
+                                                                        <textarea
+                                                                            value={tempAnswerText}
+                                                                            onChange={(e) => setTempAnswerText(e.target.value)}
+                                                                            onKeyDown={handleEditComplete}
+                                                                            onBlur={handleBlur}
+                                                                            className="w-full p-2 border rounded-md"
+                                                                            autoFocus
+                                                                        />
+                                                                    ) : (
+                                                                        <span
+                                                                            onDoubleClick={() => {
+                                                                                setTempAnswerText(sanitizeHtml(answer.answer_text));
+                                                                                setEditingAnswerIndex(index);
+                                                                            }}
+                                                                            className="cursor-text hover:bg-gray-100 dark:hover:bg-meta-4 p-1 rounded"
+                                                                        >
+                                                                            {sanitizeHtml(answer.answer_text)}
+                                                                        </span>
+                                                                    )
+                                                                ) : (
+                                                                    <span>
+                                                                        {sanitizeHtml(answer.answer_text)}
+                                                                        {!editMode && answer.is_correct && (
+                                                                            <span className="text-meta-3 ml-2">✓</span>
+                                                                        )}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="mt-6 flex justify-end gap-4">
-                                    {isQuestionInTest(selectedQuestionDetail.id) ? (
+                                {/* Question Detail Dialog buttons */}
+                                <div className={`flex justify-end gap-3 py-2 mt-auto ${editMode ? 'sticky bottom-0 bg-white dark:bg-boxdark' : ''}`}>
+                                    {!editMode ? (
                                         <>
                                             <button
-                                                onClick={() => setIsQuestionDialogOpen(false)}
-                                                className="rounded bg-danger px-6 py-2 text-white hover:bg-opacity-90"
+                                                onClick={() => {
+                                                    setIsQuestionDialogOpen(false);
+                                                    setEditMode(false);
+                                                }}
+                                                className="rounded bg-danger px-4 py-1.5 text-white hover:bg-opacity-90 min-w-[80px]"
                                             >
                                                 Close
                                             </button>
                                             <button
+                                                onClick={() => setEditMode(true)}
+                                                className="rounded bg-primary px-4 py-1.5 text-white hover:bg-opacity-90 min-w-[80px]"
+                                            >
+                                                Edit
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={() => {
+                                                    setEditMode(false);  // Just return to view mode
+                                                }}
+                                                className="rounded bg-danger px-4 py-1.5 text-white hover:bg-opacity-90 min-w-[80px]"
+                                            >
+                                                Close
+                                            </button>
+                                            <button
+                                                onClick={() => setEditMode(true)}
+                                                className="rounded bg-primary px-4 py-1.5 text-white hover:bg-opacity-90 min-w-[80px]"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
                                                 onClick={() => handleSaveChanges(false)}
-                                                className="rounded bg-primary px-6 py-2 text-white hover:bg-opacity-90"
+                                                className="rounded bg-primary px-4 py-1.5 text-white hover:bg-opacity-90 min-w-[80px]"
                                             >
                                                 Save
                                             </button>
                                             <button
                                                 onClick={() => handleSaveChanges(true)}
-                                                className="rounded bg-success px-6 py-2 text-white hover:bg-opacity-90"
+                                                className="rounded bg-success px-4 py-1.5 text-white hover:bg-opacity-90 min-w-[100px]"
                                             >
                                                 Save & Overwrite
                                             </button>
                                         </>
-                                    ) : (
-                                        <button
-                                            onClick={() => setIsQuestionDialogOpen(false)}
-                                            className="rounded bg-primary px-6 py-2 text-white hover:bg-opacity-90"
-                                        >
-                                            Close
-                                        </button>
                                     )}
                                 </div>
                             </div>
@@ -1954,7 +2240,7 @@ const CreateTest = () => {
                         </div>
 
                         <div className="space-y-6">
-                            {(shuffleQuestions ? [...selectedQuestions].sort(() => Math.random() - 0.5) : selectedQuestions)
+                            {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions)
                                 .map((question, index) => (
                                     <div key={index} className="space-y-3">
                                         <div className="font-medium text-black dark:text-white">

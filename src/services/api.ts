@@ -348,31 +348,31 @@ export const fetchTestDetail = async (courseId: string, testId: string) => {
 };
 
 interface UpdateTestRequest {
-    title: string;
-    config: {
-        letterCase: 'uppercase' | 'lowercase';
-        separator: string;
-        includeAnswerKey: boolean;
-    };
-    question_ids: number[];
+  title: string;
+  config: {
+    letterCase: 'uppercase' | 'lowercase';
+    separator: string;
+    includeAnswerKey: boolean;
+  };
+  question_ids: number[];
 }
 
 export const updateTest = async (courseId: string, testId: string, data: UpdateTestRequest) => {
-    const token = await getValidToken();
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/`, {
-        method: 'PUT',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-    });
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
 
-    if (!response.ok) {
-        throw new Error('Failed to update test');
-    }
+  if (!response.ok) {
+    throw new Error('Failed to update test');
+  }
 
-    return response.json();
+  return response.json();
 };
 
 export const deleteTest = async (courseId: string, testId: string) => {
@@ -397,26 +397,26 @@ export const deleteTest = async (courseId: string, testId: string) => {
 };
 
 export const uploadTestResults = async (courseId: string, testId: string, file: File, testCode: string) => {
-    const token = await getValidToken();
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('test_code', testCode);
+  const token = await getValidToken();
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('test_code', testCode);
 
-    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/results/upload/`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        body: formData
-    });
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/${testId}/results/upload/`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  });
 
-    if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Upload error:', errorData);
-        throw new Error('Failed to upload test results');
-    }
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('Upload error:', errorData);
+    throw new Error('Failed to upload test results');
+  }
 
-    return response.json();
+  return response.json();
 };
 
 export const saveTestDraft = async (courseId: string, draftData: any) => {
@@ -432,11 +432,11 @@ export const saveTestDraft = async (courseId: string, draftData: any) => {
       ...draftData
     }),
   });
-  
+
   if (!response.ok) {
     throw new Error('Failed to save test draft');
   }
-  
+
   return await response.json();
 };
 
@@ -449,15 +449,15 @@ export const getTestDraft = async (courseId: string) => {
       'Authorization': `Bearer ${token}`
     },
   });
-  
+
   if (response.status === 404) {
     return null; // No draft found
   }
-  
+
   if (!response.ok) {
     throw new Error('Failed to get test draft');
   }
-  
+
   return await response.json();
 };
 
@@ -470,11 +470,11 @@ export const deleteTestDraft = async () => {
       'Authorization': `Bearer ${token}`
     },
   });
-  
+
   if (!response.ok) {
     throw new Error('Failed to delete test draft');
   }
-  
+
   return true;
 };
 
@@ -487,10 +487,10 @@ export const getTestDrafts = async () => {
       'Authorization': `Bearer ${token}`
     },
   });
-  
+
   if (!response.ok) {
     throw new Error('Failed to fetch test drafts');
   }
-  
+
   return await response.json();
 }; 
