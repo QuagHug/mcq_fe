@@ -491,4 +491,32 @@ export const getTestDrafts = async () => {
   }
 
   return await response.json();
+};
+
+/**
+ * Fetch questions from a specific question bank
+ * @param courseId - The ID of the course
+ * @param bankId - The ID of the question bank
+ * @returns Promise containing the questions in the bank
+ */
+export const fetchBankQuestions = async (courseId: string, bankId: string) => {
+  try {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/questions/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch bank questions');
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching bank questions:', error);
+    throw error;
+  }
 }; 
