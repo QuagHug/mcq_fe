@@ -438,40 +438,40 @@ const TestDetails = () => {
                                     </div>
                                     
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                        <div className="bg-gradient-to-r from-blue-500 to-blue-400 text-white p-4 rounded-sm">
+                                        <div style={{background: 'linear-gradient(to right, #1d4ed8, #2563eb)'}} className="text-white p-4 rounded-sm">
                                             <h4 className="font-semibold text-lg">Average Difficulty</h4>
                                             <p className="text-3xl font-bold">
-                                                {test.questions
+                                                {(test.questions
                                                     .filter(q => q.question_data?.statistics?.scaled_difficulty !== undefined)
                                                     .reduce((acc, q) => acc + (q.question_data?.statistics?.scaled_difficulty || 0), 0) / 
-                                                test.questions.filter(q => q.question_data?.statistics?.scaled_difficulty !== undefined).length
-                                                    .toFixed(1)}
+                                                test.questions.filter(q => q.question_data?.statistics?.scaled_difficulty !== undefined).length)
+                                                    .toFixed(2)}
                                             </p>
                                             <p className="text-sm mt-2">
                                                 {test.questions.filter(q => q.question_data?.statistics?.scaled_difficulty !== undefined).length} questions with valid data
                                             </p>
                                         </div>
-                                        <div className="bg-gradient-to-r from-purple-500 to-purple-400 text-white p-4 rounded-sm">
+                                        <div style={{background: 'linear-gradient(to right, #7e22ce, #9333ea)'}} className="text-white p-4 rounded-sm">
                                             <h4 className="font-semibold text-lg">Average Discrimination</h4>
                                             <p className="text-3xl font-bold">
-                                                {test.questions
+                                                {(test.questions
                                                     .filter(q => q.question_data?.statistics?.scaled_discrimination !== undefined)
                                                     .reduce((acc, q) => acc + (q.question_data?.statistics?.scaled_discrimination || 0), 0) / 
-                                                test.questions.filter(q => q.question_data?.statistics?.scaled_discrimination !== undefined).length
-                                                    .toFixed(1)}
+                                                test.questions.filter(q => q.question_data?.statistics?.scaled_discrimination !== undefined).length)
+                                                    .toFixed(2)}
                                             </p>
                                             <p className="text-sm mt-2">
                                                 {test.questions.filter(q => q.question_data?.statistics?.scaled_discrimination !== undefined).length} questions with valid data
                                             </p>
                                         </div>
-                                        <div className="bg-gradient-to-r from-[#8A7BC8] to-[#8A7BC8]/80 text-white p-4 rounded-sm">
+                                        <div style={{background: 'linear-gradient(to right, #8A7BC8, rgba(138, 123, 200, 0.8))'}} className="text-white p-4 rounded-sm">
                                             <h4 className="font-semibold text-lg">Average Success Rate</h4>
                                             <p className="text-3xl font-bold">
-                                                {test.questions
+                                                {(test.questions
                                                     .filter(q => q.question_data?.statistics?.classical_parameters?.p_value !== undefined)
                                                     .reduce((acc, q) => acc + ((q.question_data?.statistics?.classical_parameters?.p_value || 0) * 100), 0) / 
-                                                test.questions.filter(q => q.question_data?.statistics?.classical_parameters?.p_value !== undefined).length
-                                                    .toFixed(1)}%
+                                                test.questions.filter(q => q.question_data?.statistics?.classical_parameters?.p_value !== undefined).length)
+                                                    .toFixed(2)}%
                                             </p>
                                             <p className="text-sm mt-2">
                                                 {test.questions.filter(q => q.question_data?.statistics?.classical_parameters?.p_value !== undefined).length} questions analyzed
@@ -652,280 +652,6 @@ const TestDetails = () => {
                                         </table>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        {/* Difficulty Distribution Chart */}
-                        <div className="bg-white dark:bg-boxdark rounded-sm border border-stroke dark:border-strokedark shadow-default p-4">
-                            <h3 className="text-xl font-semibold mb-4">Question Difficulty Distribution</h3>
-                            <div className="h-80">
-                                <Bar 
-                                    data={{
-                                        labels: difficultyDistribution.labels,
-                                        datasets: [{
-                                            label: 'Number of Questions',
-                                            data: difficultyDistribution.data,
-                                            backgroundColor: [
-                                                'rgba(54, 162, 235, 0.6)',
-                                                'rgba(75, 192, 192, 0.6)',
-                                                'rgba(255, 206, 86, 0.6)',
-                                                'rgba(255, 159, 64, 0.6)',
-                                                'rgba(255, 99, 132, 0.6)'
-                                            ],
-                                            borderWidth: 1
-                                        }]
-                                    }}
-                                    options={{
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: {
-                                            title: {
-                                                display: true,
-                                                text: 'Distribution of Question Difficulty'
-                                            },
-                                            tooltip: {
-                                                callbacks: {
-                                                    label: (context) => {
-                                                        return `Questions: ${context.raw}`;
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        scales: {
-                                            y: {
-                                                beginAtZero: true,
-                                                title: {
-                                                    display: true,
-                                                    text: 'Number of Questions'
-                                                },
-                                                ticks: {
-                                                    stepSize: 1
-                                                }
-                                            }
-                                        }
-                                    }}
-                                />
-                            </div>
-                        </div>
-                        
-                        {/* Discrimination Quality Chart */}
-                        <div className="bg-white dark:bg-boxdark rounded-sm border border-stroke dark:border-strokedark shadow-default p-4">
-                            <h3 className="text-xl font-semibold mb-4">Question Discrimination Quality</h3>
-                            <div className="h-80">
-                                <Pie 
-                                    data={{
-                                        labels: discriminationQuality.labels,
-                                        datasets: [{
-                                            label: 'Number of Questions',
-                                            data: discriminationQuality.data,
-                                            backgroundColor: [
-                                                'rgba(255, 99, 132, 0.6)',
-                                                'rgba(255, 159, 64, 0.6)',
-                                                'rgba(75, 192, 192, 0.6)',
-                                                'rgba(54, 162, 235, 0.6)'
-                                            ],
-                                            borderWidth: 1
-                                        }]
-                                    }}
-                                    options={{
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: {
-                                            title: {
-                                                display: true,
-                                                text: 'Question Discrimination Quality'
-                                            },
-                                            tooltip: {
-                                                callbacks: {
-                                                    label: (context) => {
-                                                        const dataset = context.dataset;
-                                                        const total = dataset.data.reduce((acc: number, data: number) => acc + data, 0);
-                                                        const value = dataset.data[context.dataIndex] as number;
-                                                        const percentage = ((value / total) * 100).toFixed(1);
-                                                        return `${context.label}: ${value} questions (${percentage}%)`;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }}
-                                />
-                            </div>
-                        </div>
-                        
-                        {/* Difficulty vs Discrimination Scatter Plot */}
-                        <div className="bg-white dark:bg-boxdark rounded-sm border border-stroke dark:border-strokedark shadow-default p-4 md:col-span-2">
-                            <h3 className="text-xl font-semibold mb-4">Question Quality Matrix (Difficulty vs Discrimination)</h3>
-                            <div className="h-80">
-                                <Scatter 
-                                    data={{
-                                        datasets: [{
-                                            label: 'Questions',
-                                            data: scatterData.map(item => ({x: item.x, y: item.y})),
-                                            backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                                            pointRadius: 8,
-                                            pointHoverRadius: 10
-                                        }]
-                                    }}
-                                    options={{
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: {
-                                            tooltip: {
-                                                callbacks: {
-                                                    label: (context) => {
-                                                        const point = scatterData[context.dataIndex];
-                                                        return [
-                                                            `ID: ${point.id}`,
-                                                            `Difficulty: ${point.x.toFixed(1)}`,
-                                                            `Discrimination: ${point.y.toFixed(1)}`,
-                                                            `Question: ${point.question}`
-                                                        ];
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        scales: {
-                                            x: {
-                                                title: {
-                                                    display: true,
-                                                    text: 'Difficulty (Higher = More Difficult)'
-                                                },
-                                                min: 0,
-                                                max: 10
-                                            },
-                                            y: {
-                                                title: {
-                                                    display: true,
-                                                    text: 'Discrimination (Higher = Better)'
-                                                },
-                                                min: 0,
-                                                max: 10
-                                            }
-                                        }
-                                    }}
-                                />
-                            </div>
-                            <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                                <p><strong>Note:</strong> Ideal questions have moderate difficulty (4-6) and high discrimination (&gt;6).</p>
-                                <p>Questions with very low discrimination (&lt;2) should be reviewed as they may not differentiate between high and low performers.</p>
-                            </div>
-                        </div>
-                        
-                        {/* Item Response Rates */}
-                        <div className="bg-white dark:bg-boxdark rounded-sm border border-stroke dark:border-strokedark shadow-default p-4 md:col-span-2">
-                            <h3 className="text-xl font-semibold mb-4">Question Success Rates</h3>
-                            <div className="h-80">
-                                <Bar 
-                                    data={{
-                                        labels: responseRates.labels,
-                                        datasets: [{
-                                            label: 'Correct Response Rate (%)',
-                                            data: responseRates.data,
-                                            backgroundColor: responseRates.data.map(rate => {
-                                                if (rate < 30) return 'rgba(255, 99, 132, 0.6)'; // Very hard
-                                                if (rate < 50) return 'rgba(255, 159, 64, 0.6)'; // Hard
-                                                if (rate < 70) return 'rgba(255, 206, 86, 0.6)'; // Moderate
-                                                if (rate < 85) return 'rgba(75, 192, 192, 0.6)'; // Easy
-                                                return 'rgba(54, 162, 235, 0.6)'; // Very easy
-                                            }),
-                                            borderWidth: 1
-                                        }]
-                                    }}
-                                    options={{
-                                        responsive: true,
-                                        maintainAspectRatio: false,
-                                        plugins: {
-                                            title: {
-                                                display: true,
-                                                text: 'Percentage of Correct Responses by Question'
-                                            }
-                                        },
-                                        scales: {
-                                            y: {
-                                                beginAtZero: true,
-                                                max: 100,
-                                                title: {
-                                                    display: true,
-                                                    text: 'Percentage Correct (%)'
-                                                }
-                                            }
-                                        }
-                                    }}
-                                />
-                            </div>
-                        </div>
-                        
-                        {/* Statistical Summary */}
-                        <div className="bg-white dark:bg-boxdark rounded-sm border border-stroke dark:border-strokedark shadow-default p-4 md:col-span-2">
-                            <h3 className="text-xl font-semibold mb-4">Test Statistics Summary</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-gradient-to-r from-primary to-primary/80 text-white p-4 rounded-sm">
-                                    <h4 className="font-semibold text-lg">Average Difficulty</h4>
-                                    <p className="text-3xl font-bold">
-                                        {test.questions
-                                            .filter(q => q.question_data?.statistics?.scaled_difficulty !== undefined)
-                                            .reduce((acc, q) => acc + (q.question_data?.statistics?.scaled_difficulty || 0), 0) / 
-                                        test.questions.filter(q => q.question_data?.statistics?.scaled_difficulty !== undefined).length
-                                            .toFixed(2)} / 10
-                                    </p>
-                                    <p className="text-sm mt-2">
-                                        {test.questions.filter(q => q.question_data?.statistics?.scaled_difficulty !== undefined).length} questions with valid data
-                                    </p>
-                                </div>
-                                <div className="bg-gradient-to-r from-[#3C50E0] to-[#3C50E0]/80 text-white p-4 rounded-sm">
-                                    <h4 className="font-semibold text-lg">Average Discrimination</h4>
-                                    <p className="text-3xl font-bold">
-                                        {test.questions
-                                            .filter(q => q.question_data?.statistics?.scaled_discrimination !== undefined)
-                                            .reduce((acc, q) => acc + (q.question_data?.statistics?.scaled_discrimination || 0), 0) / 
-                                        test.questions.filter(q => q.question_data?.statistics?.scaled_discrimination !== undefined).length
-                                            .toFixed(2)} / 10
-                                    </p>
-                                    <p className="text-sm mt-2">
-                                        {test.questions.filter(q => q.question_data?.statistics?.scaled_discrimination !== undefined).length} questions with valid data
-                                    </p>
-                                </div>
-                                <div className="bg-gradient-to-r from-[#8A7BC8] to-[#8A7BC8]/80 text-white p-4 rounded-sm">
-                                    <h4 className="font-semibold text-lg">Average Success Rate</h4>
-                                    <p className="text-3xl font-bold">
-                                        {test.questions
-                                            .filter(q => q.question_data?.statistics?.classical_parameters?.p_value !== undefined)
-                                            .reduce((acc, q) => acc + ((q.question_data?.statistics?.classical_parameters?.p_value || 0) * 100), 0) / 
-                                        test.questions.filter(q => q.question_data?.statistics?.classical_parameters?.p_value !== undefined).length
-                                            .toFixed(1)}%
-                                    </p>
-                                    <p className="text-sm mt-2">
-                                        {test.questions.filter(q => q.question_data?.statistics?.classical_parameters?.p_value !== undefined).length} questions analyzed
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="mt-4">
-                                <h4 className="font-semibold mb-2">Test Quality Insights</h4>
-                                <ul className="list-disc list-inside space-y-1 text-sm">
-                                    <li>
-                                        {test.questions.filter(q => 
-                                            q.question_data?.statistics?.scaled_difficulty >= 4 && 
-                                            q.question_data?.statistics?.scaled_difficulty <= 6 && 
-                                            q.question_data?.statistics?.scaled_discrimination > 5
-                                        ).length} questions are in the optimal range (moderate difficulty with good discrimination)
-                                    </li>
-                                    <li>
-                                        {test.questions.filter(q => 
-                                            q.question_data?.statistics?.scaled_discrimination < 2
-                                        ).length} questions have poor discrimination and may need review
-                                    </li>
-                                    <li>
-                                        {test.questions.filter(q => 
-                                            q.question_data?.statistics?.scaled_difficulty > 8
-                                        ).length} questions are very difficult (may be too challenging)
-                                    </li>
-                                    <li>
-                                        {test.questions.filter(q => 
-                                            q.question_data?.statistics?.scaled_difficulty < 2
-                                        ).length} questions are very easy (may be too simple)
-                                    </li>
-                                </ul>
                             </div>
                         </div>
                     </div>
