@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { Editor } from '@tinymce/tinymce-react';
 import { fetchQuestionDetail, editQuestion } from '../services/api';
+import Paraphraser from '../components/Paraphraser';
 
 const MOCK_QUESTION_DATA = {
     question: "What is the primary function of TCP/IP in computer networking?",
@@ -293,12 +294,11 @@ const QuestionEdit = () => {
                 </div>
             </div>
 
+            {/* Paraphraser Section */}
+            <Paraphraser questionText={questionContent} />
+
             {/* Save and Paraphrase Button Section */}
             <div className="flex justify-end gap-4">
-                <button className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90">
-                    Paraphrase
-                </button>
-
                 <button
                     onClick={handleSave}
                     className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"

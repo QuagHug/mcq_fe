@@ -16,9 +16,10 @@ import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { Dialog } from '@headlessui/react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
 import React from 'react';
-import axios from 'axios';
+import AnswerBlock from '../components/AnswerBlock';
+import QuestionDistribution from '../components/QuestionDistribution';
+import PreviewBlock from '../components/PreviewBlock';
 
 interface Question {
     id: number;
@@ -64,7 +65,6 @@ interface AnswerFormat {
     separator: string;
 }
 
-// Add this interface near the other interfaces at the top
 interface Taxonomy {
     taxonomy: {
         name: string;
@@ -72,27 +72,20 @@ interface Taxonomy {
     level: string;
 }
 
-// Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-// Add new interface for edited answer visibility
 interface EditedQuestion extends Question {
     hiddenAnswers?: boolean[];
 }
 
-// Update the truncateText function
 const truncateText = (text: string, maxLength: number = 50) => {
-    // First remove any HTML tags
     const cleanText = text.replace(/<[^>]+>/g, '');
     if (cleanText.length <= maxLength) return cleanText;
-    // Find the last space before maxLength to avoid cutting words in the middle
     const lastSpace = cleanText.substring(0, maxLength).lastIndexOf(' ');
-    // If no space found, just cut at maxLength
     const truncateAt = lastSpace > 0 ? lastSpace : maxLength;
     return cleanText.substring(0, truncateAt) + '...';
 };
 
-// Add this type near the other interfaces at the top
 interface QuestionDistribution {
     [key: string]: {
         easy: number;
@@ -101,22 +94,15 @@ interface QuestionDistribution {
     };
 }
 
-// Add this helper function at the top with other utility functions
 const sanitizeHtml = (html: string) => {
     if (!html) return '';
-
-    // First remove any HTML tags, including p tags
     const withoutTags = html.replace(/<\/?[^>]+(>|$)/g, '');
-
-    // Then decode HTML entities
     const textarea = document.createElement('textarea');
     textarea.innerHTML = withoutTags;
 
-    // Trim any extra whitespace that might have been left
     return textarea.value.trim();
 };
 
-// Add this helper function near the top with other utility functions
 const capitalizeFirstLetter = (string: string) => {
     return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
 };
@@ -212,6 +198,10 @@ const CreateTest = () => {
     const [editingAnswerIndex, setEditingAnswerIndex] = useState<number | null>(null);
     const [tempQuestionText, setTempQuestionText] = useState('');
     const [tempAnswerText, setTempAnswerText] = useState('');
+
+    // Add these new state variables after other state declarations
+    const [checkedAvailableQuestions, setCheckedAvailableQuestions] = useState<Set<number>>(new Set());
+    const [checkedSelectedQuestions, setCheckedSelectedQuestions] = useState<Set<number>>(new Set());
 
     const handleSubjectChange = (subjectId: string) => {
         setSelectedSubject(subjectId);
@@ -741,6 +731,12 @@ const CreateTest = () => {
         });
     };
 
+    // Add this helper function before the return statement
+    const isQuestionSelected = (questionId: number) => {
+        return selectedQuestions.some(q => q.id === questionId);
+    };
+
+    // Update the toggleQuestionSelection function
     const toggleQuestionSelection = (question: Question) => {
         if (selectedQuestions.find(q => q.id === question.id)) {
             setSelectedQuestions(prev => prev.filter(q => q.id !== question.id));
@@ -1267,6 +1263,75 @@ const CreateTest = () => {
         }
     };
 
+    // Add these new functions before the return statement
+    const handleCheckAvailableQuestion = (questionId: number) => {
+        setCheckedAvailableQuestions(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(questionId)) {
+                newSet.delete(questionId);
+            } else {
+                newSet.add(questionId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleCheckSelectedQuestion = (questionId: number) => {
+        setCheckedSelectedQuestions(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(questionId)) {
+                newSet.delete(questionId);
+            } else {
+                newSet.add(questionId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleAddSelectedQuestions = () => {
+        const questionsToAdd = filteredQuestions.filter(q => checkedAvailableQuestions.has(q.id));
+        setSelectedQuestions(prev => [...prev, ...questionsToAdd]);
+        setCheckedAvailableQuestions(new Set()); // Clear checked questions
+    };
+
+    const handleRemoveSelectedQuestions = () => {
+        setSelectedQuestions(prev => prev.filter(q => !checkedSelectedQuestions.has(q.id)));
+        setCheckedSelectedQuestions(new Set()); // Clear checked questions
+    };
+
+    // Add these new functions before the return statement
+    const handleAddAllCheckedQuestions = () => {
+        const questionsToAdd = filteredQuestions.filter(q => checkedAvailableQuestions.has(q.id));
+        setSelectedQuestions(prev => [...prev, ...questionsToAdd]);
+        setCheckedAvailableQuestions(new Set()); // Clear checked questions
+    };
+
+    const handleRemoveAllCheckedQuestions = () => {
+        setSelectedQuestions(prev => prev.filter(q => !checkedSelectedQuestions.has(q.id)));
+        setCheckedSelectedQuestions(new Set()); // Clear checked questions
+    };
+
+    // Add these functions before the return statement
+    const handleAddAll = () => {
+        const availableQuestions = getPagedQuestions(filteredQuestions, availableQuestionsPage, itemsPerPage);
+        setSelectedQuestions(prev => {
+            const newQuestions = [...prev];
+            availableQuestions.forEach(question => {
+                if (!newQuestions.some(q => q.id === question.id)) {
+                    newQuestions.push(question);
+                }
+            });
+            return newQuestions;
+        });
+    };
+
+    const handleRemoveAll = () => {
+        const currentPageQuestions = selectedQuestions
+            .slice((selectedQuestionsPage - 1) * itemsPerPage, selectedQuestionsPage * itemsPerPage)
+            .map(q => q.id);
+        setSelectedQuestions(prev => prev.filter(q => !currentPageQuestions.includes(q.id)));
+    };
+
     return (
         <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
             {/* Alert message */}
@@ -1408,490 +1473,73 @@ const CreateTest = () => {
                         </div>
 
                         {/* Available Questions List */}
-                        <div className="p-6.5 border-b border-stroke dark:border-strokedark">
-                            <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-medium text-black dark:text-white">
-                                    Available Questions
-                                </h4>
-                                <div className="flex gap-4 items-center">
-                                    <input
-                                        type="text"
-                                        placeholder="Search questions..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
-                                    />
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setShowBloomsLevels(!showBloomsLevels)}
-                                            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
-                                        >
-                                            <span>Bloom's Levels</span>
-                                            <svg
-                                                className={`w-4 h-4 transform transition-transform duration-200 ${showBloomsLevels ? 'rotate-180' : ''}`}
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M19 9l-7 7-7-7"
-                                                />
-                                            </svg>
-                                        </button>
+                        <AnswerBlock
+                            title="Available Questions"
+                            questions={getPagedQuestions(filteredQuestions, availableQuestionsPage, itemsPerPage)}
+                            currentPage={availableQuestionsPage}
+                            itemsPerPage={itemsPerPage}
+                            totalItems={filteredQuestions.filter(q => !selectedQuestions.some(sq => sq.id === q.id)).length}
+                            onPageChange={(page) => setAvailableQuestionsPage(page)}
+                            onItemsPerPageChange={(items) => {
+                                setItemsPerPage(items);
+                                setAvailableQuestionsPage(1);
+                                setSelectedQuestionsPage(1);
+                            }}
+                            onQuestionClick={handleQuestionClick}
+                            onToggleQuestion={toggleQuestionSelection}
+                            isQuestionSelected={isQuestionSelected}
+                            onRemoveAll={handleAddAll}
+                            editedQuestions={editedQuestions}
+                        />
 
-                                        {showBloomsLevels && (
-                                            <div className="absolute top-full right-0 mt-2 w-80 bg-[#C0C0C0] dark:bg-boxdark rounded-sm shadow-lg z-50 p-4">
-                                                <div className="flex flex-wrap gap-2">
-                                                    {bloomsLevels.map(level => (
-                                                        <button
-                                                            key={level}
-                                                            onClick={() => toggleLevel(level)}
-                                                            className={`px-3 py-1 rounded-full text-sm ${selectedLevels.includes(level)
-                                                                ? 'bg-primary text-white'
-                                                                : 'bg-white dark:bg-meta-4 hover:bg-gray-100 dark:hover:bg-meta-3'
-                                                                }`}
-                                                        >
-                                                            {level}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="relative">
-                                        <select
-                                            value={selectedBankId}
-                                            onChange={(e) => setSelectedBankId(e.target.value)}
-                                            className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none"
-                                        >
-                                            <option value="">All Banks</option>
-                                            {renderBankOptions(questionBanks)}
-                                        </select>
-                                    </div>
-                                    <svg
-                                        className={`w-4 h-4 transform transition-transform duration-200 cursor-pointer ${showQuestionBank ? 'rotate-180' : ''
-                                            }`}
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        onClick={() => setShowQuestionBank(!showQuestionBank)}
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth="2"
-                                            d="M19 9l-7 7-7-7"
-                                        />
-                                    </svg>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                {/* Add Column Headers */}
-                                <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-meta-4 rounded-sm">
-                                    <div className="flex-1">
-                                        <span className="font-medium text-black dark:text-white">Question</span>
-                                    </div>
-                                    <div className="flex items-center gap-8">
-                                        <span className="font-medium text-black dark:text-white w-24 text-center">Difficulty</span>
-                                        <span className="font-medium text-black dark:text-white w-24 text-center">Taxonomy</span>
-                                        <span className="w-12"></span>
-                                    </div>
-                                </div>
-
-                                {getPagedQuestions(filteredQuestions, availableQuestionsPage, itemsPerPage)
-                                    .map((question, index) => {
-                                        const questionNumber = ((availableQuestionsPage - 1) * itemsPerPage) + index + 1;
-
-                                        return (
-                                            <div
-                                                key={question.id}
-                                                className="p-4 border rounded-sm dark:border-strokedark"
-                                            >
-                                                <div className="flex justify-between items-start">
-                                                    <div className="flex gap-4 flex-1">
-                                                        <span className="text-gray-500">{questionNumber}.</span>
-                                                        <div className="flex-1">
-                                                            <div
-                                                                className="cursor-pointer hover:text-primary"
-                                                                onClick={() => handleQuestionClick(question)}
-                                                            >
-                                                                {sanitizeHtml(question.question_text)}
-                                                            </div>
-                                                            {question.statistics && (
-                                                                <span className="text-xs text-gray-500 ml-2">
-                                                                    (D: {question.statistics.scaled_difficulty.toFixed(2)},
-                                                                    Disc: {question.statistics.scaled_discrimination.toFixed(2)})
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-8">
-                                                        <span className="text-sm text-gray-500 w-24 text-center">
-                                                            N/A
-                                                        </span>
-                                                        <span className="text-sm text-gray-500 w-24 text-center">
-                                                            {question.taxonomies?.find((tax: Taxonomy) => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => toggleQuestionSelection(question)}
-                                                            className="text-success hover:text-meta-3 w-12"
-                                                        >
-                                                            Add
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                            </div>
-
-                            <Pagination
-                                totalItems={filteredQuestions.filter(q => !selectedQuestions.some(sq => sq.id === q.id)).length}
+                        {/* Selected Questions Section */}
+                        {selectedQuestions.length > 0 && (
+                            <AnswerBlock
+                                title="Selected Questions"
+                                questions={selectedQuestions}
+                                currentPage={selectedQuestionsPage}
                                 itemsPerPage={itemsPerPage}
-                                currentPage={availableQuestionsPage}
-                                onPageChange={(page) => setAvailableQuestionsPage(page)}
+                                totalItems={selectedQuestions.length}
+                                onPageChange={(page) => setSelectedQuestionsPage(page)}
                                 onItemsPerPageChange={(items) => {
                                     setItemsPerPage(items);
                                     setAvailableQuestionsPage(1);
                                     setSelectedQuestionsPage(1);
                                 }}
+                                onQuestionClick={handleQuestionClick}
+                                onToggleQuestion={toggleQuestionSelection}
+                                isQuestionSelected={isQuestionSelected}
+                                showRemoveAll={true}
+                                onRemoveAll={handleRemoveAll}
+                                editedQuestions={editedQuestions}
                             />
-                        </div>
-
-                        {/* Selected Questions Section */}
-                        {selectedQuestions.length > 0 && (
-                            <div className="p-6.5">
-                                <h4 className="font-medium text-black dark:text-white mb-4">
-                                    Selected Questions ({selectedQuestions.length})
-                                </h4>
-                                <div className="space-y-4">
-                                    {/* Add Column Headers for Selected Questions */}
-                                    <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-meta-4 rounded-sm">
-                                        <div className="flex-1">
-                                            <span className="font-medium text-black dark:text-white">Question</span>
-                                        </div>
-                                        <div className="flex items-center gap-8">
-                                            <span className="font-medium text-black dark:text-white w-24 text-center">Difficulty</span>
-                                            <span className="font-medium text-black dark:text-white w-24 text-center">Taxonomy</span>
-                                            <span className="w-12"></span>
-                                        </div>
-                                    </div>
-
-                                    {selectedQuestions
-                                        .slice((selectedQuestionsPage - 1) * itemsPerPage, selectedQuestionsPage * itemsPerPage)
-                                        .map((question, index) => {
-                                            const questionNumber = ((selectedQuestionsPage - 1) * itemsPerPage) + index + 1;
-                                            return (
-                                                <div
-                                                    key={question.id}
-                                                    className="p-4 border rounded-sm dark:border-strokedark"
-                                                >
-                                                    <div className="flex justify-between items-start">
-                                                        <div className="flex gap-4 flex-1">
-                                                            <span className="text-gray-500">{questionNumber}.</span>
-                                                            <div className="flex-1">
-                                                                <div
-                                                                    className="cursor-pointer hover:text-primary"
-                                                                    onClick={() => handleQuestionClick(question)}
-                                                                >
-                                                                    {sanitizeHtml(question.question_text)}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-8">
-                                                            <span className="text-sm text-gray-500 w-24 text-center">
-                                                                {capitalizeFirstLetter(editedQuestions[question.id]?.difficulty || question.difficulty || 'N/A')}
-                                                            </span>
-                                                            <span className="text-sm text-gray-500 w-24 text-center">
-                                                                {editedQuestions[question.id]?.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level ||
-                                                                    question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
-                                                            </span>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    toggleQuestionSelection(question);
-                                                                }}
-                                                                className="text-danger hover:text-meta-1 w-12"
-                                                            >
-                                                                Remove
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                </div>
-
-                                <Pagination
-                                    totalItems={selectedQuestions.length}
-                                    itemsPerPage={itemsPerPage}
-                                    currentPage={selectedQuestionsPage}
-                                    onPageChange={(page) => setSelectedQuestionsPage(page)}
-                                    onItemsPerPageChange={(items) => {
-                                        setItemsPerPage(items);
-                                        setAvailableQuestionsPage(1);
-                                        setSelectedQuestionsPage(1);
-                                    }}
-                                />
-                            </div>
                         )}
                     </div>
 
                     {/* Question Distribution Section */}
-                    <div className="mt-6 rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-                        <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                            <h3 className="font-medium text-black dark:text-white">
-                                Question Distribution
-                            </h3>
-                        </div>
-
-                        <div className="p-6.5">
-                            <div className="grid grid-cols-1 gap-6">
-
-                                {/* Distribution Table */}
-                                <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead>
-                                            <tr className="bg-gray-2 dark:bg-meta-4">
-                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                                    Taxonomy Level
-                                                </th>
-                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                                    Easy
-                                                </th>
-                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                                    Medium
-                                                </th>
-                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                                    Hard
-                                                </th>
-                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                                    Total
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].map(taxonomy => {
-                                                const difficulties = calculateDistribution()[taxonomy];
-                                                const rowTotal = Object.values(difficulties).reduce((sum, count) => sum + count, 0);
-
-                                                return (
-                                                    <tr key={taxonomy}>
-                                                        <td className="py-3 px-4 border-b border-[#eee] dark:border-strokedark">
-                                                            {taxonomy}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
-                                                            {difficulties.easy}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
-                                                            {difficulties.medium}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
-                                                            {difficulties.hard}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark font-medium">
-                                                            {rowTotal}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                            {/* Total Row */}
-                                            <tr className="bg-gray-2 dark:bg-meta-4">
-                                                <td className="py-3 px-4 font-medium">Total</td>
-                                                <td className="py-3 px-4 text-center font-medium">
-                                                    {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.easy, 0)}
-                                                </td>
-                                                <td className="py-3 px-4 text-center font-medium">
-                                                    {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.medium, 0)}
-                                                </td>
-                                                <td className="py-3 px-4 text-center font-medium">
-                                                    {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.hard, 0)}
-                                                </td>
-                                                <td className="py-3 px-4 text-center font-medium">
-                                                    {selectedQuestions.length}
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <QuestionDistribution
+                        selectedQuestions={selectedQuestions}
+                        editedQuestions={editedQuestions}
+                    />
 
                     {/* Preview Block */}
-                    <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mt-6">
-                        <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                            <h3 className="font-medium text-black dark:text-white">
-                                Preview
-                            </h3>
-                        </div>
-
-                        <div className="p-6.5">
-                            {/* Test Configuration */}
-                            <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
-                                <h4 className="text-lg font-medium text-black dark:text-white mb-4">
-                                    Test Configuration
-                                </h4>
-                                <div className="flex gap-6 flex-wrap items-end">
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Letter Case
-                                        </label>
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'uppercase' }))}
-                                                className={`px-4 py-2 rounded ${answerFormat.case === 'uppercase'
-                                                    ? 'bg-primary text-white'
-                                                    : 'bg-white dark:bg-meta-4 border border-stroke'
-                                                    }`}
-                                            >
-                                                ABC
-                                            </button>
-                                            <button
-                                                onClick={() => setAnswerFormat(prev => ({ ...prev, case: 'lowercase' }))}
-                                                className={`px-4 py-2 rounded ${answerFormat.case === 'lowercase'
-                                                    ? 'bg-primary text-white'
-                                                    : 'bg-white dark:bg-meta-4 border border-stroke'
-                                                    }`}
-                                            >
-                                                abc
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Separator
-                                        </label>
-                                        <div className="flex gap-3">
-                                            {[')', '.', '/'].map(separator => (
-                                                <button
-                                                    key={separator}
-                                                    onClick={() => setAnswerFormat(prev => ({ ...prev, separator }))}
-                                                    className={`px-4 py-2 rounded ${answerFormat.separator === separator
-                                                        ? 'bg-primary text-white'
-                                                        : 'bg-white dark:bg-meta-4 border border-stroke'
-                                                        }`}
-                                                >
-                                                    A{separator}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Question Order
-                                        </label>
-                                        <button
-                                            onClick={handleShuffleQuestions}
-                                            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary py-2 px-4 text-white hover:bg-opacity-90"
-                                        >
-                                            <svg
-                                                className="w-4 h-4"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                                />
-                                            </svg>
-                                            Shuffle Questions
-                                        </button>
-                                    </div>
-
-                                    <div>
-                                        <label className="mb-2.5 block text-black dark:text-white">
-                                            Correct Answers
-                                        </label>
-                                        <div className="flex items-center gap-2 h-[38px]">
-                                            <button
-                                                onClick={() => setIncludeKey(!includeKey)}
-                                                className="relative w-[46px] h-[24px] rounded-full transition-colors duration-300 ease-in-out focus:outline-none"
-                                                style={{
-                                                    backgroundColor: includeKey ? '#4318FF' : '#E2E8F0'
-                                                }}
-                                            >
-                                                <div
-                                                    className={`absolute top-[2px] left-[2px] w-[20px] h-[20px] rounded-full bg-white shadow-md transform transition-transform duration-300 ease-in-out
-                                                        ${includeKey ? 'translate-x-[22px]' : 'translate-x-0'}`}
-                                                />
-                                            </button>
-                                            <span className="text-sm text-black dark:text-white">
-                                                {includeKey ? 'Show' : 'Hide'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Test Preview */}
-                            <div className="border border-stroke dark:border-strokedark rounded-sm p-6 relative">
-                                <div className="mb-4 flex justify-between items-center">
-                                    <h4 className="text-lg font-medium text-black dark:text-white">
-                                        Test Preview
-                                    </h4>
-                                </div>
-
-                                {/* Preview Sample */}
-                                <div className="space-y-4">
-                                    {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions)
-                                        .slice(0, previewShowAll ? undefined : 2).map((question, index) => {
-                                            // Get the edited version of the question if it exists
-                                            const editedQuestion = editedQuestions[question.id];
-                                            const questionToShow = editedQuestion || question;
-
-                                            // Filter out hidden answers
-                                            const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
-                                                !editedQuestion?.hiddenAnswers?.[idx]
-                                            );
-
-                                            return (
-                                                <div key={index} className="space-y-2">
-                                                    <div className="font-medium">
-                                                        Question {index + 1}: {sanitizeHtml(questionToShow.question_text)}
-                                                    </div>
-                                                    <div className="pl-4 space-y-1">
-                                                        {visibleAnswers?.map((answer, ansIndex) => (
-                                                            <div key={ansIndex}>
-                                                                {answerFormat.case === 'uppercase'
-                                                                    ? String.fromCharCode(65 + ansIndex)
-                                                                    : String.fromCharCode(97 + ansIndex)}
-                                                                {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                </div>
-
-                                {/* Update the message at the bottom with a more visible button */}
-                                {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions).length > 2 && (
-                                    <div className="mt-4 text-sm text-gray-500">
-                                        {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions).length - 2} more question{shuffledQuestions.length - 2 !== 1 ? 's' : ''} not shown.
-                                        <button
-                                            onClick={handleShowAllQuestions}
-                                            className="ml-2 px-3 py-1 bg-primary text-white rounded-md text-xs hover:bg-opacity-90"
-                                        >
-                                            Preview All
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-
+                    <PreviewBlock
+                        testData={testData}
+                        selectedQuestions={selectedQuestions}
+                        shuffledQuestions={shuffledQuestions}
+                        editedQuestions={editedQuestions}
+                        answerFormat={answerFormat}
+                        previewDialogOpen={previewDialogOpen}
+                        setPreviewDialogOpen={setPreviewDialogOpen}
+                        previewShowAll={previewShowAll}
+                        setPreviewShowAll={setPreviewShowAll}
+                        previewPage={previewPage}
+                        setPreviewPage={setPreviewPage}
+                        handleShuffleQuestions={handleShuffleQuestions}
+                        includeKey={includeKey}
+                        setIncludeKey={setIncludeKey}
+                        setAnswerFormat={setAnswerFormat}
+                    />
 
                     {/* Export Buttons - REMOVED Save Draft button */}
                     <div className="mt-6 flex gap-4">
@@ -1981,7 +1629,7 @@ const CreateTest = () => {
                 open={isQuestionDialogOpen}
                 onClose={() => {
                     setIsQuestionDialogOpen(false);
-                    setEditMode(false);  // Reset edit mode when closing dialog
+                    setEditMode(false);
                 }}
                 className="relative z-50"
             >
@@ -2207,64 +1855,7 @@ const CreateTest = () => {
                 </div>
             </Dialog>
 
-            {/* Preview Dialog */}
-            <Dialog
-                open={previewDialogOpen}
-                onClose={() => {
-                    setPreviewDialogOpen(false);
-                    setPreviewShowAll(false);
-                    setPreviewPage(1);
-                }}
-                className="relative z-[100]"
-            >
-                <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
-                <div className="fixed inset-0 flex items-center justify-center">
-                    <div
-                        className="w-[90%] max-w-2xl bg-white dark:bg-boxdark rounded-lg shadow-lg p-8 max-h-[80vh] overflow-y-auto"
-                        role="dialog"
-                        aria-modal="true"
-                    >
-                        <div className="flex justify-between items-center mb-8">
-                            <h2 className="text-2xl font-semibold text-black dark:text-white">
-                                {testData.title || 'Untitled Test'}
-                            </h2>
-                            <button
-                                onClick={() => setPreviewDialogOpen(false)}
-                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-
-                        <div className="space-y-6">
-                            {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions)
-                                .map((question, index) => (
-                                    <div key={index} className="space-y-3">
-                                        <div className="font-medium text-black dark:text-white">
-                                            Question {index + 1}: {sanitizeHtml(question.question_text)}
-                                        </div>
-                                        <div className="pl-6 space-y-2">
-                                            {question.answers?.map((answer, ansIndex) => (
-                                                <div
-                                                    key={ansIndex}
-                                                    className="text-black dark:text-white"
-                                                >
-                                                    {answerFormat.case === 'uppercase'
-                                                        ? String.fromCharCode(65 + ansIndex)
-                                                        : String.fromCharCode(97 + ansIndex)}
-                                                    {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
-                        </div>
-                    </div>
-                </div>
-            </Dialog>
 
             {/* Last saved indicator */}
             {testData.lastSaved && (
