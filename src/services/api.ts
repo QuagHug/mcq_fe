@@ -519,4 +519,47 @@ export const fetchBankQuestions = async (courseId: string, bankId: string) => {
     console.error('Error fetching bank questions:', error);
     throw error;
   }
+};
+
+/**
+ * Fetch question groups for a specific question bank
+ * @param courseId - The ID of the course
+ * @param bankId - The ID of the question bank
+ * @returns Promise containing the question groups in the bank
+ */
+export const fetchQuestionGroups = async (courseId: string, bankId: string) => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/groups/`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  if (!response.ok) throw new Error('Failed to fetch question groups');
+  return response.json();
+};
+
+/**
+ * Create a new question group
+ * @param courseId - The ID of the course
+ * @param bankId - The ID of the question bank
+ * @param groupData - The data for the new question group
+ * @returns Promise containing the created question group
+ */
+export const createQuestionGroup = async (courseId: string, bankId: string, groupData: { name: string, context: string }) => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/groups/`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(groupData)
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Failed to create question group');
+  }
+  
+  return response.json();
 }; 
