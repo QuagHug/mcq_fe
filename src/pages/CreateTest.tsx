@@ -14,7 +14,7 @@ import {
     fetchQuestionGroups,
     fetchQuestionGroup
 } from '../services/api';
-import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 import { Dialog } from '@headlessui/react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
@@ -795,121 +795,207 @@ const CreateTest = () => {
 
     // Update the exportToWord function
     const exportToWord = async () => {
-        if (!testData.title.trim()) {
-            setAlertMessage('Please add a title before exporting');
-            setAlertType('warning');
-            setShowAlert(true);
-
-            // Auto-hide after 3 seconds
-            setTimeout(() => {
-                setShowAlert(false);
-            }, 3000);
-
-            // Scroll to title input
-            setTimeout(() => {
-                scrollToElement(titleInputRef.current);
-            }, 100);
-            return;
-        }
-
-        if (selectedQuestions.length === 0) {
-            setAlertMessage('Please select at least one question before exporting');
-            setAlertType('warning');
-            setShowAlert(true);
-
-            // Auto-hide after 3 seconds
-            setTimeout(() => {
-                setShowAlert(false);
-            }, 3000);
-
-            // Scroll to questions section
-            setTimeout(() => {
-                scrollToElement(questionsSectionRef.current);
-            }, 100);
-            return;
-        }
-
-        // Prepare questions array - shuffle if needed
-        const questionsToExport = shuffleQuestions
-            ? [...selectedQuestions].sort(() => Math.random() - 0.5)
-            : selectedQuestions;
-
-        const doc = new Document({
-            sections: [{
-                properties: {},
-                children: [
-                    new Paragraph({
-                        children: [
-                            new TextRun({
-                                text: testData.title,
-                                bold: true,
-                                size: 32,
-                            }),
-                        ],
-                        spacing: { after: 400 },
-                    }),
-
-                    ...(testData.description ? [
+        try {
+            // Debug logging for groups
+            console.log("=== DEBUG: WORD EXPORT START ===");
+            
+            const questionsToExport = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
+            
+            // Group questions by their group ID
+            const grouped = {};
+            const standalone = [];
+            
+            questionsToExport.forEach(q => {
+                if (q.question_group_id) {
+                    const groupId = q.question_group_id;
+                    if (!grouped[groupId]) {
+                        grouped[groupId] = [];
+                    }
+                    grouped[groupId].push(q);
+                } else {
+                    standalone.push(q);
+                }
+            });
+            
+            // Debug logging
+            console.log("Question groups found:", Object.keys(grouped).length);
+            console.log("Standalone questions:", standalone.length);
+            console.log("Question groups map:", questionGroupsMap);
+            console.log("Grouped questions:", grouped);
+            
+            // Continue with existing code...
+            const shuffleAnswers = testData.shuffle_answers ?? false;
+            
+            const doc = new Document({
+                sections: [{
+                    properties: {},
+                    children: [
                         new Paragraph({
                             children: [
                                 new TextRun({
-                                    text: testData.description.replace(/<[^>]+>/g, ''),
+                                    text: testData.title,
+                                    bold: true,
+                                    size: 32,
                                 }),
                             ],
                             spacing: { after: 400 },
                         }),
-                    ] : []),
 
-                    ...questionsToExport.flatMap((question, index) => {
-                        // For each question, prepare its answers - shuffle if needed
-                        const questionAnswers = shuffleAnswers
-                            ? [...(question.answers || [])].sort(() => Math.random() - 0.5)
-                            : question.answers || [];
-
-                        return [
-                            // Question text
+                        ...(testData.description ? [
                             new Paragraph({
                                 children: [
                                     new TextRun({
-                                        text: `Question ${index + 1}: `,
-                                        bold: true,
-                                    }),
-                                    new TextRun({
-                                        text: question.question_text.replace(/<[^>]+>/g, ''),
+                                        text: testData.description.replace(/<[^>]+>/g, ''),
                                     }),
                                 ],
-                                spacing: { before: 400, after: 200 },
+                                spacing: { after: 400 },
                             }),
-
-                            // Answers
-                            ...questionAnswers.map((answer, ansIndex) =>
+                        ] : []),
+                        
+                        // First add grouped questions
+                        ...Object.entries(grouped).flatMap(([groupIdStr, groupQuestions]) => {
+                            const groupId = parseInt(groupIdStr);
+                            const group = questionGroupsMap[groupId];
+                            
+                            console.log(`Processing group ${groupId}:`, group);
+                            
+                            if (!group) {
+                                console.warn(`Group ${groupId} not found in questionGroupsMap`);
+                                return [];
+                            }
+                            
+                            // Start with group title and context
+                            const groupElements = [
+                                // Group title
                                 new Paragraph({
                                     children: [
                                         new TextRun({
-                                            text: `${String.fromCharCode(65 + ansIndex)}) `,
+                                            text: `Group: ${group.name}`,
+                                            bold: true,
+                                            size: 28,
+                                        }),
+                                    ],
+                                    spacing: { before: 600, after: 200 },
+                                })
+                            ];
+                            
+                            // Add context if available
+                            if (group.context) {
+                                groupElements.push(
+                                    new Paragraph({
+                                        children: [
+                                            new TextRun({
+                                                text: "Context:",
+                                                bold: true,
+                                            }),
+                                        ],
+                                        spacing: { before: 200, after: 100 },
+                                    }),
+                                    new Paragraph({
+                                        children: [
+                                            new TextRun({
+                                                text: group.context.replace(/<[^>]+>/g, ''),
+                                            }),
+                                        ],
+                                        spacing: { after: 400 },
+                                    })
+                                );
+                            }
+                            
+                            // Add questions in this group
+                            groupQuestions.forEach((question, index) => {
+                                const questionAnswers = shuffleAnswers
+                                    ? [...(question.answers || [])].sort(() => Math.random() - 0.5)
+                                    : question.answers || [];
+                                
+                                groupElements.push(
+                                    // Question text
+                                    new Paragraph({
+                                        children: [
+                                            new TextRun({
+                                                text: `Question ${index + 1}: `,
+                                                bold: true,
+                                            }),
+                                            new TextRun({
+                                                text: question.question_text.replace(/<[^>]+>/g, ''),
+                                            }),
+                                        ],
+                                        spacing: { before: 400, after: 200 },
+                                    }),
+                                    
+                                    // Answers
+                                    ...questionAnswers.map((answer, ansIndex) =>
+                                        new Paragraph({
+                                            children: [
+                                                new TextRun({
+                                                    text: `${String.fromCharCode(65 + ansIndex)}) `,
+                                                    bold: true,
+                                                }),
+                                                new TextRun({
+                                                    text: answer.answer_text.replace(/<[^>]+>/g, ''),
+                                                }),
+                                            ],
+                                            indent: { left: 720 },
+                                            spacing: { before: 100, after: 100 },
+                                        })
+                                    )
+                                );
+                            });
+                            
+                            console.log(`Added ${groupElements.length} elements for group ${groupId}`);
+                            return groupElements;
+                        }),
+                        
+                        // Then add standalone questions
+                        ...standalone.flatMap((question, index) => {
+                            // For each question, prepare its answers - shuffle if needed
+                            const questionAnswers = shuffleAnswers
+                                ? [...(question.answers || [])].sort(() => Math.random() - 0.5)
+                                : question.answers || [];
+
+                            return [
+                                // Question text
+                                new Paragraph({
+                                    children: [
+                                        new TextRun({
+                                            text: `Question ${index + 1}: `,
                                             bold: true,
                                         }),
                                         new TextRun({
-                                            text: answer.answer_text.replace(/<[^>]+>/g, ''),
+                                            text: question.question_text.replace(/<[^>]+>/g, ''),
                                         }),
                                     ],
-                                    indent: { left: 720 },
-                                    spacing: { before: 100, after: 100 },
-                                })
-                            ),
-                        ];
-                    }),
-                ],
-            }],
-        });
+                                    spacing: { before: 400, after: 200 },
+                                }),
 
-        try {
-            const blob = await Packer.toBlob(doc);
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            saveAs(blob, `${testData.title.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}.docx`);
-        } catch (err) {
-            console.error('Error generating document:', err);
-            setError('Failed to generate document');
+                                // Answers
+                                ...questionAnswers.map((answer, ansIndex) =>
+                                    new Paragraph({
+                                        children: [
+                                            new TextRun({
+                                                text: `${String.fromCharCode(65 + ansIndex)}) `,
+                                                bold: true,
+                                            }),
+                                            new TextRun({
+                                                text: answer.answer_text.replace(/<[^>]+>/g, ''),
+                                            }),
+                                        ],
+                                        indent: { left: 720 },
+                                        spacing: { before: 100, after: 100 },
+                                    })
+                                ),
+                            ];
+                        }),
+                    ],
+                }],
+            });
+
+            Packer.toBlob(doc).then(blob => {
+                console.log("Word document generated successfully!");
+                saveAs(blob, `${testData.title || 'test'}.docx`);
+            });
+        } catch (error) {
+            console.error("Error generating Word document:", error);
         }
     };
 
@@ -1449,6 +1535,243 @@ const CreateTest = () => {
             fetchAllQuestionGroups();
         }
     }, [selectedCourse, questionBanks]);
+
+    const generateTestContent = () => {
+        let content = `# ${testData.title}\n\n`;
+        content += `${testData.description}\n\n`;
+        
+        // Use the same grouping approach for export
+        const questionsToUse = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
+        
+        // Group questions by their group ID
+        const grouped: Record<number, Question[]> = {};
+        const standalone: Question[] = [];
+        
+        questionsToUse.forEach(q => {
+            if (q.question_group_id) {
+                const groupId = q.question_group_id;
+                if (!grouped[groupId]) {
+                    grouped[groupId] = [];
+                }
+                grouped[groupId].push(q);
+            } else {
+                standalone.push(q);
+            }
+        });
+        
+        let questionCounter = 1;
+        
+        // Add standalone questions
+        standalone.forEach(question => {
+            content += `\n## Question ${questionCounter++}: (${question.marks || 1} ${(question.marks || 1) === 1 ? 'mark' : 'marks'})\n\n`;
+            content += `${sanitizeHtml(question.question_text)}\n\n`;
+            
+            const questionAnswers = question.answers || [];
+            questionAnswers.forEach((answer, index) => {
+                const answerLabel = String.fromCharCode(65 + index); // A, B, C, etc.
+                content += `${answerLabel}. ${sanitizeHtml(answer.answer_text)}\n`;
+            });
+        });
+        
+        // Add grouped questions with their context
+        Object.entries(grouped).forEach(([groupIdStr, groupQuestions]) => {
+            const groupId = parseInt(groupIdStr);
+            const group = questionGroupsMap[groupId];
+            
+            if (group) {
+                content += `\n# Group: ${group.name}\n\n`;
+                
+                if (group.context) {
+                    content += `Context:\n${sanitizeHtml(group.context)}\n\n`;
+                }
+                
+                groupQuestions.forEach(question => {
+                    content += `\n## Question ${questionCounter++}: (${question.marks || 1} ${(question.marks || 1) === 1 ? 'mark' : 'marks'})\n\n`;
+                    content += `${sanitizeHtml(question.question_text)}\n\n`;
+                    
+                    const questionAnswers = question.answers || [];
+                    questionAnswers.forEach((answer, index) => {
+                        const answerLabel = String.fromCharCode(65 + index); // A, B, C, etc.
+                        content += `${answerLabel}. ${sanitizeHtml(answer.answer_text)}\n`;
+                    });
+                });
+            }
+        });
+        
+        return content;
+    };
+
+    const generateWordDocument = () => {
+        const doc = new Document({
+            sections: [
+                {
+                    properties: {},
+                    children: [
+                        new Paragraph({
+                            text: testData.title,
+                            heading: HeadingLevel.HEADING_1,
+                            spacing: {
+                                after: 200,
+                            },
+                        }),
+                        new Paragraph({
+                            text: testData.description,
+                            spacing: {
+                                after: 400,
+                            },
+                        }),
+                    ],
+                },
+            ],
+        });
+
+        const questionsToUse = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
+        
+        // Group questions by their group ID
+        const grouped = {};
+        const standalone = [];
+        
+        questionsToUse.forEach(q => {
+            if (q.question_group_id) {
+                const groupId = q.question_group_id;
+                if (!grouped[groupId]) {
+                    grouped[groupId] = [];
+                }
+                grouped[groupId].push(q);
+            } else {
+                standalone.push(q);
+            }
+        });
+        
+        let questionCounter = 1;
+        const mainSection = doc.sections[0]; // Define mainSection from the doc
+        
+        // Add standalone questions
+        standalone.forEach(question => {
+            const editedQuestion = editedQuestions[question.id];
+            const questionToUse = editedQuestion || question;
+            const visibleAnswers = questionToUse.answers?.filter((_, idx) => 
+                !editedQuestion?.hiddenAnswers?.[idx]
+            );
+
+            mainSection.children.push(
+                new Paragraph({
+                    text: `Question ${questionCounter++}: (${question.marks || 1} ${(question.marks || 1) === 1 ? 'mark' : 'marks'})`,
+                    heading: HeadingLevel.HEADING_2,
+                    spacing: {
+                        before: 400,
+                        after: 200,
+                    },
+                }),
+                new Paragraph({
+                    text: sanitizeHtml(questionToUse.question_text),
+                    spacing: {
+                        after: 200,
+                    },
+                })
+            );
+            
+            visibleAnswers.forEach((answer, index) => {
+                const answerLabel = answerFormat.case === 'uppercase'
+                    ? String.fromCharCode(65 + index)  // A, B, C, etc.
+                    : String.fromCharCode(97 + index); // a, b, c, etc.
+                
+                mainSection.children.push(
+                    new Paragraph({
+                        text: `${answerLabel}${answerFormat.separator} ${sanitizeHtml(answer.answer_text)}`,
+                        spacing: {
+                            after: 100,
+                        },
+                    })
+                );
+            });
+        });
+
+        // Add grouped questions with their context
+        Object.entries(grouped).forEach(([groupIdStr, groupQuestions]) => {
+            const groupId = parseInt(groupIdStr);
+            const group = questionGroupsMap[groupId];
+            
+            if (group) {
+                // Add group title
+                mainSection.children.push(
+                    new Paragraph({
+                        text: `Group: ${group.name}`,
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: {
+                            before: 600,
+                            after: 200,
+                        },
+                    })
+                );
+                
+                // Add context if available
+                if (group.context) {
+                    mainSection.children.push(
+                        new Paragraph({
+                            text: "Context:",
+                            heading: HeadingLevel.HEADING_3,
+                            spacing: {
+                                before: 200,
+                                after: 100,
+                            },
+                        }),
+                        new Paragraph({
+                            text: sanitizeHtml(group.context),
+                            spacing: {
+                                after: 400,
+                            },
+                        })
+                    );
+                }
+
+                // Process each question in the group
+                groupQuestions.forEach(question => {
+                    const editedQuestion = editedQuestions[question.id];
+                    const questionToUse = editedQuestion || question;
+                    const visibleAnswers = questionToUse.answers?.filter((_, idx) => 
+                        !editedQuestion?.hiddenAnswers?.[idx]
+                    );
+                    
+                    mainSection.children.push(
+                        new Paragraph({
+                            text: `Question ${questionCounter++}: (${question.marks || 1} ${(question.marks || 1) === 1 ? 'mark' : 'marks'})`,
+                            heading: HeadingLevel.HEADING_2,
+                            spacing: {
+                                before: 400,
+                                after: 200,
+                            },
+                        }),
+                        new Paragraph({
+                            text: sanitizeHtml(questionToUse.question_text),
+                            spacing: {
+                                after: 200,
+                            },
+                        })
+                    );
+                    
+                    visibleAnswers.forEach((answer, index) => {
+                        const answerLabel = answerFormat.case === 'uppercase'
+                            ? String.fromCharCode(65 + index)  // A, B, C, etc.
+                            : String.fromCharCode(97 + index); // a, b, c, etc.
+                        
+                        mainSection.children.push(
+                            new Paragraph({
+                                text: `${answerLabel}${answerFormat.separator} ${sanitizeHtml(answer.answer_text)}`,
+                                spacing: {
+                                    after: 100,
+                                },
+                            })
+                        );
+                    });
+                });
+            }
+        });
+
+        Packer.toBlob(doc).then(blob => {
+            saveAs(blob, `${testData.title || 'test'}.docx`);
+        });
+    };
 
     return (
         <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
@@ -2116,35 +2439,111 @@ const CreateTest = () => {
 
                                 {/* Preview Sample */}
                                 <div className="space-y-4">
-                                    {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions)
-                                        .slice(0, previewShowAll ? undefined : 2).map((question, index) => {
-                                            // Get the edited version of the question if it exists
-                                            const editedQuestion = editedQuestions[question.id];
-                                            const questionToShow = editedQuestion || question;
-
-                                            // Filter out hidden answers
-                                            const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
-                                                !editedQuestion?.hiddenAnswers?.[idx]
-                                            );
-
-                                            return (
-                                                <div key={index} className="space-y-2">
-                                                    <div className="font-medium">
-                                                        Question {index + 1}: {sanitizeHtml(questionToShow.question_text)}
-                                                    </div>
-                                                    <div className="pl-4 space-y-1">
-                                                        {visibleAnswers?.map((answer, ansIndex) => (
-                                                            <div key={ansIndex}>
-                                                                {answerFormat.case === 'uppercase'
-                                                                    ? String.fromCharCode(65 + ansIndex)
-                                                                    : String.fromCharCode(97 + ansIndex)}
-                                                                {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                    {(() => {
+                                        const questionsToShow = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
+                                        
+                                        // Group questions by their group_id for the sample preview
+                                        const grouped = {};
+                                        const standalone = [];
+                                        
+                                        // Take first few questions for preview
+                                        questionsToShow.slice(0, previewShowAll ? undefined : 2).forEach(q => {
+                                            if (q.question_group_id) {
+                                                const groupId = q.question_group_id;
+                                                if (!grouped[groupId]) {
+                                                    grouped[groupId] = [];
+                                                }
+                                                grouped[groupId].push(q);
+                                            } else {
+                                                standalone.push(q);
+                                            }
+                                        });
+                                        
+                                        return (
+                                            <>
+                                                {/* Show grouped questions first in the sample preview */}
+                                                {Object.entries(grouped).map(([groupIdStr, groupQuestions]) => {
+                                                    const groupId = parseInt(groupIdStr);
+                                                    const group = questionGroupsMap[groupId];
+                                                    
+                                                    return (
+                                                        <div key={`sample-${groupId}`} className="mb-4 border border-gray-200 dark:border-boxdark rounded-sm">
+                                                            {/* Group title - display prominently */}
+                                                            <div className="p-2 bg-gray-100 dark:bg-meta-4 font-semibold border-b border-gray-200 dark:border-boxdark">
+                                                                {group?.name || `Question Group ${groupId}`}
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                                            
+                                                            {/* Group context - show with some styling */}
+                                                            {group?.context && (
+                                                                <div className="p-2 bg-gray-50 dark:bg-boxdark-2 border-b border-gray-200 dark:border-boxdark">
+                                                                    <div className="text-sm font-medium">Context:</div>
+                                                                    <div className="text-sm line-clamp-2" dangerouslySetInnerHTML={{ 
+                                                                        __html: group.context 
+                                                                    }} />
+                                                                </div>
+                                                            )}
+                                                            
+                                                            {/* Questions in this group */}
+                                                            <div className="p-2">
+                                                                {groupQuestions.map((question, qIndex) => {
+                                                                    const editedQuestion = editedQuestions[question.id];
+                                                                    const questionToShow = editedQuestion || question;
+                                                                    const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
+                                                                        !editedQuestion?.hiddenAnswers?.[idx]
+                                                                    );
+                                                                    
+                                                                    return (
+                                                                        <div key={question.id} className="mb-2 last:mb-0">
+                                                                            <div className="font-medium">
+                                                                                Question {qIndex + 1}: {sanitizeHtml(questionToShow.question_text)}
+                                                                            </div>
+                                                                            <div className="pl-4 space-y-1">
+                                                                                {visibleAnswers?.map((answer, ansIndex) => (
+                                                                                    <div key={ansIndex}>
+                                                                                        {answerFormat.case === 'uppercase'
+                                                                                            ? String.fromCharCode(65 + ansIndex)
+                                                                                            : String.fromCharCode(97 + ansIndex)}
+                                                                                        {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                                                    </div>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                
+                                                {/* Show standalone questions */}
+                                                {standalone.map((question, index) => {
+                                                    const editedQuestion = editedQuestions[question.id];
+                                                    const questionToShow = editedQuestion || question;
+                                                    const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
+                                                        !editedQuestion?.hiddenAnswers?.[idx]
+                                                    );
+                                                    
+                                                    return (
+                                                        <div key={question.id} className="space-y-2">
+                                                            <div className="font-medium">
+                                                                Question {index + 1}: {sanitizeHtml(questionToShow.question_text)}
+                                                            </div>
+                                                            <div className="pl-4 space-y-1">
+                                                                {visibleAnswers?.map((answer, ansIndex) => (
+                                                                    <div key={ansIndex}>
+                                                                        {answerFormat.case === 'uppercase'
+                                                                            ? String.fromCharCode(65 + ansIndex)
+                                                                            : String.fromCharCode(97 + ansIndex)}
+                                                                        {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Update the message at the bottom with a more visible button */}
@@ -2512,27 +2911,116 @@ const CreateTest = () => {
                                                                 </div>
 
                         <div className="space-y-6">
-                            {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions)
-                                .map((question, index) => (
-                                    <div key={index} className="space-y-3">
-                                        <div className="font-medium text-black dark:text-white">
-                                            Question {index + 1}: {sanitizeHtml(question.question_text)}
-                                                            </div>
-                                        <div className="pl-6 space-y-2">
-                                            {question.answers?.map((answer, ansIndex) => (
-                                                <div
-                                                    key={ansIndex}
-                                                    className="text-black dark:text-white"
-                                                >
-                                                    {answerFormat.case === 'uppercase'
-                                                        ? String.fromCharCode(65 + ansIndex)
-                                                        : String.fromCharCode(97 + ansIndex)}
-                                                    {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                            {(() => {
+                                const questionsToShow = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
+                                
+                                // Group questions by their group_id for the full preview
+                                const grouped = {};
+                                const standalone = [];
+                                
+                                questionsToShow.forEach(q => {
+                                    if (q.question_group_id) {
+                                        const groupId = q.question_group_id;
+                                        if (!grouped[groupId]) {
+                                            grouped[groupId] = [];
+                                        }
+                                        grouped[groupId].push(q);
+                                    } else {
+                                        standalone.push(q);
+                                    }
+                                });
+                                
+                                return (
+                                    <>
+                                        {/* Show grouped questions first */}
+                                        {Object.entries(grouped).map(([groupIdStr, groupQuestions]) => {
+                                            const groupId = parseInt(groupIdStr);
+                                            const group = questionGroupsMap[groupId];
+                                            
+                                            return (
+                                                <div key={`full-preview-group-${groupId}`} className="mb-6 border border-gray-200 dark:border-boxdark rounded-md">
+                                                    {/* Group title */}
+                                                    <div className="p-3 bg-gray-100 dark:bg-meta-4 font-semibold border-b border-gray-200 dark:border-boxdark">
+                                                        {group?.name || `Question Group ${groupId}`}
+                                                    </div>
+                                                    
+                                                    {/* Group context */}
+                                                    {group?.context && (
+                                                        <div className="p-3 bg-gray-50 dark:bg-boxdark-2 border-b border-gray-200 dark:border-boxdark">
+                                                            <div className="text-sm font-medium mb-1">Context:</div>
+                                                            <div className="text-sm" dangerouslySetInnerHTML={{ 
+                                                                __html: group.context 
+                                                            }} />
                                                         </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
+                                                    )}
+                                                    
+                                                    {/* Questions in this group */}
+                                                    <div className="p-3">
+                                                        {groupQuestions.map((question, qIndex) => {
+                                                            const editedQuestion = editedQuestions[question.id];
+                                                            const questionToUse = editedQuestion || question;
+                                                            const visibleAnswers = questionToUse.answers?.filter((_, idx) =>
+                                                                !editedQuestion?.hiddenAnswers?.[idx]
+                                                            );
+                                                            
+                                                            return (
+                                                                <div key={question.id} className="mb-4 last:mb-0 border-b border-dashed border-gray-200 dark:border-boxdark last:border-b-0 pb-3 last:pb-0">
+                                                                    <div className="font-medium text-black dark:text-white">
+                                                                        Question {qIndex + 1}: {sanitizeHtml(questionToUse.question_text)}
+                                                                    </div>
+                                                                    <div className="pl-6 space-y-2">
+                                                                        {visibleAnswers?.map((answer, ansIndex) => (
+                                                                            <div
+                                                                                key={ansIndex}
+                                                                                className={`text-black dark:text-white ${answer.is_correct && includeKey ? "text-primary font-medium" : ""}`}
+                                                                            >
+                                                                                {answerFormat.case === 'uppercase'
+                                                                                    ? String.fromCharCode(65 + ansIndex)
+                                                                                    : String.fromCharCode(97 + ansIndex)}
+                                                                                {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                        
+                                        {/* Show standalone questions */}
+                                        {standalone.map((question, index) => {
+                                            const editedQuestion = editedQuestions[question.id];
+                                            const questionToShow = editedQuestion || question;
+                                            const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
+                                                !editedQuestion?.hiddenAnswers?.[idx]
+                                            );
+                                            
+                                            return (
+                                                <div key={question.id} className="space-y-3">
+                                                    <div className="font-medium text-black dark:text-white">
+                                                        Question {index + 1}: {sanitizeHtml(questionToShow.question_text)}
+                                                    </div>
+                                                    <div className="pl-6 space-y-2">
+                                                        {visibleAnswers?.map((answer, ansIndex) => (
+                                                            <div
+                                                                key={ansIndex}
+                                                                className={`text-black dark:text-white ${answer.is_correct && includeKey ? "text-primary font-medium" : ""}`}
+                                                            >
+                                                                {answerFormat.case === 'uppercase'
+                                                                    ? String.fromCharCode(65 + ansIndex)
+                                                                    : String.fromCharCode(97 + ansIndex)}
+                                                                {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>

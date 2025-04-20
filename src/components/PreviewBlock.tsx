@@ -5,6 +5,13 @@ interface Question {
     id: number;
     question_text: string;
     answers?: { answer_text: string; is_correct: boolean }[];
+    question_group_id?: number;
+}
+
+interface QuestionGroup {
+    id: number;
+    name: string;
+    context: string;
 }
 
 interface EditedQuestion extends Question {
@@ -34,6 +41,7 @@ interface PreviewBlockProps {
     includeKey: boolean;
     setIncludeKey: (include: boolean) => void;
     setAnswerFormat: React.Dispatch<React.SetStateAction<AnswerFormat>>;
+    questionGroupsMap: Record<number, QuestionGroup>;
 }
 
 const sanitizeHtml = (html: string) => {
@@ -60,10 +68,31 @@ const PreviewBlock: React.FC<PreviewBlockProps> = ({
     includeKey,
     setIncludeKey,
     setAnswerFormat,
+    questionGroupsMap,
 }) => {
     const handleShowAllQuestions = () => {
         setPreviewShowAll(true);
         setPreviewDialogOpen(true);
+    };
+
+    // Helper function to organize questions by group
+    const getQuestionsByGroup = (questions: Question[]) => {
+        const grouped: Record<number, Question[]> = {};
+        const standalone: Question[] = [];
+        
+        questions.forEach(question => {
+            if (question.question_group_id) {
+                const groupId = question.question_group_id;
+                if (!grouped[groupId]) {
+                    grouped[groupId] = [];
+                }
+                grouped[groupId].push(question);
+            } else {
+                standalone.push(question);
+            }
+        });
+        
+        return { grouped, standalone };
     };
 
     return (
@@ -187,32 +216,116 @@ const PreviewBlock: React.FC<PreviewBlockProps> = ({
 
                     {/* Preview Sample */}
                     <div className="space-y-4">
-                        {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions)
-                            .slice(0, 2).map((question, index) => {
-                                const editedQuestion = editedQuestions[question.id];
-                                const questionToShow = editedQuestion || question;
-                                const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
-                                    !editedQuestion?.hiddenAnswers?.[idx]
-                                );
-
-                                return (
-                                    <div key={index} className="space-y-2">
-                                        <div className="font-medium">
-                                            Question {index + 1}: {sanitizeHtml(questionToShow.question_text)}
-                                        </div>
-                                        <div className="pl-4 space-y-1">
-                                            {visibleAnswers?.map((answer, ansIndex) => (
-                                                <div key={ansIndex}>
-                                                    {answerFormat.case === 'uppercase'
-                                                        ? String.fromCharCode(65 + ansIndex)
-                                                        : String.fromCharCode(97 + ansIndex)}
-                                                    {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                        {(() => {
+                            const questionsToShow = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
+                            
+                            // Group questions by their group_id for the sample preview
+                            const grouped = {};
+                            const standalone = [];
+                            
+                            // Take first few questions for preview
+                            questionsToShow.slice(0, 2).forEach(q => {
+                                if (q.question_group_id) {
+                                    const groupId = q.question_group_id;
+                                    if (!grouped[groupId]) {
+                                        grouped[groupId] = [];
+                                    }
+                                    grouped[groupId].push(q);
+                                } else {
+                                    standalone.push(q);
+                                }
+                            });
+                            
+                            console.log("Sample preview groups:", grouped);
+                            console.log("Question groups map:", questionGroupsMap);
+                            
+                            return (
+                                <>
+                                    {/* Show grouped questions first in the sample preview */}
+                                    {Object.entries(grouped).map(([groupIdStr, groupQuestions]) => {
+                                        const groupId = parseInt(groupIdStr);
+                                        const group = questionGroupsMap[groupId];
+                                        
+                                        console.log("Rendering group in sample:", groupId, group);
+                                        
+                                        return (
+                                            <div key={`sample-${groupId}`} className="mb-4 border border-gray-200 dark:border-boxdark rounded-sm">
+                                                {/* Group title - display prominently */}
+                                                <div className="p-2 bg-gray-100 dark:bg-meta-4 font-semibold border-b border-gray-200 dark:border-boxdark">
+                                                    {group?.name || `Question Group ${groupId}`}
                                                 </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                                
+                                                {/* Group context - show with some styling */}
+                                                {group?.context && (
+                                                    <div className="p-2 bg-gray-50 dark:bg-boxdark-2 border-b border-gray-200 dark:border-boxdark">
+                                                        <div className="text-sm font-medium">Context:</div>
+                                                        <div className="text-sm line-clamp-2" dangerouslySetInnerHTML={{ 
+                                                            __html: group?.context 
+                                                        }} />
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Questions in this group */}
+                                                <div className="p-2">
+                                                    {groupQuestions.map((question, qIndex) => {
+                                                        const editedQuestion = editedQuestions[question.id];
+                                                        const questionToShow = editedQuestion || question;
+                                                        const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
+                                                            !editedQuestion?.hiddenAnswers?.[idx]
+                                                        );
+                                                        
+                                                        return (
+                                                            <div key={question.id} className="mb-2 last:mb-0">
+                                                                <div className="font-medium">
+                                                                    Question {qIndex + 1}: {sanitizeHtml(questionToShow.question_text)}
+                                                                </div>
+                                                                <div className="pl-4 space-y-1">
+                                                                    {visibleAnswers?.map((answer, ansIndex) => (
+                                                                        <div key={ansIndex}>
+                                                                            {answerFormat.case === 'uppercase'
+                                                                                ? String.fromCharCode(65 + ansIndex)
+                                                                                : String.fromCharCode(97 + ansIndex)}
+                                                                            {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    
+                                    {/* Show standalone questions */}
+                                    {standalone.map((question, index) => {
+                                        const editedQuestion = editedQuestions[question.id];
+                                        const questionToShow = editedQuestion || question;
+                                        const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
+                                            !editedQuestion?.hiddenAnswers?.[idx]
+                                        );
+                                        
+                                        return (
+                                            <div key={question.id} className="space-y-2">
+                                                <div className="font-medium">
+                                                    Question {index + 1}: {sanitizeHtml(questionToShow.question_text)}
+                                                </div>
+                                                <div className="pl-4 space-y-1">
+                                                    {visibleAnswers?.map((answer, ansIndex) => (
+                                                        <div key={ansIndex}>
+                                                            {answerFormat.case === 'uppercase'
+                                                                ? String.fromCharCode(65 + ansIndex)
+                                                                : String.fromCharCode(97 + ansIndex)}
+                                                            {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            );
+                        })()}
                     </div>
 
                     {/* Show more questions button */}
@@ -263,35 +376,101 @@ const PreviewBlock: React.FC<PreviewBlockProps> = ({
                         </div>
 
                         <div className="space-y-6">
-                            {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions)
-                                .map((question, index) => {
-                                    const editedQuestion = editedQuestions[question.id];
-                                    const questionToUse = editedQuestion || question;
-                                    const visibleAnswers = questionToUse.answers?.filter((_, idx) =>
-                                        !editedQuestion?.hiddenAnswers?.[idx]
-                                    );
-
-                                    return (
-                                        <div key={index} className="space-y-3">
-                                            <div className="font-medium text-black dark:text-white">
-                                                Question {index + 1}: {sanitizeHtml(questionToUse.question_text)}
-                                            </div>
-                                            <div className="pl-6 space-y-2">
-                                                {visibleAnswers?.map((answer, ansIndex) => (
-                                                    <div
-                                                        key={ansIndex}
-                                                        className="text-black dark:text-white"
-                                                    >
-                                                        {answerFormat.case === 'uppercase'
-                                                            ? String.fromCharCode(65 + ansIndex)
-                                                            : String.fromCharCode(97 + ansIndex)}
-                                                        {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                            {(() => {
+                                const questionsToShow = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
+                                const { grouped, standalone } = getQuestionsByGroup(questionsToShow);
+                                
+                                return (
+                                    <>
+                                        {/* Render grouped questions first */}
+                                        {Object.entries(grouped).map(([groupIdStr, groupQuestions]) => {
+                                            const groupId = parseInt(groupIdStr);
+                                            const group = questionGroupsMap[groupId];
+                                            
+                                            return (
+                                                <div key={`group-${groupId}`} className="mb-6 border border-gray-200 dark:border-boxdark rounded-md">
+                                                    {/* Group title */}
+                                                    {group && (
+                                                        <div className="p-3 bg-gray-100 dark:bg-meta-4 font-semibold border-b border-gray-200 dark:border-boxdark">
+                                                            {group.name || `Group ${groupId}`}
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {/* Group context */}
+                                                    {group && group.context && (
+                                                        <div className="p-3 bg-gray-50 dark:bg-boxdark-2 border-b border-gray-200 dark:border-boxdark">
+                                                            <div className="text-sm font-medium mb-1">Context:</div>
+                                                            <div dangerouslySetInnerHTML={{ __html: group.context }} />
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {/* Questions in this group */}
+                                                    <div className="p-3">
+                                                        {groupQuestions.map((question, qIndex) => {
+                                                            const editedQuestion = editedQuestions[question.id];
+                                                            const questionToUse = editedQuestion || question;
+                                                            const visibleAnswers = questionToUse.answers?.filter((_, idx) =>
+                                                                !editedQuestion?.hiddenAnswers?.[idx]
+                                                            );
+                                                            
+                                                            return (
+                                                                <div key={question.id} className="mb-4 last:mb-0 border-b border-dashed border-gray-200 dark:border-boxdark last:border-b-0 pb-3 last:pb-0">
+                                                                    <div className="font-medium text-black dark:text-white">
+                                                                        Question {qIndex + 1}: {sanitizeHtml(questionToUse.question_text)}
+                                                                    </div>
+                                                                    <div className="pl-6 space-y-2">
+                                                                        {visibleAnswers?.map((answer, ansIndex) => (
+                                                                            <div
+                                                                                key={ansIndex}
+                                                                                className={`text-black dark:text-white ${answer.is_correct && includeKey ? "text-primary font-medium" : ""}`}
+                                                                            >
+                                                                                {answerFormat.case === 'uppercase'
+                                                                                    ? String.fromCharCode(65 + ansIndex)
+                                                                                    : String.fromCharCode(97 + ansIndex)}
+                                                                                {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                                </div>
+                                            );
+                                        })}
+                                        
+                                        {/* Render standalone questions */}
+                                        {standalone.map((question, index) => {
+                                            const editedQuestion = editedQuestions[question.id];
+                                            const questionToUse = editedQuestion || question;
+                                            const visibleAnswers = questionToUse.answers?.filter((_, idx) =>
+                                                !editedQuestion?.hiddenAnswers?.[idx]
+                                            );
+                                            
+                                            return (
+                                                <div key={question.id} className="space-y-3">
+                                                    <div className="font-medium text-black dark:text-white">
+                                                        Question {index + 1}: {sanitizeHtml(questionToUse.question_text)}
+                                                    </div>
+                                                    <div className="pl-6 space-y-2">
+                                                        {visibleAnswers?.map((answer, ansIndex) => (
+                                                            <div
+                                                                key={ansIndex}
+                                                                className={`text-black dark:text-white ${answer.is_correct && includeKey ? "text-primary font-medium" : ""}`}
+                                                            >
+                                                                {answerFormat.case === 'uppercase'
+                                                                    ? String.fromCharCode(65 + ansIndex)
+                                                                    : String.fromCharCode(97 + ansIndex)}
+                                                                {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>

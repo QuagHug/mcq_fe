@@ -143,7 +143,7 @@ const Paraphraser: React.FC<ParaphraserProps> = ({ questionText }) => {
                                         type="number"
                                         value={synonymValue}
                                         onChange={handleInputChange}
-                                        onBlur={handleInputBlur}
+                 Paraphraser                       onBlur={handleInputBlur}
                                         onKeyDown={handleInputKeyDown}
                                         className="w-12 bg-transparent border-b border-primary outline-none text-right"
                                         min="0"
@@ -192,4 +192,4 @@ const Paraphraser: React.FC<ParaphraserProps> = ({ questionText }) => {
     );
 };
 
-export default Paraphraser; 
+export default ; 
