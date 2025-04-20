@@ -11,7 +11,8 @@ import {
     getTestDraft,
     deleteTestDraft,
     getTestDrafts,
-    fetchQuestionGroups  // Add this import
+    fetchQuestionGroups,
+    fetchQuestionGroup
 } from '../services/api';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
@@ -20,6 +21,8 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 import React from 'react';
 import axios from 'axios';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { FiChevronDown, FiChevronRight } from 'react-icons/fi';
 
 interface Question {
     id: number;
@@ -223,6 +226,11 @@ const CreateTest = () => {
 
     const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
     const [expandedGroups, setExpandedGroups] = useState<number[]>([]);
+
+    // Add this state to track all fetched groups with their bank IDs
+    const [questionGroupsMap, setQuestionGroupsMap] = useState<Record<number, QuestionGroup>>({});
+    const [groupBankMap, setGroupBankMap] = useState<Record<number, string>>({});
+    const [loadingGroups, setLoadingGroups] = useState<Record<number, boolean>>({});
 
     const handleSubjectChange = (subjectId: string) => {
         setSelectedSubject(subjectId);
@@ -1280,45 +1288,89 @@ const CreateTest = () => {
 
     const fetchQuestionGroupsData = async () => {
         if (!selectedCourse || !selectedBankId) return;
+        
         try {
+            setLoading(true);
             const data = await fetchQuestionGroups(selectedCourse, selectedBankId);
-            setQuestionGroups(data);
+            
+            if (Array.isArray(data)) {
+                setQuestionGroups(data);
+            } else {
+                console.error("Expected array of question groups, got:", data);
+                setQuestionGroups([]);
+            }
         } catch (err) {
             console.error("Failed to fetch question groups:", err);
+            setQuestionGroups([]);
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Add this to your existing bank change useEffect
+    // Replace the existing bank change useEffect
     useEffect(() => {
-        if (selectedBankId) {
-            fetchQuestionGroupsData();
+        // Clear previous question groups when the bank changes
+        setQuestionGroups([]);
+        setExpandedGroups([]);
+        
+        // We'll fetch question groups when they're needed instead of all at once
+    }, [selectedCourse]);
+
+    // Add this new function to fetch question groups for a specific bank
+    const fetchQuestionGroupsForBank = async (bankId: string) => {
+        if (!selectedCourse || !bankId) return [];
+        
+        try {
+            const data = await fetchQuestionGroups(selectedCourse, bankId);
+            
+            // Update our cache of question groups
+            setQuestionGroups(prev => {
+                // Create a merged array without duplicates
+                const merged = [...prev];
+                
+                // Add new groups that aren't already in the array
+                data.forEach(group => {
+                    if (!merged.some(g => g.id === group.id)) {
+                        merged.push(group);
+                    }
+                });
+                
+                return merged;
+            });
+            
+            return data;
+        } catch (err) {
+            console.error("Failed to fetch question groups for bank:", bankId, err);
+            return [];
         }
-    }, [selectedBankId, selectedCourse]);
+    };
 
     const getGroupById = (groupId: number) => {
         return questionGroups.find(group => group.id === groupId);
     };
 
-    // Add this helper function to organize questions by group
+    // Update the helper function to organize questions by group
     const getQuestionsByGroup = () => {
-        const grouped = {};
-        const standalone = [];
+        const grouped: Record<number, Question[]> = {};
+        const standalone: Question[] = [];
         
         const filteredQuestions = filterQuestions();
         
         filteredQuestions.forEach(question => {
             if (question.question_group_id) {
-                if (!grouped[question.question_group_id]) {
-                    grouped[question.question_group_id] = [];
+                const groupId = question.question_group_id;
+                if (!grouped[groupId]) {
+                    grouped[groupId] = [];
                 }
-                grouped[question.question_group_id].push(question);
+                grouped[groupId].push(question);
             } else {
                 standalone.push(question);
             }
         });
         
         // Sort questions within each group
-        Object.keys(grouped).forEach(groupId => {
+        Object.keys(grouped).forEach(groupIdStr => {
+            const groupId = parseInt(groupIdStr);
             grouped[groupId].sort((a, b) => a.id - b.id);
         });
         
@@ -1333,6 +1385,70 @@ const CreateTest = () => {
                 : [...prev, groupId]
         );
     };
+
+    // Fix the function by using questionBanks instead of undefined questions variable
+    const fetchAllQuestionGroups = async () => {
+        // Extract all bank IDs from questions across all banks
+        const bankIds = new Set<string>();
+        
+        // Get questions from all banks (similar to how CreateTestAuto does it)
+        questionBanks.forEach(bank => {
+            // Add the main bank ID
+            bankIds.add(bank.id.toString());
+            
+            // Add question bank IDs from questions in this bank
+            bank.questions?.forEach(q => {
+                if (q.question_bank_id) {
+                    bankIds.add(q.question_bank_id.toString());
+                }
+            });
+            
+            // Recursively check child banks if present
+            const addChildBankIds = (childBank: any) => {
+                bankIds.add(childBank.id.toString());
+                childBank.questions?.forEach((q: any) => {
+                    if (q.question_bank_id) {
+                        bankIds.add(q.question_bank_id.toString());
+                    }
+                });
+                childBank.children?.forEach(addChildBankIds);
+            };
+            
+            bank.children?.forEach(addChildBankIds);
+        });
+        
+        // Fetch question groups for each bank
+        const newGroupBankMap: Record<number, string> = {};
+        const newGroupsMap: Record<number, QuestionGroup> = {...questionGroupsMap};
+        
+        for (const bankId of Array.from(bankIds)) {
+            try {
+                setLoadingGroups(prev => ({...prev, [bankId]: true}));
+                const groups = await fetchQuestionGroups(selectedCourse, bankId);
+                
+                // Add each group to our maps
+                groups.forEach(group => {
+                    newGroupsMap[group.id] = group;
+                    newGroupBankMap[group.id] = bankId;
+                });
+                
+                setLoadingGroups(prev => ({...prev, [bankId]: false}));
+            } catch (err) {
+                console.error("Failed to fetch question groups for bank:", bankId, err);
+                setLoadingGroups(prev => ({...prev, [bankId]: false}));
+            }
+        }
+        
+        setQuestionGroupsMap(newGroupsMap);
+        setGroupBankMap(newGroupBankMap);
+    };
+
+    // Update the useEffect to depend on questionBanks instead
+    useEffect(() => {
+        if (questionBanks?.length > 0 && selectedCourse) {
+            fetchAllQuestionGroups();
+        }
+    }, [selectedCourse, questionBanks]);
 
     return (
         <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
@@ -1575,37 +1691,36 @@ const CreateTest = () => {
                                     const groupId = parseInt(groupIdStr);
                                     const group = getGroupById(groupId);
                                     const isExpanded = expandedGroups.includes(groupId);
-
+                                    const bankId = groupBankMap[groupId];
+                                    const isLoading = loadingGroups[bankId];
+                                    
                                     return (
                                         <React.Fragment key={groupId}>
-                                            <div className="p-4 border rounded-sm dark:border-strokedark bg-gray-50 dark:bg-meta-4">
-                                                <div className="flex justify-between items-center cursor-pointer" 
-                                                     onClick={() => toggleGroupExpansion(groupId)}>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center">
-                                                            <h4 className="font-medium text-black dark:text-white">
-                                                                {group?.name || 'Question Group'} 
-                                                            </h4>
-                                                            <span className="ml-2 text-xs text-gray-500">
-                                                                ({groupQuestions.length} questions)
-                                                            </span>
-                                                        </div>
-                                                        {isExpanded && group?.context && (
-                                                            <div className="mt-2 p-3 bg-white dark:bg-boxdark rounded border border-stroke dark:border-strokedark">
-                                                                <p className="text-sm text-gray-600 dark:text-gray-300">{group.context}</p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <svg
-                                                        className={`w-4 h-4 transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        viewBox="0 0 24 24"
-                                                    >
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                                    </svg>
+                                            <div 
+                                                onClick={() => toggleGroupExpansion(groupId)}
+                                                className="flex items-center justify-between cursor-pointer p-2 bg-gray-100 dark:bg-meta-4 rounded-sm mb-1"
+                                            >
+                                                <div className="flex items-center">
+                                                    {isExpanded ? (
+                                                        <FiChevronDown className="mr-2" />
+                                                    ) : (
+                                                        <FiChevronRight className="mr-2" />
+                                                    )}
+                                                    <span className="font-medium">
+                                                        {questionGroupsMap[groupId]?.name || `Group ${groupId}`}
+                                                    </span>
+                                                    <span className="ml-2 text-xs text-gray-500">
+                                                        ({questionGroupsMap[groupId]?.question_count || 0} questions)
+                                                    </span>
                                                 </div>
                                             </div>
+                                            
+                                            {isLoading && (
+                                                <div className="p-4 text-center border-l-2 border-r-2 border-primary border-opacity-30">
+                                                    <span>Loading group details...</span>
+                                                </div>
+                                            )}
+                                            
                                             {isExpanded && groupQuestions
                                                 .filter(q => !selectedQuestions.some(sq => sq.id === q.id))
                                                 .map((question) => (
@@ -1629,24 +1744,32 @@ const CreateTest = () => {
                                                                         )}
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center gap-8">
-                                                                    <span className="text-sm text-gray-500 w-24 text-center">
-                                                                        {question.difficulty || 'N/A'}
-                                                                    </span>
-                                                                    <span className="text-sm text-gray-500 w-24 text-center">
-                                                                        {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
-                                                                    </span>
-                                                                    <button
-                                                                        onClick={() => toggleQuestionSelection(question)}
-                                                                        className="text-success hover:text-meta-3 w-12"
-                                                                    >
-                                                                        Add
-                                                                    </button>
-                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-8">
+                                                                <span className="text-sm text-gray-500 w-24 text-center">
+                                                                    {question.difficulty || 'N/A'}
+                                                                </span>
+                                                                <span className="text-sm text-gray-500 w-24 text-center">
+                                                                    {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
+                                                                </span>
+                                                                <button
+                                                                    onClick={() => toggleQuestionSelection(question)}
+                                                                    className="text-success hover:text-meta-3 w-12"
+                                                                >
+                                                                    Add
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 ))}
+                                            {isExpanded && (
+                                                <div className="p-2 mb-2 bg-gray-50 dark:bg-boxdark rounded-sm">
+                                                    <div className="text-sm font-medium mb-1">Context:</div>
+                                                    <div className="text-sm" dangerouslySetInnerHTML={{ 
+                                                        __html: questionGroupsMap[groupId]?.context || 'No context available'
+                                                    }} />
+                                                </div>
+                                            )}
                                         </React.Fragment>
                                     );
                                 })}
@@ -1734,46 +1857,46 @@ const CreateTest = () => {
                                     {selectedQuestions
                                         .slice((selectedQuestionsPage - 1) * itemsPerPage, selectedQuestionsPage * itemsPerPage)
                                         .map((question, index) => {
-                                            const questionNumber = ((selectedQuestionsPage - 1) * itemsPerPage) + index + 1;
-                                            return (
-                                                <div
-                                                    key={question.id}
-                                                    className="p-4 border rounded-sm dark:border-strokedark"
-                                                >
-                                                    <div className="flex justify-between items-start">
-                                                        <div className="flex gap-4 flex-1">
-                                                            <span className="text-gray-500">{questionNumber}.</span>
-                                                            <div className="flex-1">
-                                                                <div
-                                                                    className="cursor-pointer hover:text-primary"
-                                                                    onClick={() => handleQuestionClick(question)}
-                                                                >
-                                                                    {sanitizeHtml(question.question_text)}
+                                                    const questionNumber = ((selectedQuestionsPage - 1) * itemsPerPage) + index + 1;
+                                        return (
+                                                            <div
+                                                                key={question.id}
+                                                                className="p-4 border rounded-sm dark:border-strokedark"
+                                                            >
+                                                                <div className="flex justify-between items-start">
+                                                                    <div className="flex gap-4 flex-1">
+                                                                    <span className="text-gray-500">{questionNumber}.</span>
+                                                                        <div className="flex-1">
+                                                                            <div
+                                                                                className="cursor-pointer hover:text-primary"
+                                                                                onClick={() => handleQuestionClick(question)}
+                                                                            >
+                                                                                {sanitizeHtml(question.question_text)}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-8">
+                                                                        <span className="text-sm text-gray-500 w-24 text-center">
+                                                                            {capitalizeFirstLetter(editedQuestions[question.id]?.difficulty || question.difficulty || 'N/A')}
+                                                                        </span>
+                                                                        <span className="text-sm text-gray-500 w-24 text-center">
+                                                                            {editedQuestions[question.id]?.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level ||
+                                                                                question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
+                                                                        </span>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                toggleQuestionSelection(question);
+                                                                            }}
+                                                                            className="text-danger hover:text-meta-1 w-12"
+                                                                        >
+                                                                            Remove
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-8">
-                                                            <span className="text-sm text-gray-500 w-24 text-center">
-                                                                {capitalizeFirstLetter(editedQuestions[question.id]?.difficulty || question.difficulty || 'N/A')}
-                                                            </span>
-                                                            <span className="text-sm text-gray-500 w-24 text-center">
-                                                                {editedQuestions[question.id]?.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level ||
-                                                                    question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
-                                                            </span>
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    toggleQuestionSelection(question);
-                                                                }}
-                                                                className="text-danger hover:text-meta-1 w-12"
-                                                            >
-                                                                Remove
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                                    );
+                                                })}
                                 </div>
 
                                 <Pagination
@@ -1787,8 +1910,8 @@ const CreateTest = () => {
                                         setSelectedQuestionsPage(1);
                                     }}
                                 />
-                            </div>
-                        )}
+                                                    </div>
+                                                )}
                     </div>
 
                     {/* Question Distribution Section */}
@@ -1847,8 +1970,8 @@ const CreateTest = () => {
                                                             {rowTotal}
                                                         </td>
                                                     </tr>
-                                                );
-                                            })}
+                                        );
+                                    })}
                                             {/* Total Row */}
                                             <tr className="bg-gray-2 dark:bg-meta-4">
                                                 <td className="py-3 px-4 font-medium">Total</td>
@@ -1885,7 +2008,7 @@ const CreateTest = () => {
                             <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
                                 <h4 className="text-lg font-medium text-black dark:text-white mb-4">
                                     Test Configuration
-                                </h4>
+                                                        </h4>
                                 <div className="flex gap-6 flex-wrap items-end">
                                     <div>
                                         <label className="mb-2.5 block text-black dark:text-white">
@@ -1977,10 +2100,10 @@ const CreateTest = () => {
                                             </button>
                                             <span className="text-sm text-black dark:text-white">
                                                 {includeKey ? 'Show' : 'Hide'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
                             </div>
 
                             {/* Test Preview */}
@@ -2034,10 +2157,10 @@ const CreateTest = () => {
                                         >
                                             Preview All
                                         </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                                        </div>
+                                    )}
+                                                            </div>
+                                                        </div>
                     </div>
 
 
@@ -2075,7 +2198,7 @@ const CreateTest = () => {
                                         fill=""
                                     ></path>
                                 </svg>
-                            </span>
+                                                            </span>
                             Cancel
                         </button>
 
@@ -2098,11 +2221,11 @@ const CreateTest = () => {
                                         fill=""
                                     ></path>
                                 </svg>
-                            </span>
+                                                            </span>
                             Create Test
                         </button>
 
-                        <button
+                                                            <button
                             onClick={exportToWord}
                             className={`flex w-1/3 items-center justify-center gap-2.5 rounded-md bg-primary py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 ${!selectedCourse || selectedQuestions.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                             disabled={!selectedCourse || selectedQuestions.length === 0}
@@ -2120,8 +2243,8 @@ const CreateTest = () => {
                                 </svg>
                             </span>
                             Export to Word
-                        </button>
-                    </div>
+                                                            </button>
+                                                        </div>
                 </>
             )}
 
@@ -2168,12 +2291,12 @@ const CreateTest = () => {
                                                     className="cursor-text hover:bg-gray-100 dark:hover:bg-meta-4 p-2 rounded-md"
                                                 >
                                                     Question: {sanitizeHtml(selectedQuestionDetail.question_text)}
-                                                </div>
+                                                                </div>
                                             )
                                         ) : (
                                             <div>Question: {sanitizeHtml(selectedQuestionDetail.question_text)}</div>
                                         )}
-                                    </div>
+                                                            </div>
 
                                     {editMode && (
                                         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -2193,7 +2316,7 @@ const CreateTest = () => {
                                                     <option value="medium">Medium</option>
                                                     <option value="hard">Hard</option>
                                                 </select>
-                                            </div>
+                                                        </div>
 
                                             <div>
                                                 <label className="mb-1.5 block text-black dark:text-white">
@@ -2245,8 +2368,8 @@ const CreateTest = () => {
                                         <div className="space-y-2">
                                             {selectedQuestionDetail.answers?.map((answer, index) => {
                                                 const isSelected = selectedAnswers[selectedQuestionDetail.id]?.[index] || false;
-                                                return (
-                                                    <div
+                                            return (
+                                                <div
                                                         key={index}
                                                         className={`p-2 rounded-sm ${answer.is_correct ? 'bg-success/10' : ''} ${editMode ? 'hover:bg-gray-50 dark:hover:bg-meta-4' : ''}`}
                                                     >
@@ -2280,7 +2403,7 @@ const CreateTest = () => {
                                                                             className="cursor-text hover:bg-gray-100 dark:hover:bg-meta-4 p-1 rounded"
                                                                         >
                                                                             {sanitizeHtml(answer.answer_text)}
-                                                                        </span>
+                                                            </span>
                                                                     )
                                                                 ) : (
                                                                     <span>
@@ -2288,13 +2411,13 @@ const CreateTest = () => {
                                                                         {!editMode && answer.is_correct && (
                                                                             <span className="text-meta-3 ml-2">✓</span>
                                                                         )}
-                                                                    </span>
+                                                            </span>
                                                                 )}
                                                             </div>
-                                                        </div>
                                                     </div>
-                                                );
-                                            })}
+                                                </div>
+                                            );
+                                        })}
                                         </div>
                                     </div>
                                 </div>
@@ -2303,7 +2426,7 @@ const CreateTest = () => {
                                 <div className={`flex justify-end gap-3 py-2 mt-auto ${editMode ? 'sticky bottom-0 bg-white dark:bg-boxdark' : ''}`}>
                                     {!editMode ? (
                                         <>
-                                            <button
+                                                            <button
                                                 onClick={() => {
                                                     setIsQuestionDialogOpen(false);
                                                     setEditMode(false);
@@ -2311,7 +2434,7 @@ const CreateTest = () => {
                                                 className="rounded bg-danger px-4 py-1.5 text-white hover:bg-opacity-90 min-w-[80px]"
                                             >
                                                 Close
-                                            </button>
+                                                            </button>
                                             <button
                                                 onClick={() => setEditMode(true)}
                                                 className="rounded bg-primary px-4 py-1.5 text-white hover:bg-opacity-90 min-w-[80px]"
@@ -2386,7 +2509,7 @@ const CreateTest = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
-                        </div>
+                                                                </div>
 
                         <div className="space-y-6">
                             {(shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions)
@@ -2394,7 +2517,7 @@ const CreateTest = () => {
                                     <div key={index} className="space-y-3">
                                         <div className="font-medium text-black dark:text-white">
                                             Question {index + 1}: {sanitizeHtml(question.question_text)}
-                                        </div>
+                                                            </div>
                                         <div className="pl-6 space-y-2">
                                             {question.answers?.map((answer, ansIndex) => (
                                                 <div
@@ -2405,7 +2528,7 @@ const CreateTest = () => {
                                                         ? String.fromCharCode(65 + ansIndex)
                                                         : String.fromCharCode(97 + ansIndex)}
                                                     {answerFormat.separator} {sanitizeHtml(answer.answer_text)}
-                                                </div>
+                                                        </div>
                                             ))}
                                         </div>
                                     </div>
@@ -2420,7 +2543,7 @@ const CreateTest = () => {
                 <div className="mb-2">
                     <span className="text-sm text-gray-500">
                         Auto-saved: {new Date(testData.lastSaved).toLocaleString()}
-                    </span>
+                                                            </span>
                 </div>
             )}
 
@@ -2435,7 +2558,7 @@ const CreateTest = () => {
                             {confirmMessage}
                         </p>
                         <div className="flex justify-end space-x-3">
-                            <button
+                                                            <button
                                 onClick={() => setShowConfirmModal(false)}
                                 className="rounded border border-stroke px-4 py-2 text-black transition hover:bg-gray-100 dark:border-strokedark dark:text-white dark:hover:bg-meta-4"
                             >
@@ -2449,8 +2572,8 @@ const CreateTest = () => {
                                 className="rounded bg-danger px-4 py-2 text-white transition hover:bg-opacity-90"
                             >
                                 Delete
-                            </button>
-                        </div>
+                                                            </button>
+                                                        </div>
                     </div>
                 </div>
             )}

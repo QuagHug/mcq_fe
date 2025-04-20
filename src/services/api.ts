@@ -562,4 +562,26 @@ export const createQuestionGroup = async (courseId: string, bankId: string, grou
   }
   
   return response.json();
+};
+
+/**
+ * Fetch a specific question group by ID
+ * @param courseId - The ID of the course
+ * @param bankId - The ID of the question bank
+ * @param groupId - The ID of the question group
+ * @returns Promise containing the question group details
+ */
+export const fetchQuestionGroup = async (courseId: string, bankId: string, groupId: number) => {
+  const token = await getValidToken();
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/question-banks/${bankId}/groups/${groupId}/`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch question group');
+  }
+  
+  return response.json();
 }; 
