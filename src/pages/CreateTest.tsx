@@ -10,7 +10,8 @@ import {
     saveTestDraft,
     getTestDraft,
     deleteTestDraft,
-    getTestDrafts  // Add this import
+    getTestDrafts,
+    fetchQuestionGroups  // Add this import
 } from '../services/api';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
@@ -34,6 +35,7 @@ interface Question {
         scaled_discrimination: number;
     };
     difficulty?: 'easy' | 'medium' | 'hard';
+    question_group_id?: number;
 }
 
 interface QuestionBank {
@@ -120,6 +122,12 @@ const sanitizeHtml = (html: string) => {
 const capitalizeFirstLetter = (string: string) => {
     return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
 };
+
+interface QuestionGroup {
+    id: number;
+    name: string;
+    context: string;
+}
 
 const CreateTest = () => {
     const { courseId } = useParams();
@@ -212,6 +220,9 @@ const CreateTest = () => {
     const [editingAnswerIndex, setEditingAnswerIndex] = useState<number | null>(null);
     const [tempQuestionText, setTempQuestionText] = useState('');
     const [tempAnswerText, setTempAnswerText] = useState('');
+
+    const [questionGroups, setQuestionGroups] = useState<QuestionGroup[]>([]);
+    const [expandedGroups, setExpandedGroups] = useState<number[]>([]);
 
     const handleSubjectChange = (subjectId: string) => {
         setSelectedSubject(subjectId);
@@ -1267,6 +1278,62 @@ const CreateTest = () => {
         }
     };
 
+    const fetchQuestionGroupsData = async () => {
+        if (!selectedCourse || !selectedBankId) return;
+        try {
+            const data = await fetchQuestionGroups(selectedCourse, selectedBankId);
+            setQuestionGroups(data);
+        } catch (err) {
+            console.error("Failed to fetch question groups:", err);
+        }
+    };
+
+    // Add this to your existing bank change useEffect
+    useEffect(() => {
+        if (selectedBankId) {
+            fetchQuestionGroupsData();
+        }
+    }, [selectedBankId, selectedCourse]);
+
+    const getGroupById = (groupId: number) => {
+        return questionGroups.find(group => group.id === groupId);
+    };
+
+    // Add this helper function to organize questions by group
+    const getQuestionsByGroup = () => {
+        const grouped = {};
+        const standalone = [];
+        
+        const filteredQuestions = filterQuestions();
+        
+        filteredQuestions.forEach(question => {
+            if (question.question_group_id) {
+                if (!grouped[question.question_group_id]) {
+                    grouped[question.question_group_id] = [];
+                }
+                grouped[question.question_group_id].push(question);
+            } else {
+                standalone.push(question);
+            }
+        });
+        
+        // Sort questions within each group
+        Object.keys(grouped).forEach(groupId => {
+            grouped[groupId].sort((a, b) => a.id - b.id);
+        });
+        
+        return { grouped, standalone };
+    };
+
+    // Add this helper function to toggle group expansion
+    const toggleGroupExpansion = (groupId: number) => {
+        setExpandedGroups(prev => 
+            prev.includes(groupId) 
+                ? prev.filter(id => id !== groupId)
+                : [...prev, groupId]
+        );
+    };
+
     return (
         <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
             {/* Alert message */}
@@ -1503,6 +1570,88 @@ const CreateTest = () => {
                                     </div>
                                 </div>
 
+                                {/* Grouped Questions */}
+                                {Object.entries(getQuestionsByGroup().grouped).map(([groupIdStr, groupQuestions]) => {
+                                    const groupId = parseInt(groupIdStr);
+                                    const group = getGroupById(groupId);
+                                    const isExpanded = expandedGroups.includes(groupId);
+
+                                    return (
+                                        <React.Fragment key={groupId}>
+                                            <div className="p-4 border rounded-sm dark:border-strokedark bg-gray-50 dark:bg-meta-4">
+                                                <div className="flex justify-between items-center cursor-pointer" 
+                                                     onClick={() => toggleGroupExpansion(groupId)}>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center">
+                                                            <h4 className="font-medium text-black dark:text-white">
+                                                                {group?.name || 'Question Group'} 
+                                                            </h4>
+                                                            <span className="ml-2 text-xs text-gray-500">
+                                                                ({groupQuestions.length} questions)
+                                                            </span>
+                                                        </div>
+                                                        {isExpanded && group?.context && (
+                                                            <div className="mt-2 p-3 bg-white dark:bg-boxdark rounded border border-stroke dark:border-strokedark">
+                                                                <p className="text-sm text-gray-600 dark:text-gray-300">{group.context}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <svg
+                                                        className={`w-4 h-4 transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        viewBox="0 0 24 24"
+                                                    >
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            {isExpanded && groupQuestions
+                                                .filter(q => !selectedQuestions.some(sq => sq.id === q.id))
+                                                .map((question) => (
+                                                    <div
+                                                        key={question.id}
+                                                        className="p-4 border-l-2 border-r-2 border-primary border-opacity-30 hover:bg-gray-50 dark:hover:bg-meta-4/30"
+                                                    >
+                                                        <div className="flex justify-between items-start">
+                                                            <div className="flex gap-4 flex-1">
+                                                                <div className="flex-1">
+                                                                    <div
+                                                                        className="cursor-pointer hover:text-primary"
+                                                                        onClick={() => handleQuestionClick(question)}
+                                                                    >
+                                                                        {sanitizeHtml(question.question_text)}
+                                                                        {question.statistics && (
+                                                                            <span className="text-xs text-gray-500 ml-2">
+                                                                                (D: {question.statistics.scaled_difficulty.toFixed(2)},
+                                                                                Disc: {question.statistics.scaled_discrimination.toFixed(2)})
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-8">
+                                                                    <span className="text-sm text-gray-500 w-24 text-center">
+                                                                        {question.difficulty || 'N/A'}
+                                                                    </span>
+                                                                    <span className="text-sm text-gray-500 w-24 text-center">
+                                                                        {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={() => toggleQuestionSelection(question)}
+                                                                        className="text-success hover:text-meta-3 w-12"
+                                                                    >
+                                                                        Add
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </React.Fragment>
+                                    );
+                                })}
+
+                                {/* Standalone Questions */}
                                 {getPagedQuestions(filteredQuestions, availableQuestionsPage, itemsPerPage)
                                     .map((question, index) => {
                                         const questionNumber = ((availableQuestionsPage - 1) * itemsPerPage) + index + 1;
