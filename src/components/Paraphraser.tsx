@@ -1,195 +1,167 @@
-import React, { useState, useRef } from 'react';
-import Box from '@mui/material/Box';
-import Slider from '@mui/material/Slider';
+import React from 'react';
+import Pagination from './Pagination';
+import { Question, Taxonomy } from '../types';
 
-interface ParaphraserProps {
-    questionText: string;
+interface AnswerBlockProps {
+    title: string;
+    questions: Question[];
+    currentPage: number;
+    itemsPerPage: number;
+    totalItems: number;
+    onPageChange: (page: number) => void;
+    onItemsPerPageChange: (items: number) => void;
+    onQuestionClick: (question: Question) => void;
+    onToggleQuestion: (question: Question) => void;
+    isQuestionSelected: (questionId: number) => boolean;
+    showWarning?: boolean;
+    warningMessage?: string;
+    showRemoveAll?: boolean;
+    onRemoveAll?: () => void;
+    editedQuestions?: { [key: number]: Question };
 }
 
-const Paraphraser: React.FC<ParaphraserProps> = ({ questionText }) => {
-    // Remove <p> tags from the initial question text
-    const cleanQuestionText = questionText.replace(/<\/?p>/g, '');
-
-    const [selectedMode, setSelectedMode] = useState('Standard');
-    const [synonymValue, setSynonymValue] = useState(50);
-    const [isEditing, setIsEditing] = useState(false);
-    const [text, setText] = useState(cleanQuestionText);
-    const [showParaphrasedText, setShowParaphrasedText] = useState(false);
-    const [paraphrasedText, setParaphrasedText] = useState('');
-    const inputRef = useRef<HTMLInputElement>(null);
-
-    const modes = ['Standard', 'Academic', 'Simple'];
-
-    const handleSliderChange = (event: Event, newValue: number | number[]) => {
-        setSynonymValue(newValue as number);
-    };
-
-    const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        let value = parseInt(event.target.value);
-        if (isNaN(value)) value = 0;
-        if (value < 0) value = 0;
-        if (value > 100) value = 100;
-        setSynonymValue(value);
-    };
-
-    const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setText(event.target.value);
-        setShowParaphrasedText(false);
-    };
-
-    const handleInputBlur = () => {
-        setIsEditing(false);
-    };
-
-    const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === 'Enter') {
-            setIsEditing(false);
-        }
-    };
-
-    const handlePercentageDoubleClick = () => {
-        setIsEditing(true);
-        setTimeout(() => {
-            if (inputRef.current) {
-                inputRef.current.focus();
-                inputRef.current.select();
-            }
-        }, 0);
-    };
-
-    const handleParaphrase = () => {
-        const cleanText = text.replace(/<\/?p>/g, '');
-        setParaphrasedText(cleanText);
-        setShowParaphrasedText(true);
-    };
-
+const AnswerBlock: React.FC<AnswerBlockProps> = ({
+    title,
+    questions,
+    currentPage,
+    itemsPerPage,
+    totalItems,
+    onPageChange,
+    onItemsPerPageChange,
+    onQuestionClick,
+    onToggleQuestion,
+    isQuestionSelected,
+    showWarning = false,
+    warningMessage = '',
+    showRemoveAll = false,
+    onRemoveAll,
+    editedQuestions = {}
+}) => {
     return (
-        <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-            <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                <h3 className="text-2xl font-semibold text-black dark:text-white">
-                    Paraphrase
-                </h3>
-            </div>
-            {/* Paraphraser Section */}
-            <div className="p-6.5">
-                <div className="space-y-4">
-                    {/* Top section with modes and slider */}
-                    <div className="flex justify-between items-center">
-                        {/* Mode selection buttons */}
-                        <div className="flex gap-2">
-                            {modes.map((mode) => (
-                                <button
-                                    key={mode}
-                                    onClick={() => setSelectedMode(mode)}
-                                    className={`px-6 py-2 rounded-full transition-all duration-300 font-medium
-                                        ${selectedMode === mode
-                                            ? 'bg-primary text-white shadow-lg shadow-primary/50 scale-105'
-                                            : 'text-gray-500 hover:text-primary hover:bg-primary/10 hover:scale-105'
-                                        }`}
-                                >
-                                    {mode}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Synonyms slider */}
-                        <div className="flex items-center gap-4 w-72">
-                            <span className="text-black dark:text-white whitespace-nowrap font-medium">Synonyms:</span>
-                            <Box sx={{ flex: 1 }}>
-                                <Slider
-                                    value={synonymValue}
-                                    onChange={handleSliderChange}
-                                    aria-label="Synonyms"
-                                    size="small"
-                                    min={0}
-                                    max={100}
-                                    sx={{
-                                        color: '#3b82f6',
-                                        padding: '5px 0',
-                                        '& .MuiSlider-thumb': {
-                                            width: 12,
-                                            height: 12,
-                                            backgroundColor: '#fff',
-                                            border: '2px solid currentColor',
-                                            '&:hover, &.Mui-focusVisible': {
-                                                boxShadow: 'none',
-                                            },
-                                            '&:before': {
-                                                display: 'none',
-                                            },
-                                        },
-                                        '& .MuiSlider-track': {
-                                            height: 4,
-                                            border: 'none',
-                                        },
-                                        '& .MuiSlider-rail': {
-                                            height: 4,
-                                            opacity: 0.2,
-                                            backgroundColor: 'currentColor',
-                                        },
-                                        '& .MuiSlider-mark': {
-                                            display: 'none',
-                                        },
-                                    }}
-                                />
-                            </Box>
-                            <div
-                                className="text-black dark:text-white whitespace-nowrap font-medium min-w-[3.5rem] text-right cursor-pointer"
-                                onDoubleClick={handlePercentageDoubleClick}
-                            >
-                                {isEditing ? (
-                                    <input
-                                        ref={inputRef}
-                                        type="number"
-                                        value={synonymValue}
-                                        onChange={handleInputChange}
-                 Paraphraser                       onBlur={handleInputBlur}
-                                        onKeyDown={handleInputKeyDown}
-                                        className="w-12 bg-transparent border-b border-primary outline-none text-right"
-                                        min="0"
-                                        max="100"
-                                    />
-                                ) : (
-                                    `${synonymValue}%`
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Text input area */}
-                    <textarea
-                        rows={4}
-                        value={text}
-                        onChange={handleTextChange}
-                        className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                    />
-
-                    {/* Paraphrased text area */}
-                    {showParaphrasedText && (
-                        <div className="space-y-2">
-                            <label className="block font-medium text-black dark:text-white">
-                                Paraphrased Text:
-                            </label>
-                            <textarea
-                                rows={4}
-                                value={paraphrasedText}
-                                readOnly
-                                className="w-full rounded-lg border-[1.5px] border-primary/20 bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                            />
-                        </div>
-                    )}
-
-                    {/* Paraphrase button */}
-                    <button
-                        onClick={handleParaphrase}
-                        className="flex w-full justify-center rounded bg-primary p-3 font-medium text-white hover:bg-primary/90 transition-colors"
-                    >
-                        Paraphrase
-                    </button>
+        <div className="p-6.5">
+            <h4 className="font-medium text-black dark:text-white mb-4">
+                {title} ({questions.length})
+            </h4>
+            {showWarning && (
+                <div className="mt-1 text-danger text-sm">
+                    {warningMessage}
                 </div>
+            )}
+            <div className="space-y-4">
+                {/* Column Headers */}
+                <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-meta-4 rounded-sm">
+                    <div className="flex-1">
+                        <span className="font-medium text-black dark:text-white">Question</span>
+                    </div>
+                    <div className="flex items-center gap-8">
+                        <span className="w-24 text-center font-medium text-black dark:text-white">Difficulty</span>
+                        <span className="w-24 text-center font-medium text-black dark:text-white">Taxonomy</span>
+                        <span className="w-20 text-center font-medium cursor-pointer" onClick={onRemoveAll}>
+                            {showRemoveAll ? (
+                                <span className="text-danger hover:text-meta-1 whitespace-nowrap">Remove All</span>
+                            ) : (
+                                <span className="text-success hover:text-meta-3 whitespace-nowrap">Add All</span>
+                            )}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Questions List */}
+                {questions
+                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                    .map((question, index) => {
+                        const questionNumber = ((currentPage - 1) * itemsPerPage) + index + 1;
+                        const editedQuestion = editedQuestions[question.id];
+                        return (
+                            <div
+                                key={question.id}
+                                className="p-4 border rounded-sm dark:border-strokedark"
+                            >
+                                <div className="flex justify-between items-start">
+                                    <div className="flex gap-4 flex-1">
+                                        <span className="text-gray-500">{questionNumber}.</span>
+                                        <div className="flex-1">
+                                            <div
+                                                className="cursor-pointer hover:text-primary"
+                                                onClick={() => onQuestionClick(question)}
+                                            >
+                                                {question.question_text.replace(/<\/?[^>]+(>|$)/g, '')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-8">
+                                        <span className={`w-24 text-center px-3 py-1 rounded-full text-sm font-medium
+                                            ${(editedQuestion?.difficulty || question.difficulty || 'N/A').toLowerCase() === 'easy'
+                                                ? 'bg-success/10 text-success'
+                                                : (editedQuestion?.difficulty || question.difficulty || 'N/A').toLowerCase() === 'medium'
+                                                    ? 'bg-warning/10 text-warning'
+                                                    : (editedQuestion?.difficulty || question.difficulty || 'N/A').toLowerCase() === 'hard'
+                                                        ? 'bg-danger/10 text-danger'
+                                                        : 'bg-gray-100 text-gray-500'
+                                            }`}>
+                                            {capitalizeFirstLetter(editedQuestion?.difficulty || question.difficulty || 'N/A')}
+                                        </span>
+                                        <span className={`w-24 text-center px-3 py-1 rounded-full text-sm font-medium
+                                            ${(() => {
+                                                const level = (editedQuestion?.taxonomies?.find((tax: Taxonomy) => tax.taxonomy.name === "Bloom's Taxonomy")?.level ||
+                                                    question.taxonomies?.find((tax: Taxonomy) => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A').toLowerCase();
+                                                switch (level) {
+                                                    case 'remember':
+                                                        return 'bg-[#D41010]/10 text-[#D41010]';
+                                                    case 'understand':
+                                                        return 'bg-[#F3543A]/10 text-[#F3543A]';
+                                                    case 'apply':
+                                                        return 'bg-[#F7EB2E]/10 text-[#F7EB2E]';
+                                                    case 'analyze':
+                                                        return 'bg-[#168E3A]/10 text-[#168E3A]';
+                                                    case 'evaluate':
+                                                        return 'bg-[#2CB3C7]/10 text-[#2CB3C7]';
+                                                    case 'create':
+                                                        return 'bg-[#7272D8]/10 text-[#7272D8]';
+                                                    default:
+                                                        return 'bg-gray-100 text-gray-500';
+                                                }
+                                            })()}`}>
+                                            {editedQuestion?.taxonomies?.find((tax: Taxonomy) => tax.taxonomy.name === "Bloom's Taxonomy")?.level ||
+                                                question.taxonomies?.find((tax: Taxonomy) => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
+                                        </span>
+                                        <div className="w-20 flex justify-center">
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isQuestionSelected(question.id)}
+                                                    onChange={() => onToggleQuestion(question)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-5 h-5 border-2 border-stroke dark:border-strokedark rounded 
+                                                    peer-checked:bg-primary peer-checked:border-primary
+                                                    after:content-[''] after:absolute after:top-[2px] after:left-[7px]
+                                                    after:w-[6px] after:h-[12px] after:border-white after:border-r-2 after:border-b-2
+                                                    after:hidden peer-checked:after:block after:rotate-45
+                                                    transition-all duration-200 ease-in-out">
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
             </div>
+
+            <Pagination
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+                onItemsPerPageChange={onItemsPerPageChange}
+            />
         </div>
     );
 };
 
-export default ; 
+const capitalizeFirstLetter = (string: string) => {
+    return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+};
+
+export default AnswerBlock; 
