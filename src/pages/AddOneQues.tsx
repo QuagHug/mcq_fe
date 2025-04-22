@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 import SimilarityDialog from '../components/SimilarityDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
+import AddTagQuestion from '../components/AddTagQuestion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { addQuestion, getQuestionBanks, fetchQuestionBanks, fetchCourses } from '../services/api';
 
@@ -412,62 +413,12 @@ const AddOneQues = () => {
             </div>
 
             {/* Tags Block */}
-            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-                <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark flex justify-between items-center">
-                    <h3 className="text-2xl font-semibold text-black dark:text-white">Tags</h3>
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={1.5}
-                        stroke="currentColor"
-                        className={`w-5 h-5 transition-transform duration-200 cursor-pointer ${expandedSections.tags ? 'rotate-180' : ''}`}
-                        onClick={() => toggleSection('tags')}
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                </div>
-                {expandedSections.tags && (
-                    <div className="px-6.5 py-4">
-                        <select
-                            onChange={(e) => {
-                                const value = e.target.value;
-                                const category = (e.target.options[e.target.selectedIndex].parentElement as HTMLOptGroupElement)?.label.toLowerCase();
-                                if (category) {
-                                    handleTagChange(category as keyof SelectedTags, value);
-                                }
-                            }}
-                            className="w-full rounded border border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                        >
-                            <optgroup label="Subject">
-                                <option value="None">None</option>
-                                <option value="DSA">DSA</option>
-                                <option value="PPL">PPL</option>
-                            </optgroup>
-                            <optgroup label="Bloom's Level">
-                                <option value="Remember">Remember</option>
-                                <option value="Understand">Understand</option>
-                                <option value="Apply">Apply</option>
-                            </optgroup>
-                        </select>
-                        <div className="mt-2">
-                            {Object.entries(selectedTags).map(([category, tag]) => (
-                                <div key={category} className="relative inline-block mr-2">
-                                    <span className="inline-block border border-gray-400 text-gray-800 text-sm font-medium px-2.5 py-0.5 rounded dark:border-gray-600 dark:text-gray-300">
-                                        {tag}
-                                    </span>
-                                    <span
-                                        className="absolute right-0 top-0 transform translate-x-1/2 -translate-y-1/2 cursor-pointer text-gray-500 hover:text-red-500"
-                                        onClick={() => handleTagChange(category as keyof SelectedTags, '')}
-                                    >
-                                        &times;
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
+            <AddTagQuestion
+                expandedSections={expandedSections}
+                selectedTags={selectedTags}
+                onToggleSection={toggleSection}
+                onTagChange={handleTagChange}
+            />
 
             {/* Upper block: Similarity Note + Course Selection */}
             <div className="flex justify-between items-center mt-4">

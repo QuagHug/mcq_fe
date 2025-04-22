@@ -194,6 +194,35 @@ const QuestionEdit = () => {
                         }}
                         onEditorChange={handleEditorChange}
                     />
+                    <div className="flex gap-4 mt-4">
+                        <div className="w-1/2">
+                            <label className="mb-2.5 block font-medium text-black dark:text-white">
+                                Difficulty
+                            </label>
+                            <select
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                            >
+                                <option value="easy">Easy</option>
+                                <option value="medium">Medium</option>
+                                <option value="hard">Hard</option>
+                            </select>
+                        </div>
+                        <div className="w-1/2">
+                            <label className="mb-2.5 block font-medium text-black dark:text-white">
+                                Taxonomy
+                            </label>
+                            <select
+                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-3 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                            >
+                                <option value="remember">Remember</option>
+                                <option value="understand">Understand</option>
+                                <option value="apply">Apply</option>
+                                <option value="analyze">Analyze</option>
+                                <option value="evaluate">Evaluate</option>
+                                <option value="create">Create</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
 

@@ -85,6 +85,14 @@ const QuestionDetail = () => {
                     </div>
                     <div className="px-6.5 py-4">
                         <div dangerouslySetInnerHTML={{ __html: questionData.question_text }} />
+                        <div className="flex gap-3 mt-4">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary/10 text-primary">
+                                Medium
+                            </span>
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-success/10 text-success">
+                                Remember
+                            </span>
+                        </div>
                         {questionData.image_url && (
                             <img
                                 src={questionData.image_url}

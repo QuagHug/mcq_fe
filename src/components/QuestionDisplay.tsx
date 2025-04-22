@@ -58,14 +58,14 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                 <div className="flex-1">
                     <div className="flex items-center gap-2">
                         <span className="text-gray-500">{index + 1}.</span>
-                        <div 
+                        <div
                             className="cursor-pointer hover:text-primary"
                             onClick={() => onQuestionClick?.(question)}
                         >
                             <span dangerouslySetInnerHTML={{ __html: truncateText(question.question_text) }} />
                             {showStats && question.statistics && (
                                 <span className="text-xs text-gray-500 ml-2">
-                                    (D: {question.statistics.scaled_difficulty.toFixed(2)}, 
+                                    (D: {question.statistics.scaled_difficulty.toFixed(2)},
                                     Disc: {question.statistics.scaled_discrimination.toFixed(2)})
                                 </span>
                             )}
@@ -77,11 +77,10 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                             {question.answers.map((answer, ansIndex) => (
                                 <div
                                     key={answer.id}
-                                    className={`flex items-start p-3 rounded-sm ${
-                                        answer.is_correct && configuration?.includeAnswerKey
+                                    className={`flex items-start p-3 rounded-sm ${answer.is_correct && configuration?.includeAnswerKey
                                             ? 'bg-success/10 border-success'
                                             : 'bg-gray-50 dark:bg-meta-4'
-                                    }`}
+                                        }`}
                                 >
                                     <span className="mr-2 min-w-[24px] flex-shrink-0">
                                         {configuration?.letterCase === 'uppercase'
@@ -89,9 +88,9 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                                             : String.fromCharCode(97 + ansIndex)}
                                         {configuration?.separator}
                                     </span>
-                                    <div 
+                                    <div
                                         className="flex-1"
-                                        dangerouslySetInnerHTML={{ __html: answer.answer_text }} 
+                                        dangerouslySetInnerHTML={{ __html: answer.answer_text }}
                                     />
                                 </div>
                             ))}
@@ -100,11 +99,10 @@ const QuestionDisplay: React.FC<QuestionDisplayProps> = ({
                 </div>
                 <div className="flex items-center gap-8">
                     {question.difficulty && (
-                        <span className={`text-xs px-2 py-1 rounded w-24 text-center ${
-                            question.difficulty === 'easy' ? 'bg-success/10 text-success' :
-                            question.difficulty === 'medium' ? 'bg-warning/10 text-warning' :
-                            'bg-danger/10 text-danger'
-                        }`}>
+                        <span className={`text-xs px-2 py-1 rounded w-24 text-center ${question.difficulty === 'easy' ? 'bg-success/10 text-success' :
+                                question.difficulty === 'medium' ? 'bg-warning/10 text-warning' :
+                                    'bg-danger/10 text-danger'
+                            }`}>
                             {question.difficulty}
                         </span>
                     )}

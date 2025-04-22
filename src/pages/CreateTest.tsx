@@ -18,11 +18,54 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 import { Dialog } from '@headlessui/react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
 import React from 'react';
-import axios from 'axios';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import QuestionList from '../components/QuestionList';
+import QuestionDistribution from '../components/QuestionDistribution';
+
+interface TagProps {
+    value: string;
+    type: 'difficulty' | 'taxonomy';
+}
+
+export const Tag = ({ value, type }: TagProps) => {
+    const getColor = () => {
+        if (type === 'difficulty') {
+            switch (value.toLowerCase()) {
+                case 'easy':
+                    return 'bg-[#E7F6EC] text-[#1B9C85] border border-[#1B9C85]';
+                case 'medium':
+                    return 'bg-[#FFF4E5] text-[#FF9F29] border border-[#FF9F29]';
+                case 'hard':
+                    return 'bg-[#FFE7E7] text-[#FF0060] border border-[#FF0060]';
+                default:
+                    return 'bg-gray-100 text-gray-600 border border-gray-400';
+            }
+        } else {
+            switch (value.toLowerCase()) {
+                case 'remember':
+                    return 'bg-[#E5F3FF] text-[#0079FF] border border-[#0079FF]';
+                case 'understand':
+                    return 'bg-[#E5F6FF] text-[#00A9FF] border border-[#00A9FF]';
+                case 'apply':
+                    return 'bg-[#E7F6EC] text-[#1B9C85] border border-[#1B9C85]';
+                case 'analyze':
+                    return 'bg-[#FFF4E5] text-[#FF9F29] border border-[#FF9F29]';
+                case 'evaluate':
+                    return 'bg-[#FFE7E7] text-[#FF0060] border border-[#FF0060]';
+                case 'create':
+                    return 'bg-[#F3E5FF] text-[#9C1AFF] border border-[#9C1AFF]';
+                default:
+                    return 'bg-gray-100 text-gray-600 border border-gray-400';
+            }
+        }
+    };
+
+    return (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getColor()}`}>
+            {value}
+        </span>
+    );
+};
 
 interface Question {
     id: number;
@@ -798,13 +841,13 @@ const CreateTest = () => {
         try {
             // Debug logging for groups
             console.log("=== DEBUG: WORD EXPORT START ===");
-            
+
             const questionsToExport = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
-            
+
             // Group questions by their group ID
             const grouped = {};
             const standalone = [];
-            
+
             questionsToExport.forEach(q => {
                 if (q.question_group_id) {
                     const groupId = q.question_group_id;
@@ -816,16 +859,16 @@ const CreateTest = () => {
                     standalone.push(q);
                 }
             });
-            
+
             // Debug logging
             console.log("Question groups found:", Object.keys(grouped).length);
             console.log("Standalone questions:", standalone.length);
             console.log("Question groups map:", questionGroupsMap);
             console.log("Grouped questions:", grouped);
-            
+
             // Continue with existing code...
             const shuffleAnswers = testData.shuffle_answers ?? false;
-            
+
             const doc = new Document({
                 sections: [{
                     properties: {},
@@ -851,19 +894,19 @@ const CreateTest = () => {
                                 spacing: { after: 400 },
                             }),
                         ] : []),
-                        
+
                         // First add grouped questions
                         ...Object.entries(grouped).flatMap(([groupIdStr, groupQuestions]) => {
                             const groupId = parseInt(groupIdStr);
                             const group = questionGroupsMap[groupId];
-                            
+
                             console.log(`Processing group ${groupId}:`, group);
-                            
+
                             if (!group) {
                                 console.warn(`Group ${groupId} not found in questionGroupsMap`);
                                 return [];
                             }
-                            
+
                             // Start with group title and context
                             const groupElements = [
                                 // Group title
@@ -878,7 +921,7 @@ const CreateTest = () => {
                                     spacing: { before: 600, after: 200 },
                                 })
                             ];
-                            
+
                             // Add context if available
                             if (group.context) {
                                 groupElements.push(
@@ -901,13 +944,13 @@ const CreateTest = () => {
                                     })
                                 );
                             }
-                            
+
                             // Add questions in this group
                             groupQuestions.forEach((question, index) => {
                                 const questionAnswers = shuffleAnswers
                                     ? [...(question.answers || [])].sort(() => Math.random() - 0.5)
                                     : question.answers || [];
-                                
+
                                 groupElements.push(
                                     // Question text
                                     new Paragraph({
@@ -922,7 +965,7 @@ const CreateTest = () => {
                                         ],
                                         spacing: { before: 400, after: 200 },
                                     }),
-                                    
+
                                     // Answers
                                     ...questionAnswers.map((answer, ansIndex) =>
                                         new Paragraph({
@@ -941,11 +984,11 @@ const CreateTest = () => {
                                     )
                                 );
                             });
-                            
+
                             console.log(`Added ${groupElements.length} elements for group ${groupId}`);
                             return groupElements;
                         }),
-                        
+
                         // Then add standalone questions
                         ...standalone.flatMap((question, index) => {
                             // For each question, prepare its answers - shuffle if needed
@@ -1031,13 +1074,14 @@ const CreateTest = () => {
     };
 
     const handleQuestionClick = (question: Question) => {
-        setSelectedQuestionDetail(question);
-        // Initialize selected answers if the question is in the test
+        const editedQuestion = editedQuestions[question.id];
+        const questionToUse = editedQuestion || question;
+
+        setSelectedQuestionDetail(questionToUse);
         if (isQuestionInTest(question.id)) {
-            const existingQuestion = editedQuestions[question.id];
-            const initialAnswerStates = question.answers?.map(() => true) || [];
-            if (existingQuestion?.hiddenAnswers) {
-                existingQuestion.hiddenAnswers.forEach((isHidden, index) => {
+            const initialAnswerStates = questionToUse.answers?.map(() => true) || [];
+            if (editedQuestion?.hiddenAnswers) {
+                editedQuestion.hiddenAnswers.forEach((isHidden, index) => {
                     if (isHidden) {
                         initialAnswerStates[index] = false;
                     }
@@ -1374,11 +1418,11 @@ const CreateTest = () => {
 
     const fetchQuestionGroupsData = async () => {
         if (!selectedCourse || !selectedBankId) return;
-        
+
         try {
             setLoading(true);
             const data = await fetchQuestionGroups(selectedCourse, selectedBankId);
-            
+
             if (Array.isArray(data)) {
                 setQuestionGroups(data);
             } else {
@@ -1398,32 +1442,32 @@ const CreateTest = () => {
         // Clear previous question groups when the bank changes
         setQuestionGroups([]);
         setExpandedGroups([]);
-        
+
         // We'll fetch question groups when they're needed instead of all at once
     }, [selectedCourse]);
 
     // Add this new function to fetch question groups for a specific bank
     const fetchQuestionGroupsForBank = async (bankId: string) => {
         if (!selectedCourse || !bankId) return [];
-        
+
         try {
             const data = await fetchQuestionGroups(selectedCourse, bankId);
-            
+
             // Update our cache of question groups
             setQuestionGroups(prev => {
                 // Create a merged array without duplicates
                 const merged = [...prev];
-                
+
                 // Add new groups that aren't already in the array
                 data.forEach(group => {
                     if (!merged.some(g => g.id === group.id)) {
                         merged.push(group);
                     }
                 });
-                
+
                 return merged;
             });
-            
+
             return data;
         } catch (err) {
             console.error("Failed to fetch question groups for bank:", bankId, err);
@@ -1439,9 +1483,9 @@ const CreateTest = () => {
     const getQuestionsByGroup = () => {
         const grouped: Record<number, Question[]> = {};
         const standalone: Question[] = [];
-        
+
         const filteredQuestions = filterQuestions();
-        
+
         filteredQuestions.forEach(question => {
             if (question.question_group_id) {
                 const groupId = question.question_group_id;
@@ -1453,20 +1497,20 @@ const CreateTest = () => {
                 standalone.push(question);
             }
         });
-        
+
         // Sort questions within each group
         Object.keys(grouped).forEach(groupIdStr => {
             const groupId = parseInt(groupIdStr);
             grouped[groupId].sort((a, b) => a.id - b.id);
         });
-        
+
         return { grouped, standalone };
     };
 
     // Add this helper function to toggle group expansion
     const toggleGroupExpansion = (groupId: number) => {
-        setExpandedGroups(prev => 
-            prev.includes(groupId) 
+        setExpandedGroups(prev =>
+            prev.includes(groupId)
                 ? prev.filter(id => id !== groupId)
                 : [...prev, groupId]
         );
@@ -1476,19 +1520,19 @@ const CreateTest = () => {
     const fetchAllQuestionGroups = async () => {
         // Extract all bank IDs from questions across all banks
         const bankIds = new Set<string>();
-        
+
         // Get questions from all banks (similar to how CreateTestAuto does it)
         questionBanks.forEach(bank => {
             // Add the main bank ID
             bankIds.add(bank.id.toString());
-            
+
             // Add question bank IDs from questions in this bank
             bank.questions?.forEach(q => {
                 if (q.question_bank_id) {
                     bankIds.add(q.question_bank_id.toString());
                 }
             });
-            
+
             // Recursively check child banks if present
             const addChildBankIds = (childBank: any) => {
                 bankIds.add(childBank.id.toString());
@@ -1499,32 +1543,32 @@ const CreateTest = () => {
                 });
                 childBank.children?.forEach(addChildBankIds);
             };
-            
+
             bank.children?.forEach(addChildBankIds);
         });
-        
+
         // Fetch question groups for each bank
         const newGroupBankMap: Record<number, string> = {};
-        const newGroupsMap: Record<number, QuestionGroup> = {...questionGroupsMap};
-        
+        const newGroupsMap: Record<number, QuestionGroup> = { ...questionGroupsMap };
+
         for (const bankId of Array.from(bankIds)) {
             try {
-                setLoadingGroups(prev => ({...prev, [bankId]: true}));
+                setLoadingGroups(prev => ({ ...prev, [bankId]: true }));
                 const groups = await fetchQuestionGroups(selectedCourse, bankId);
-                
+
                 // Add each group to our maps
                 groups.forEach(group => {
                     newGroupsMap[group.id] = group;
                     newGroupBankMap[group.id] = bankId;
                 });
-                
-                setLoadingGroups(prev => ({...prev, [bankId]: false}));
+
+                setLoadingGroups(prev => ({ ...prev, [bankId]: false }));
             } catch (err) {
                 console.error("Failed to fetch question groups for bank:", bankId, err);
-                setLoadingGroups(prev => ({...prev, [bankId]: false}));
+                setLoadingGroups(prev => ({ ...prev, [bankId]: false }));
             }
         }
-        
+
         setQuestionGroupsMap(newGroupsMap);
         setGroupBankMap(newGroupBankMap);
     };
@@ -1539,14 +1583,14 @@ const CreateTest = () => {
     const generateTestContent = () => {
         let content = `# ${testData.title}\n\n`;
         content += `${testData.description}\n\n`;
-        
+
         // Use the same grouping approach for export
         const questionsToUse = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
-        
+
         // Group questions by their group ID
         const grouped: Record<number, Question[]> = {};
         const standalone: Question[] = [];
-        
+
         questionsToUse.forEach(q => {
             if (q.question_group_id) {
                 const groupId = q.question_group_id;
@@ -1558,37 +1602,37 @@ const CreateTest = () => {
                 standalone.push(q);
             }
         });
-        
+
         let questionCounter = 1;
-        
+
         // Add standalone questions
         standalone.forEach(question => {
             content += `\n## Question ${questionCounter++}: (${question.marks || 1} ${(question.marks || 1) === 1 ? 'mark' : 'marks'})\n\n`;
             content += `${sanitizeHtml(question.question_text)}\n\n`;
-            
+
             const questionAnswers = question.answers || [];
             questionAnswers.forEach((answer, index) => {
                 const answerLabel = String.fromCharCode(65 + index); // A, B, C, etc.
                 content += `${answerLabel}. ${sanitizeHtml(answer.answer_text)}\n`;
             });
         });
-        
+
         // Add grouped questions with their context
         Object.entries(grouped).forEach(([groupIdStr, groupQuestions]) => {
             const groupId = parseInt(groupIdStr);
             const group = questionGroupsMap[groupId];
-            
+
             if (group) {
                 content += `\n# Group: ${group.name}\n\n`;
-                
+
                 if (group.context) {
                     content += `Context:\n${sanitizeHtml(group.context)}\n\n`;
                 }
-                
+
                 groupQuestions.forEach(question => {
                     content += `\n## Question ${questionCounter++}: (${question.marks || 1} ${(question.marks || 1) === 1 ? 'mark' : 'marks'})\n\n`;
                     content += `${sanitizeHtml(question.question_text)}\n\n`;
-                    
+
                     const questionAnswers = question.answers || [];
                     questionAnswers.forEach((answer, index) => {
                         const answerLabel = String.fromCharCode(65 + index); // A, B, C, etc.
@@ -1597,7 +1641,7 @@ const CreateTest = () => {
                 });
             }
         });
-        
+
         return content;
     };
 
@@ -1626,11 +1670,11 @@ const CreateTest = () => {
         });
 
         const questionsToUse = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
-        
+
         // Group questions by their group ID
         const grouped = {};
         const standalone = [];
-        
+
         questionsToUse.forEach(q => {
             if (q.question_group_id) {
                 const groupId = q.question_group_id;
@@ -1642,15 +1686,15 @@ const CreateTest = () => {
                 standalone.push(q);
             }
         });
-        
+
         let questionCounter = 1;
         const mainSection = doc.sections[0]; // Define mainSection from the doc
-        
+
         // Add standalone questions
         standalone.forEach(question => {
             const editedQuestion = editedQuestions[question.id];
             const questionToUse = editedQuestion || question;
-            const visibleAnswers = questionToUse.answers?.filter((_, idx) => 
+            const visibleAnswers = questionToUse.answers?.filter((_, idx) =>
                 !editedQuestion?.hiddenAnswers?.[idx]
             );
 
@@ -1670,12 +1714,12 @@ const CreateTest = () => {
                     },
                 })
             );
-            
+
             visibleAnswers.forEach((answer, index) => {
                 const answerLabel = answerFormat.case === 'uppercase'
                     ? String.fromCharCode(65 + index)  // A, B, C, etc.
                     : String.fromCharCode(97 + index); // a, b, c, etc.
-                
+
                 mainSection.children.push(
                     new Paragraph({
                         text: `${answerLabel}${answerFormat.separator} ${sanitizeHtml(answer.answer_text)}`,
@@ -1691,7 +1735,7 @@ const CreateTest = () => {
         Object.entries(grouped).forEach(([groupIdStr, groupQuestions]) => {
             const groupId = parseInt(groupIdStr);
             const group = questionGroupsMap[groupId];
-            
+
             if (group) {
                 // Add group title
                 mainSection.children.push(
@@ -1704,7 +1748,7 @@ const CreateTest = () => {
                         },
                     })
                 );
-                
+
                 // Add context if available
                 if (group.context) {
                     mainSection.children.push(
@@ -1729,10 +1773,10 @@ const CreateTest = () => {
                 groupQuestions.forEach(question => {
                     const editedQuestion = editedQuestions[question.id];
                     const questionToUse = editedQuestion || question;
-                    const visibleAnswers = questionToUse.answers?.filter((_, idx) => 
+                    const visibleAnswers = questionToUse.answers?.filter((_, idx) =>
                         !editedQuestion?.hiddenAnswers?.[idx]
                     );
-                    
+
                     mainSection.children.push(
                         new Paragraph({
                             text: `Question ${questionCounter++}: (${question.marks || 1} ${(question.marks || 1) === 1 ? 'mark' : 'marks'})`,
@@ -1749,12 +1793,12 @@ const CreateTest = () => {
                             },
                         })
                     );
-                    
+
                     visibleAnswers.forEach((answer, index) => {
                         const answerLabel = answerFormat.case === 'uppercase'
                             ? String.fromCharCode(65 + index)  // A, B, C, etc.
                             : String.fromCharCode(97 + index); // a, b, c, etc.
-                        
+
                         mainSection.children.push(
                             new Paragraph({
                                 text: `${answerLabel}${answerFormat.separator} ${sanitizeHtml(answer.answer_text)}`,
@@ -1894,8 +1938,7 @@ const CreateTest = () => {
                     {/* Question Selection Block */}
                     <div
                         ref={questionsSectionRef}
-                        className={`rounded-sm border bg-white shadow-default dark:border-strokedark dark:bg-boxdark mb-6 ${showQuestionWarning ? 'border-danger' : 'border-stroke'
-                            }`}
+                        className={`rounded-sm border bg-white shadow-default dark:border-strokedark dark:bg-boxdark mb-6 ${showQuestionWarning ? 'border-danger' : 'border-stroke'}`}
                     >
                         <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
                             <div className="flex justify-between items-center">
@@ -1913,410 +1956,51 @@ const CreateTest = () => {
                             </div>
                         </div>
 
-                        {/* Available Questions List */}
-                        <div className="p-6.5 border-b border-stroke dark:border-strokedark">
-                            <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-medium text-black dark:text-white">
-                                    Available Questions
-                                </h4>
-                                <div className="flex gap-4 items-center">
-                                    <input
-                                        type="text"
-                                        placeholder="Search questions..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
-                                    />
-                                    <div className="relative">
-                                        <button
-                                            onClick={() => setShowBloomsLevels(!showBloomsLevels)}
-                                            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary py-2 px-6 text-white hover:bg-opacity-90"
-                                        >
-                                            <span>Bloom's Levels</span>
-                                            <svg
-                                                className={`w-4 h-4 transform transition-transform duration-200 ${showBloomsLevels ? 'rotate-180' : ''}`}
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M19 9l-7 7-7-7"
-                                                />
-                                            </svg>
-                                        </button>
-
-                                        {showBloomsLevels && (
-                                            <div className="absolute top-full right-0 mt-2 w-80 bg-[#C0C0C0] dark:bg-boxdark rounded-sm shadow-lg z-50 p-4">
-                                                <div className="flex flex-wrap gap-2">
-                                                    {bloomsLevels.map(level => (
-                                                        <button
-                                                            key={level}
-                                                            onClick={() => toggleLevel(level)}
-                                                            className={`px-3 py-1 rounded-full text-sm ${selectedLevels.includes(level)
-                                                                ? 'bg-primary text-white'
-                                                                : 'bg-white dark:bg-meta-4 hover:bg-gray-100 dark:hover:bg-meta-3'
-                                                                }`}
-                                                        >
-                                                            {level}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="relative">
-                                        <select
-                                            value={selectedBankId}
-                                            onChange={(e) => setSelectedBankId(e.target.value)}
-                                            className="rounded-md border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none"
-                                        >
-                                            <option value="">All Banks</option>
-                                            {renderBankOptions(questionBanks)}
-                                        </select>
-                                    </div>
-                                    <svg
-                                        className={`w-4 h-4 transform transition-transform duration-200 cursor-pointer ${showQuestionBank ? 'rotate-180' : ''
-                                            }`}
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        onClick={() => setShowQuestionBank(!showQuestionBank)}
-                                    >
-                                        <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth="2"
-                                            d="M19 9l-7 7-7-7"
-                                        />
-                                    </svg>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                {/* Add Column Headers */}
-                                <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-meta-4 rounded-sm">
-                                    <div className="flex-1">
-                                        <span className="font-medium text-black dark:text-white">Question</span>
-                                    </div>
-                                    <div className="flex items-center gap-8">
-                                        <span className="font-medium text-black dark:text-white w-24 text-center">Difficulty</span>
-                                        <span className="font-medium text-black dark:text-white w-24 text-center">Taxonomy</span>
-                                        <span className="w-12"></span>
-                                    </div>
-                                </div>
-
-                                {/* Grouped Questions */}
-                                {Object.entries(getQuestionsByGroup().grouped).map(([groupIdStr, groupQuestions]) => {
-                                    const groupId = parseInt(groupIdStr);
-                                    const group = getGroupById(groupId);
-                                    const isExpanded = expandedGroups.includes(groupId);
-                                    const bankId = groupBankMap[groupId];
-                                    const isLoading = loadingGroups[bankId];
-                                    
-                                    return (
-                                        <React.Fragment key={groupId}>
-                                            <div 
-                                                onClick={() => toggleGroupExpansion(groupId)}
-                                                className="flex items-center justify-between cursor-pointer p-2 bg-gray-100 dark:bg-meta-4 rounded-sm mb-1"
-                                            >
-                                                <div className="flex items-center">
-                                                    {isExpanded ? (
-                                                        <FiChevronDown className="mr-2" />
-                                                    ) : (
-                                                        <FiChevronRight className="mr-2" />
-                                                    )}
-                                                    <span className="font-medium">
-                                                        {questionGroupsMap[groupId]?.name || `Group ${groupId}`}
-                                                    </span>
-                                                    <span className="ml-2 text-xs text-gray-500">
-                                                        ({questionGroupsMap[groupId]?.question_count || 0} questions)
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            
-                                            {isLoading && (
-                                                <div className="p-4 text-center border-l-2 border-r-2 border-primary border-opacity-30">
-                                                    <span>Loading group details...</span>
-                                                </div>
-                                            )}
-                                            
-                                            {isExpanded && groupQuestions
-                                                .filter(q => !selectedQuestions.some(sq => sq.id === q.id))
-                                                .map((question) => (
-                                                    <div
-                                                        key={question.id}
-                                                        className="p-4 border-l-2 border-r-2 border-primary border-opacity-30 hover:bg-gray-50 dark:hover:bg-meta-4/30"
-                                                    >
-                                                        <div className="flex justify-between items-start">
-                                                            <div className="flex gap-4 flex-1">
-                                                                <div className="flex-1">
-                                                                    <div
-                                                                        className="cursor-pointer hover:text-primary"
-                                                                        onClick={() => handleQuestionClick(question)}
-                                                                    >
-                                                                        {sanitizeHtml(question.question_text)}
-                                                                        {question.statistics && (
-                                                                            <span className="text-xs text-gray-500 ml-2">
-                                                                                (D: {question.statistics.scaled_difficulty.toFixed(2)},
-                                                                                Disc: {question.statistics.scaled_discrimination.toFixed(2)})
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center gap-8">
-                                                                <span className="text-sm text-gray-500 w-24 text-center">
-                                                                    {question.difficulty || 'N/A'}
-                                                                </span>
-                                                                <span className="text-sm text-gray-500 w-24 text-center">
-                                                                    {question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
-                                                                </span>
-                                                                <button
-                                                                    onClick={() => toggleQuestionSelection(question)}
-                                                                    className="text-success hover:text-meta-3 w-12"
-                                                                >
-                                                                    Add
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            {isExpanded && (
-                                                <div className="p-2 mb-2 bg-gray-50 dark:bg-boxdark rounded-sm">
-                                                    <div className="text-sm font-medium mb-1">Context:</div>
-                                                    <div className="text-sm" dangerouslySetInnerHTML={{ 
-                                                        __html: questionGroupsMap[groupId]?.context || 'No context available'
-                                                    }} />
-                                                </div>
-                                            )}
-                                        </React.Fragment>
-                                    );
-                                })}
-
-                                {/* Standalone Questions */}
-                                {getPagedQuestions(filteredQuestions, availableQuestionsPage, itemsPerPage)
-                                    .map((question, index) => {
-                                        const questionNumber = ((availableQuestionsPage - 1) * itemsPerPage) + index + 1;
-
-                                        return (
-                                            <div
-                                                key={question.id}
-                                                className="p-4 border rounded-sm dark:border-strokedark"
-                                            >
-                                                <div className="flex justify-between items-start">
-                                                    <div className="flex gap-4 flex-1">
-                                                        <span className="text-gray-500">{questionNumber}.</span>
-                                                        <div className="flex-1">
-                                                            <div
-                                                                className="cursor-pointer hover:text-primary"
-                                                                onClick={() => handleQuestionClick(question)}
-                                                            >
-                                                                {sanitizeHtml(question.question_text)}
-                                                            </div>
-                                                            {question.statistics && (
-                                                                <span className="text-xs text-gray-500 ml-2">
-                                                                    (D: {question.statistics.scaled_difficulty.toFixed(2)},
-                                                                    Disc: {question.statistics.scaled_discrimination.toFixed(2)})
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-8">
-                                                        <span className="text-sm text-gray-500 w-24 text-center">
-                                                            N/A
-                                                        </span>
-                                                        <span className="text-sm text-gray-500 w-24 text-center">
-                                                            {question.taxonomies?.find((tax: Taxonomy) => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => toggleQuestionSelection(question)}
-                                                            className="text-success hover:text-meta-3 w-12"
-                                                        >
-                                                            Add
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                            </div>
-
-                            <Pagination
-                                totalItems={filteredQuestions.filter(q => !selectedQuestions.some(sq => sq.id === q.id)).length}
-                                itemsPerPage={itemsPerPage}
-                                currentPage={availableQuestionsPage}
-                                onPageChange={(page) => setAvailableQuestionsPage(page)}
-                                onItemsPerPageChange={(items) => {
-                                    setItemsPerPage(items);
-                                    setAvailableQuestionsPage(1);
-                                    setSelectedQuestionsPage(1);
-                                }}
-                            />
-                        </div>
-
-                        {/* Selected Questions Section */}
-                        {selectedQuestions.length > 0 && (
-                            <div className="p-6.5">
-                                <h4 className="font-medium text-black dark:text-white mb-4">
-                                    Selected Questions ({selectedQuestions.length})
-                                </h4>
-                                <div className="space-y-4">
-                                    {/* Add Column Headers for Selected Questions */}
-                                    <div className="flex justify-between items-center px-4 py-2 bg-gray-50 dark:bg-meta-4 rounded-sm">
-                                        <div className="flex-1">
-                                            <span className="font-medium text-black dark:text-white">Question</span>
-                                        </div>
-                                        <div className="flex items-center gap-8">
-                                            <span className="font-medium text-black dark:text-white w-24 text-center">Difficulty</span>
-                                            <span className="font-medium text-black dark:text-white w-24 text-center">Taxonomy</span>
-                                            <span className="w-12"></span>
-                                        </div>
-                                    </div>
-
-                                    {selectedQuestions
-                                        .slice((selectedQuestionsPage - 1) * itemsPerPage, selectedQuestionsPage * itemsPerPage)
-                                        .map((question, index) => {
-                                                    const questionNumber = ((selectedQuestionsPage - 1) * itemsPerPage) + index + 1;
-                                        return (
-                                                            <div
-                                                                key={question.id}
-                                                                className="p-4 border rounded-sm dark:border-strokedark"
-                                                            >
-                                                                <div className="flex justify-between items-start">
-                                                                    <div className="flex gap-4 flex-1">
-                                                                    <span className="text-gray-500">{questionNumber}.</span>
-                                                                        <div className="flex-1">
-                                                                            <div
-                                                                                className="cursor-pointer hover:text-primary"
-                                                                                onClick={() => handleQuestionClick(question)}
-                                                                            >
-                                                                                {sanitizeHtml(question.question_text)}
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-8">
-                                                                        <span className="text-sm text-gray-500 w-24 text-center">
-                                                                            {capitalizeFirstLetter(editedQuestions[question.id]?.difficulty || question.difficulty || 'N/A')}
-                                                                        </span>
-                                                                        <span className="text-sm text-gray-500 w-24 text-center">
-                                                                            {editedQuestions[question.id]?.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level ||
-                                                                                question.taxonomies?.find(tax => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A'}
-                                                                        </span>
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                toggleQuestionSelection(question);
-                                                                            }}
-                                                                            className="text-danger hover:text-meta-1 w-12"
-                                                                        >
-                                                                            Remove
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                    );
-                                                })}
-                                </div>
-
-                                <Pagination
-                                    totalItems={selectedQuestions.length}
-                                    itemsPerPage={itemsPerPage}
-                                    currentPage={selectedQuestionsPage}
-                                    onPageChange={(page) => setSelectedQuestionsPage(page)}
-                                    onItemsPerPageChange={(items) => {
-                                        setItemsPerPage(items);
-                                        setAvailableQuestionsPage(1);
-                                        setSelectedQuestionsPage(1);
-                                    }}
-                                />
-                                                    </div>
-                                                )}
+                        <QuestionList
+                            selectedQuestions={selectedQuestions}
+                            filteredQuestions={filteredQuestions}
+                            questionGroupsMap={questionGroupsMap}
+                            expandedGroups={expandedGroups}
+                            groupBankMap={groupBankMap}
+                            loadingGroups={loadingGroups}
+                            editedQuestions={editedQuestions}
+                            itemsPerPage={itemsPerPage}
+                            availableQuestionsPage={availableQuestionsPage}
+                            selectedQuestionsPage={selectedQuestionsPage}
+                            searchQuery={searchQuery}
+                            showBloomsLevels={showBloomsLevels}
+                            selectedLevels={selectedLevels}
+                            selectedBankId={selectedBankId}
+                            showQuestionBank={showQuestionBank}
+                            bloomsLevels={bloomsLevels}
+                            questionBanks={questionBanks}
+                            onSearchChange={setSearchQuery}
+                            onToggleBloomsLevels={() => setShowBloomsLevels(!showBloomsLevels)}
+                            onToggleLevel={toggleLevel}
+                            onBankChange={(value) => setSelectedBankId(value)}
+                            onToggleQuestionBank={() => setShowQuestionBank(!showQuestionBank)}
+                            onQuestionClick={handleQuestionClick}
+                            onToggleQuestionSelection={toggleQuestionSelection}
+                            onToggleGroupExpansion={toggleGroupExpansion}
+                            onPageChange={(page) => setAvailableQuestionsPage(page)}
+                            onItemsPerPageChange={(items) => {
+                                setItemsPerPage(items);
+                                setAvailableQuestionsPage(1);
+                                setSelectedQuestionsPage(1);
+                            }}
+                            renderBankOptions={renderBankOptions}
+                            getQuestionsByGroup={getQuestionsByGroup}
+                            getGroupById={getGroupById}
+                            sanitizeHtml={sanitizeHtml}
+                            capitalizeFirstLetter={capitalizeFirstLetter}
+                        />
                     </div>
 
-                    {/* Question Distribution Section */}
-                    <div className="mt-6 rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-                        <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                            <h3 className="font-medium text-black dark:text-white">
-                                Question Distribution
-                            </h3>
-                        </div>
-
-                        <div className="p-6.5">
-                            <div className="grid grid-cols-1 gap-6">
-
-                                {/* Distribution Table */}
-                                <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead>
-                                            <tr className="bg-gray-2 dark:bg-meta-4">
-                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                                    Taxonomy Level
-                                                </th>
-                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                                    Easy
-                                                </th>
-                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                                    Medium
-                                                </th>
-                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                                    Hard
-                                                </th>
-                                                <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                                    Total
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].map(taxonomy => {
-                                                const difficulties = calculateDistribution()[taxonomy];
-                                                const rowTotal = Object.values(difficulties).reduce((sum, count) => sum + count, 0);
-
-                                                return (
-                                                    <tr key={taxonomy}>
-                                                        <td className="py-3 px-4 border-b border-[#eee] dark:border-strokedark">
-                                                            {taxonomy}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
-                                                            {difficulties.easy}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
-                                                            {difficulties.medium}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
-                                                            {difficulties.hard}
-                                                        </td>
-                                                        <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark font-medium">
-                                                            {rowTotal}
-                                                        </td>
-                                                    </tr>
-                                        );
-                                    })}
-                                            {/* Total Row */}
-                                            <tr className="bg-gray-2 dark:bg-meta-4">
-                                                <td className="py-3 px-4 font-medium">Total</td>
-                                                <td className="py-3 px-4 text-center font-medium">
-                                                    {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.easy, 0)}
-                                                </td>
-                                                <td className="py-3 px-4 text-center font-medium">
-                                                    {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.medium, 0)}
-                                                </td>
-                                                <td className="py-3 px-4 text-center font-medium">
-                                                    {Object.values(calculateDistribution()).reduce((sum, diff) => sum + diff.hard, 0)}
-                                                </td>
-                                                <td className="py-3 px-4 text-center font-medium">
-                                                    {selectedQuestions.length}
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    {/* Distribution Section */}
+                    <QuestionDistribution
+                        selectedQuestions={selectedQuestions}
+                        editedQuestions={editedQuestions}
+                    />
 
                     {/* Preview Block */}
                     <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mt-6">
@@ -2331,7 +2015,7 @@ const CreateTest = () => {
                             <div className="mb-6 bg-gray-50 dark:bg-meta-4 p-4 rounded-sm">
                                 <h4 className="text-lg font-medium text-black dark:text-white mb-4">
                                     Test Configuration
-                                                        </h4>
+                                </h4>
                                 <div className="flex gap-6 flex-wrap items-end">
                                     <div>
                                         <label className="mb-2.5 block text-black dark:text-white">
@@ -2423,10 +2107,10 @@ const CreateTest = () => {
                                             </button>
                                             <span className="text-sm text-black dark:text-white">
                                                 {includeKey ? 'Show' : 'Hide'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Test Preview */}
@@ -2441,11 +2125,11 @@ const CreateTest = () => {
                                 <div className="space-y-4">
                                     {(() => {
                                         const questionsToShow = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
-                                        
+
                                         // Group questions by their group_id for the sample preview
                                         const grouped = {};
                                         const standalone = [];
-                                        
+
                                         // Take first few questions for preview
                                         questionsToShow.slice(0, previewShowAll ? undefined : 2).forEach(q => {
                                             if (q.question_group_id) {
@@ -2458,31 +2142,31 @@ const CreateTest = () => {
                                                 standalone.push(q);
                                             }
                                         });
-                                        
+
                                         return (
                                             <>
                                                 {/* Show grouped questions first in the sample preview */}
                                                 {Object.entries(grouped).map(([groupIdStr, groupQuestions]) => {
                                                     const groupId = parseInt(groupIdStr);
                                                     const group = questionGroupsMap[groupId];
-                                                    
+
                                                     return (
                                                         <div key={`sample-${groupId}`} className="mb-4 border border-gray-200 dark:border-boxdark rounded-sm">
                                                             {/* Group title - display prominently */}
                                                             <div className="p-2 bg-gray-100 dark:bg-meta-4 font-semibold border-b border-gray-200 dark:border-boxdark">
                                                                 {group?.name || `Question Group ${groupId}`}
                                                             </div>
-                                                            
+
                                                             {/* Group context - show with some styling */}
                                                             {group?.context && (
                                                                 <div className="p-2 bg-gray-50 dark:bg-boxdark-2 border-b border-gray-200 dark:border-boxdark">
                                                                     <div className="text-sm font-medium">Context:</div>
-                                                                    <div className="text-sm line-clamp-2" dangerouslySetInnerHTML={{ 
-                                                                        __html: group.context 
+                                                                    <div className="text-sm line-clamp-2" dangerouslySetInnerHTML={{
+                                                                        __html: group.context
                                                                     }} />
                                                                 </div>
                                                             )}
-                                                            
+
                                                             {/* Questions in this group */}
                                                             <div className="p-2">
                                                                 {groupQuestions.map((question, qIndex) => {
@@ -2491,7 +2175,7 @@ const CreateTest = () => {
                                                                     const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
                                                                         !editedQuestion?.hiddenAnswers?.[idx]
                                                                     );
-                                                                    
+
                                                                     return (
                                                                         <div key={question.id} className="mb-2 last:mb-0">
                                                                             <div className="font-medium">
@@ -2514,7 +2198,7 @@ const CreateTest = () => {
                                                         </div>
                                                     );
                                                 })}
-                                                
+
                                                 {/* Show standalone questions */}
                                                 {standalone.map((question, index) => {
                                                     const editedQuestion = editedQuestions[question.id];
@@ -2522,7 +2206,7 @@ const CreateTest = () => {
                                                     const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
                                                         !editedQuestion?.hiddenAnswers?.[idx]
                                                     );
-                                                    
+
                                                     return (
                                                         <div key={question.id} className="space-y-2">
                                                             <div className="font-medium">
@@ -2556,10 +2240,10 @@ const CreateTest = () => {
                                         >
                                             Preview All
                                         </button>
-                                        </div>
-                                    )}
-                                                            </div>
-                                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
 
@@ -2597,7 +2281,7 @@ const CreateTest = () => {
                                         fill=""
                                     ></path>
                                 </svg>
-                                                            </span>
+                            </span>
                             Cancel
                         </button>
 
@@ -2620,11 +2304,11 @@ const CreateTest = () => {
                                         fill=""
                                     ></path>
                                 </svg>
-                                                            </span>
+                            </span>
                             Create Test
                         </button>
 
-                                                            <button
+                        <button
                             onClick={exportToWord}
                             className={`flex w-1/3 items-center justify-center gap-2.5 rounded-md bg-primary py-4 px-10 text-center font-medium text-white hover:bg-opacity-90 ${!selectedCourse || selectedQuestions.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                             disabled={!selectedCourse || selectedQuestions.length === 0}
@@ -2642,8 +2326,8 @@ const CreateTest = () => {
                                 </svg>
                             </span>
                             Export to Word
-                                                            </button>
-                                                        </div>
+                        </button>
+                    </div>
                 </>
             )}
 
@@ -2690,12 +2374,12 @@ const CreateTest = () => {
                                                     className="cursor-text hover:bg-gray-100 dark:hover:bg-meta-4 p-2 rounded-md"
                                                 >
                                                     Question: {sanitizeHtml(selectedQuestionDetail.question_text)}
-                                                                </div>
+                                                </div>
                                             )
                                         ) : (
                                             <div>Question: {sanitizeHtml(selectedQuestionDetail.question_text)}</div>
                                         )}
-                                                            </div>
+                                    </div>
 
                                     {editMode && (
                                         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -2715,7 +2399,7 @@ const CreateTest = () => {
                                                     <option value="medium">Medium</option>
                                                     <option value="hard">Hard</option>
                                                 </select>
-                                                        </div>
+                                            </div>
 
                                             <div>
                                                 <label className="mb-1.5 block text-black dark:text-white">
@@ -2730,8 +2414,7 @@ const CreateTest = () => {
 
                                                             // Create a new taxonomies array
                                                             let newTaxonomies;
-                                                            if (prev.taxonomies && prev.taxonomies.length > 0) {
-                                                                // If taxonomies exist, update the Bloom's taxonomy
+                                                            if (prev.taxonomies?.length) {
                                                                 newTaxonomies = prev.taxonomies.map(tax => {
                                                                     if (tax.taxonomy.name === "Bloom's Taxonomy") {
                                                                         return { ...tax, level: newLevel };
@@ -2739,7 +2422,6 @@ const CreateTest = () => {
                                                                     return tax;
                                                                 });
                                                             } else {
-                                                                // If no taxonomies exist, create a new one
                                                                 newTaxonomies = [{
                                                                     taxonomy: { name: "Bloom's Taxonomy" },
                                                                     level: newLevel
@@ -2767,8 +2449,8 @@ const CreateTest = () => {
                                         <div className="space-y-2">
                                             {selectedQuestionDetail.answers?.map((answer, index) => {
                                                 const isSelected = selectedAnswers[selectedQuestionDetail.id]?.[index] || false;
-                                            return (
-                                                <div
+                                                return (
+                                                    <div
                                                         key={index}
                                                         className={`p-2 rounded-sm ${answer.is_correct ? 'bg-success/10' : ''} ${editMode ? 'hover:bg-gray-50 dark:hover:bg-meta-4' : ''}`}
                                                     >
@@ -2802,7 +2484,7 @@ const CreateTest = () => {
                                                                             className="cursor-text hover:bg-gray-100 dark:hover:bg-meta-4 p-1 rounded"
                                                                         >
                                                                             {sanitizeHtml(answer.answer_text)}
-                                                            </span>
+                                                                        </span>
                                                                     )
                                                                 ) : (
                                                                     <span>
@@ -2810,13 +2492,13 @@ const CreateTest = () => {
                                                                         {!editMode && answer.is_correct && (
                                                                             <span className="text-meta-3 ml-2">✓</span>
                                                                         )}
-                                                            </span>
+                                                                    </span>
                                                                 )}
                                                             </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 </div>
@@ -2825,7 +2507,7 @@ const CreateTest = () => {
                                 <div className={`flex justify-end gap-3 py-2 mt-auto ${editMode ? 'sticky bottom-0 bg-white dark:bg-boxdark' : ''}`}>
                                     {!editMode ? (
                                         <>
-                                                            <button
+                                            <button
                                                 onClick={() => {
                                                     setIsQuestionDialogOpen(false);
                                                     setEditMode(false);
@@ -2833,7 +2515,7 @@ const CreateTest = () => {
                                                 className="rounded bg-danger px-4 py-1.5 text-white hover:bg-opacity-90 min-w-[80px]"
                                             >
                                                 Close
-                                                            </button>
+                                            </button>
                                             <button
                                                 onClick={() => setEditMode(true)}
                                                 className="rounded bg-primary px-4 py-1.5 text-white hover:bg-opacity-90 min-w-[80px]"
@@ -2908,16 +2590,16 @@ const CreateTest = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
-                                                                </div>
+                        </div>
 
                         <div className="space-y-6">
                             {(() => {
                                 const questionsToShow = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
-                                
+
                                 // Group questions by their group_id for the full preview
                                 const grouped = {};
                                 const standalone = [];
-                                
+
                                 questionsToShow.forEach(q => {
                                     if (q.question_group_id) {
                                         const groupId = q.question_group_id;
@@ -2929,31 +2611,31 @@ const CreateTest = () => {
                                         standalone.push(q);
                                     }
                                 });
-                                
+
                                 return (
                                     <>
                                         {/* Show grouped questions first */}
                                         {Object.entries(grouped).map(([groupIdStr, groupQuestions]) => {
                                             const groupId = parseInt(groupIdStr);
                                             const group = questionGroupsMap[groupId];
-                                            
+
                                             return (
                                                 <div key={`full-preview-group-${groupId}`} className="mb-6 border border-gray-200 dark:border-boxdark rounded-md">
                                                     {/* Group title */}
                                                     <div className="p-3 bg-gray-100 dark:bg-meta-4 font-semibold border-b border-gray-200 dark:border-boxdark">
                                                         {group?.name || `Question Group ${groupId}`}
                                                     </div>
-                                                    
+
                                                     {/* Group context */}
                                                     {group?.context && (
                                                         <div className="p-3 bg-gray-50 dark:bg-boxdark-2 border-b border-gray-200 dark:border-boxdark">
                                                             <div className="text-sm font-medium mb-1">Context:</div>
-                                                            <div className="text-sm" dangerouslySetInnerHTML={{ 
-                                                                __html: group.context 
+                                                            <div className="text-sm" dangerouslySetInnerHTML={{
+                                                                __html: group.context
                                                             }} />
                                                         </div>
                                                     )}
-                                                    
+
                                                     {/* Questions in this group */}
                                                     <div className="p-3">
                                                         {groupQuestions.map((question, qIndex) => {
@@ -2962,7 +2644,7 @@ const CreateTest = () => {
                                                             const visibleAnswers = questionToUse.answers?.filter((_, idx) =>
                                                                 !editedQuestion?.hiddenAnswers?.[idx]
                                                             );
-                                                            
+
                                                             return (
                                                                 <div key={question.id} className="mb-4 last:mb-0 border-b border-dashed border-gray-200 dark:border-boxdark last:border-b-0 pb-3 last:pb-0">
                                                                     <div className="font-medium text-black dark:text-white">
@@ -2988,7 +2670,7 @@ const CreateTest = () => {
                                                 </div>
                                             );
                                         })}
-                                        
+
                                         {/* Show standalone questions */}
                                         {standalone.map((question, index) => {
                                             const editedQuestion = editedQuestions[question.id];
@@ -2996,7 +2678,7 @@ const CreateTest = () => {
                                             const visibleAnswers = questionToShow.answers?.filter((_, idx) =>
                                                 !editedQuestion?.hiddenAnswers?.[idx]
                                             );
-                                            
+
                                             return (
                                                 <div key={question.id} className="space-y-3">
                                                     <div className="font-medium text-black dark:text-white">
@@ -3031,7 +2713,7 @@ const CreateTest = () => {
                 <div className="mb-2">
                     <span className="text-sm text-gray-500">
                         Auto-saved: {new Date(testData.lastSaved).toLocaleString()}
-                                                            </span>
+                    </span>
                 </div>
             )}
 
@@ -3046,7 +2728,7 @@ const CreateTest = () => {
                             {confirmMessage}
                         </p>
                         <div className="flex justify-end space-x-3">
-                                                            <button
+                            <button
                                 onClick={() => setShowConfirmModal(false)}
                                 className="rounded border border-stroke px-4 py-2 text-black transition hover:bg-gray-100 dark:border-strokedark dark:text-white dark:hover:bg-meta-4"
                             >
@@ -3060,8 +2742,8 @@ const CreateTest = () => {
                                 className="rounded bg-danger px-4 py-2 text-white transition hover:bg-opacity-90"
                             >
                                 Delete
-                                                            </button>
-                                                        </div>
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

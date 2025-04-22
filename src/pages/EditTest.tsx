@@ -7,7 +7,7 @@ import TestConfiguration from '../components/TestConfiguration';
 import QuestionDisplay from '../components/QuestionDisplay';
 
 interface Question {
-    id: string;
+    id: string | number;
     question_text: string;
     answers: {
         id: string;
@@ -17,6 +17,7 @@ interface Question {
     }[];
     taxonomyLevel?: string;
     difficulty?: 'easy' | 'medium' | 'hard';
+    explanation?: string;
 }
 
 interface Test {
@@ -78,7 +79,7 @@ const EditTest = () => {
             const matchesSearch = question.question_text.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesLevel = selectedLevels.length === 0 ||
                 selectedLevels.includes(question.taxonomyLevel?.toLowerCase() || '');
-            const matchesBank = !selectedBankId || question.id.startsWith(selectedBankId);
+            const matchesBank = !selectedBankId || question.id.toString().startsWith(selectedBankId);
             return matchesSearch && matchesLevel && matchesBank;
         });
         setFilteredQuestions(filtered);
@@ -101,7 +102,7 @@ const EditTest = () => {
     useEffect(() => {
         const loadTest = async () => {
             if (!courseId || !testId) return;
-            
+
             setLoading(true);
             try {
                 const testData = await fetchTestDetail(courseId, testId);
@@ -126,7 +127,7 @@ const EditTest = () => {
     useEffect(() => {
         const loadQuestions = async () => {
             if (!courseId) return;
-            
+
             try {
                 // First fetch question banks
                 const banks = await fetchQuestionBanks(courseId);
@@ -147,8 +148,8 @@ const EditTest = () => {
     }, [courseId]);
 
     const handleSave = async () => {
-        if (!courseId || !testId) return;
-        
+        if (!courseId || !testId || !test) return;
+
         try {
             setLoading(true);
             await updateTest(courseId, testId, {
@@ -174,18 +175,26 @@ const EditTest = () => {
     };
 
     const toggleQuestionSelection = (question: Question) => {
-        if (test.questions.some(q => q.id === question.id)) {
+        if (!test) return;
+
+        if (test.questions.some(q => q.id === Number(question.id))) {
             // Remove question
-            setTest(prev => ({
-                ...prev,
-                questions: prev.questions.filter(q => q.id !== question.id)
-            }));
+            setTest(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    questions: prev.questions.filter(q => q.id !== Number(question.id))
+                };
+            });
         } else {
             // Add question
-            setTest(prev => ({
-                ...prev,
-                questions: [...prev.questions, { id: question.id, question_data: question }]
-            }));
+            setTest(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    questions: [...prev.questions, { id: Number(question.id), question: Number(question.id), question_data: question }]
+                };
+            });
         }
     };
 
@@ -218,7 +227,13 @@ const EditTest = () => {
                             type="text"
                             placeholder="Enter test title"
                             value={test.title}
-                            onChange={(e) => setTest(prev => ({ ...prev, title: e.target.value }))}
+                            onChange={(e) => setTest(prev => {
+                                if (!prev) return null;
+                                return {
+                                    ...prev,
+                                    title: e.target.value
+                                };
+                            })}
                             className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                         />
                     </div>
@@ -226,7 +241,13 @@ const EditTest = () => {
                         <textarea
                             placeholder="Enter test description"
                             value={test.description || ''}
-                            onChange={(e) => setTest(prev => ({ ...prev, description: e.target.value }))}
+                            onChange={(e) => setTest(prev => {
+                                if (!prev) return null;
+                                return {
+                                    ...prev,
+                                    description: e.target.value
+                                };
+                            })}
                             rows={4}
                             className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                         />
@@ -318,7 +339,7 @@ const EditTest = () => {
 
                             {/* Available Questions List */}
                             {filteredQuestions
-                                .filter(q => !test.questions.some(tq => tq.id === q.id))
+                                .filter(q => !test.questions.some(tq => tq.id === Number(q.id)))
                                 .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                 .map((question, index) => (
                                     <QuestionDisplay
@@ -630,12 +651,17 @@ const EditTest = () => {
                                     </button>
                                     <button
                                         onClick={() => {
-                                            setTest(prev => ({
-                                                ...prev,
-                                                questions: prev.questions.map(q =>
-                                                    q.id === selectedQuestion.id ? selectedQuestion : q.question_data
-                                                )
-                                            }));
+                                            setTest(prev => {
+                                                if (!prev) return null;
+                                                return {
+                                                    ...prev,
+                                                    questions: prev.questions.map(q =>
+                                                        q.id === selectedQuestion.id
+                                                            ? { id: Number(selectedQuestion.id), question: Number(selectedQuestion.id), question_data: selectedQuestion }
+                                                            : q
+                                                    )
+                                                };
+                                            });
                                             setIsQuestionDialogOpen(false);
                                         }}
                                         className="rounded bg-primary px-6 py-2 text-white hover:bg-opacity-90"
