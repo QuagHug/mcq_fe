@@ -277,7 +277,40 @@ const TestDetails = () => {
                                                             tooltip: {
                                                                 callbacks: {
                                                                     label: (context) => {
-                                                                        return `Questions: ${context.raw}`;
+                                                                        const value = context.raw as number;
+                                                                        return `${value} questions`;
+                                                                    },
+                                                                    afterLabel: (context) => {
+                                                                        const rangeIndex = context.dataIndex;
+                                                                        let questions;
+                                                                        
+                                                                        switch(rangeIndex) {
+                                                                            case 0:
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_difficulty < 2);
+                                                                                break;
+                                                                            case 1:
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_difficulty >= 2 && q.question_data.statistics?.scaled_difficulty < 4);
+                                                                                break;
+                                                                            case 2:
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_difficulty >= 4 && q.question_data.statistics?.scaled_difficulty < 6);
+                                                                                break;
+                                                                            case 3:
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_difficulty >= 6 && q.question_data.statistics?.scaled_difficulty < 8);
+                                                                                break;
+                                                                            case 4:
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_difficulty >= 8);
+                                                                                break;
+                                                                            default:
+                                                                                questions = [];
+                                                                        }
+                                                                        
+                                                                        return questions.slice(0, 5).map(q => {
+                                                                            const questionIndex = test.questions.findIndex(tq => tq.id === q.id);
+                                                                            const orderNumber = questionIndex + 1;
+                                                                            const text = q.question_data.question_text.replace(/<[^>]*>/g, '');
+                                                                            const truncatedText = text.length > 40 ? text.substring(0, 40) + '...' : text;
+                                                                            return `• Q${orderNumber}: ${truncatedText} (D: ${q.question_data.statistics?.scaled_difficulty.toFixed(2)})`;
+                                                                        });
                                                                     }
                                                                 }
                                                             }
@@ -337,6 +370,38 @@ const TestDetails = () => {
                                                                         const value = dataset.data[context.dataIndex] as number;
                                                                         const percentage = ((value / total) * 100).toFixed(1);
                                                                         return `${context.label}: ${value} questions (${percentage}%)`;
+                                                                    },
+                                                                    afterLabel: (context) => {
+                                                                        const rangeIndex = context.dataIndex;
+                                                                        let questions;
+                                                                        
+                                                                        switch(rangeIndex) {
+                                                                            case 0: // Poor
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_discrimination < 2);
+                                                                                break;
+                                                                            case 1: // Fair
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_discrimination >= 2 && q.question_data.statistics?.scaled_discrimination < 4);
+                                                                                break;
+                                                                            case 2: // Good
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_discrimination >= 4 && q.question_data.statistics?.scaled_discrimination < 6);
+                                                                                break;
+                                                                            case 3: // Very Good
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_discrimination >= 6 && q.question_data.statistics?.scaled_discrimination < 8);
+                                                                                break;
+                                                                            case 4: // Excellent
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_discrimination >= 8);
+                                                                                break;
+                                                                            default:
+                                                                                questions = [];
+                                                                        }
+                                                                        
+                                                                        return questions.slice(0, 5).map(q => {
+                                                                            const questionIndex = test.questions.findIndex(tq => tq.id === q.id);
+                                                                            const orderNumber = questionIndex + 1;
+                                                                            const text = q.question_data.question_text.replace(/<[^>]*>/g, '');
+                                                                            const truncatedText = text.length > 40 ? text.substring(0, 40) + '...' : text;
+                                                                            return `• Q${orderNumber}: ${truncatedText} (Disc: ${q.question_data.statistics?.scaled_discrimination.toFixed(2)})`;
+                                                                        });
                                                                     }
                                                                 }
                                                             }
@@ -379,6 +444,46 @@ const TestDetails = () => {
                                                         title: {
                                                             display: true,
                                                             text: 'Distribution of Question Guessing Parameter'
+                                                        },
+                                                        tooltip: {
+                                                            callbacks: {
+                                                                label: (context) => {
+                                                                    const value = context.raw as number;
+                                                                    return `${value} questions`;
+                                                                },
+                                                                afterLabel: (context) => {
+                                                                    const rangeIndex = context.dataIndex;
+                                                                    let questions;
+                                                                    
+                                                                    switch(rangeIndex) {
+                                                                        case 0:
+                                                                            questions = test.questions.filter(q => q.question_data.statistics?.scaled_guessing < 2);
+                                                                            break;
+                                                                        case 1:
+                                                                            questions = test.questions.filter(q => q.question_data.statistics?.scaled_guessing >= 2 && q.question_data.statistics?.scaled_guessing < 4);
+                                                                            break;
+                                                                        case 2:
+                                                                            questions = test.questions.filter(q => q.question_data.statistics?.scaled_guessing >= 4 && q.question_data.statistics?.scaled_guessing < 6);
+                                                                            break;
+                                                                        case 3:
+                                                                            questions = test.questions.filter(q => q.question_data.statistics?.scaled_guessing >= 6 && q.question_data.statistics?.scaled_guessing < 8);
+                                                                            break;
+                                                                        case 4:
+                                                                            questions = test.questions.filter(q => q.question_data.statistics?.scaled_guessing >= 8);
+                                                                            break;
+                                                                        default:
+                                                                            questions = [];
+                                                                    }
+                                                                    
+                                                                    return questions.slice(0, 5).map(q => {
+                                                                        const questionIndex = test.questions.findIndex(tq => tq.id === q.id);
+                                                                        const orderNumber = questionIndex + 1;
+                                                                        const text = q.question_data.question_text.replace(/<[^>]*>/g, '');
+                                                                        const truncatedText = text.length > 40 ? text.substring(0, 40) + '...' : text;
+                                                                        return `• Q${orderNumber}: ${truncatedText} (G: ${q.question_data.statistics?.scaled_guessing.toFixed(2)})`;
+                                                                    });
+                                                                }
+                                                            }
                                                         }
                                                     },
                                                     scales: {
@@ -430,6 +535,46 @@ const TestDetails = () => {
                                                         title: {
                                                             display: true,
                                                             text: 'Distribution of Question Quality Scores'
+                                                        },
+                                                        tooltip: {
+                                                            callbacks: {
+                                                                label: (context) => {
+                                                                    const value = context.raw as number;
+                                                                    return `${value} questions`;
+                                                                },
+                                                                afterLabel: (context) => {
+                                                                    const rangeIndex = context.dataIndex;
+                                                                    let questions;
+                                                                    
+                                                                    switch(rangeIndex) {
+                                                                        case 0:
+                                                                            questions = test.questions.filter(q => q.question_data.statistics?.quality_score < 2);
+                                                                            break;
+                                                                        case 1:
+                                                                            questions = test.questions.filter(q => q.question_data.statistics?.quality_score >= 2 && q.question_data.statistics?.quality_score < 4);
+                                                                            break;
+                                                                        case 2:
+                                                                            questions = test.questions.filter(q => q.question_data.statistics?.quality_score >= 4 && q.question_data.statistics?.quality_score < 6);
+                                                                            break;
+                                                                        case 3:
+                                                                            questions = test.questions.filter(q => q.question_data.statistics?.quality_score >= 6 && q.question_data.statistics?.quality_score < 8);
+                                                                            break;
+                                                                        case 4:
+                                                                            questions = test.questions.filter(q => q.question_data.statistics?.quality_score >= 8);
+                                                                            break;
+                                                                        default:
+                                                                            questions = [];
+                                                                    }
+                                                                    
+                                                                    return questions.slice(0, 5).map(q => {
+                                                                        const questionIndex = test.questions.findIndex(tq => tq.id === q.id);
+                                                                        const orderNumber = questionIndex + 1;
+                                                                        const text = q.question_data.question_text.replace(/<[^>]*>/g, '');
+                                                                        const truncatedText = text.length > 40 ? text.substring(0, 40) + '...' : text;
+                                                                        return `• Q${orderNumber}: ${truncatedText} (Q: ${q.question_data.statistics?.quality_score.toFixed(2)})`;
+                                                                    });
+                                                                }
+                                                            }
                                                         }
                                                     },
                                                     scales: {
@@ -479,6 +624,40 @@ const TestDetails = () => {
                                                         title: {
                                                             display: true,
                                                             text: 'Percentage of Correct Responses by Question'
+                                                        },
+                                                        tooltip: {
+                                                            callbacks: {
+                                                                label: (context) => {
+                                                                    const value = context.raw as number;
+                                                                    return `Success rate: ${value.toFixed(1)}%`;
+                                                                },
+                                                                afterLabel: (context) => {
+                                                                    const index = context.dataIndex;
+                                                                    const questionIndex = index; // Assuming the order matches
+                                                                    
+                                                                    if (questionIndex < test.questions.length) {
+                                                                        const q = test.questions[questionIndex];
+                                                                        const text = q.question_data.question_text.replace(/<[^>]*>/g, '');
+                                                                        const truncatedText = text.length > 60 ? text.substring(0, 60) + '...' : text;
+                                                                        
+                                                                        const stats = q.question_data.statistics;
+                                                                        const responses = stats?.classical_parameters?.total_responses || 'N/A';
+                                                                        const correct = stats?.classical_parameters?.correct_responses || 'N/A';
+                                                                        
+                                                                        return [
+                                                                            `Question ${questionIndex + 1}: ${truncatedText}`,
+                                                                            `Total responses: ${responses}`,
+                                                                            `Correct responses: ${correct}`,
+                                                                            `Difficulty: ${stats?.scaled_difficulty?.toFixed(2) || 'N/A'}`,
+                                                                            `Discrimination: ${stats?.scaled_discrimination?.toFixed(2) || 'N/A'}`,
+                                                                            `Guessing: ${stats?.scaled_guessing?.toFixed(2) || 'N/A'}`,
+                                                                            `Quality: ${stats?.quality_score?.toFixed(2) || 'N/A'}`
+                                                                        ];
+                                                                    }
+                                                                    
+                                                                    return [];
+                                                                }
+                                                            }
                                                         }
                                                     },
                                                     scales: {
