@@ -48,6 +48,13 @@ interface Question {
     }[];
     taxonomyLevel?: string;
     difficulty?: 'easy' | 'medium' | 'hard';
+    statistics?: {
+        scaled_difficulty: number;
+        scaled_discrimination: number;
+        scaled_guessing: number;
+        quality_score: number;
+        quality_formula: string;
+    };
 }
 
 interface TestDetail {
@@ -341,56 +348,108 @@ const TestDetails = () => {
                                     </div>
                                     
                                     <div className="mb-6">
-                                        <h4 className="text-lg font-medium mb-2">Question Quality Matrix</h4>
-                                        <div className="h-80">
-                                            <Scatter 
+                                        <h4 className="text-lg font-medium mb-2">Guessing Parameter Distribution</h4>
+                                        <div className="h-64">
+                                            <Bar 
                                                 data={{
+                                                    labels: ['0-2', '2-4', '4-6', '6-8', '8-10'],
                                                     datasets: [{
-                                                        label: 'Questions',
-                                                        data: scatterData.map(item => ({x: item.x, y: item.y})),
-                                                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                                                        pointRadius: 8,
-                                                        pointHoverRadius: 10
+                                                        label: 'Number of Questions',
+                                                        data: [
+                                                            test.questions.filter(q => q.question_data.statistics?.scaled_guessing < 2).length,
+                                                            test.questions.filter(q => q.question_data.statistics?.scaled_guessing >= 2 && q.question_data.statistics?.scaled_guessing < 4).length,
+                                                            test.questions.filter(q => q.question_data.statistics?.scaled_guessing >= 4 && q.question_data.statistics?.scaled_guessing < 6).length,
+                                                            test.questions.filter(q => q.question_data.statistics?.scaled_guessing >= 6 && q.question_data.statistics?.scaled_guessing < 8).length,
+                                                            test.questions.filter(q => q.question_data.statistics?.scaled_guessing >= 8).length,
+                                                        ],
+                                                        backgroundColor: [
+                                                            'rgba(54, 162, 235, 0.6)',
+                                                            'rgba(75, 192, 192, 0.6)',
+                                                            'rgba(255, 206, 86, 0.6)',
+                                                            'rgba(255, 159, 64, 0.6)',
+                                                            'rgba(255, 99, 132, 0.6)'
+                                                        ],
+                                                        borderWidth: 1
                                                     }]
                                                 }}
                                                 options={{
                                                     responsive: true,
                                                     maintainAspectRatio: false,
                                                     plugins: {
-                                                        tooltip: {
-                                                            callbacks: {
-                                                                label: (context) => {
-                                                                    const point = scatterData[context.dataIndex];
-                                                                    return [
-                                                                        `ID: ${point.id}`,
-                                                                        `Difficulty: ${point.x.toFixed(1)}`,
-                                                                        `Discrimination: ${point.y.toFixed(1)}`,
-                                                                        `Question: ${point.question}`
-                                                                    ];
-                                                                }
-                                                            }
+                                                        title: {
+                                                            display: true,
+                                                            text: 'Distribution of Question Guessing Parameter'
                                                         }
                                                     },
                                                     scales: {
-                                                        x: {
-                                                            title: {
-                                                                display: true,
-                                                                text: 'Difficulty (Higher = More Difficult)'
-                                                            },
-                                                            min: 0,
-                                                            max: 10
-                                                        },
                                                         y: {
+                                                            beginAtZero: true,
                                                             title: {
                                                                 display: true,
-                                                                text: 'Discrimination (Higher = Better)'
+                                                                text: 'Number of Questions'
                                                             },
-                                                            min: 0,
-                                                            max: 10
+                                                            ticks: {
+                                                                stepSize: 1
+                                                            }
                                                         }
                                                     }
                                                 }}
                                             />
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <h4 className="text-lg font-medium mb-2">Question Quality Distribution</h4>
+                                        <div className="h-64">
+                                            <Bar 
+                                                data={{
+                                                    labels: ['Poor (0-2)', 'Fair (2-4)', 'Good (4-6)', 'Very Good (6-8)', 'Excellent (8-10)'],
+                                                    datasets: [{
+                                                        label: 'Number of Questions',
+                                                        data: [
+                                                            test.questions.filter(q => q.question_data.statistics?.quality_score < 2).length,
+                                                            test.questions.filter(q => q.question_data.statistics?.quality_score >= 2 && q.question_data.statistics?.quality_score < 4).length,
+                                                            test.questions.filter(q => q.question_data.statistics?.quality_score >= 4 && q.question_data.statistics?.quality_score < 6).length,
+                                                            test.questions.filter(q => q.question_data.statistics?.quality_score >= 6 && q.question_data.statistics?.quality_score < 8).length,
+                                                            test.questions.filter(q => q.question_data.statistics?.quality_score >= 8).length,
+                                                        ],
+                                                        backgroundColor: [
+                                                            'rgba(255, 99, 132, 0.6)',
+                                                            'rgba(255, 159, 64, 0.6)',
+                                                            'rgba(255, 206, 86, 0.6)',
+                                                            'rgba(75, 192, 192, 0.6)',
+                                                            'rgba(54, 162, 235, 0.6)'
+                                                        ],
+                                                        borderWidth: 1
+                                                    }]
+                                                }}
+                                                options={{
+                                                    responsive: true,
+                                                    maintainAspectRatio: false,
+                                                    plugins: {
+                                                        title: {
+                                                            display: true,
+                                                            text: 'Distribution of Question Quality Scores'
+                                                        }
+                                                    },
+                                                    scales: {
+                                                        y: {
+                                                            beginAtZero: true,
+                                                            title: {
+                                                                display: true,
+                                                                text: 'Number of Questions'
+                                                            },
+                                                            ticks: {
+                                                                stepSize: 1
+                                                            }
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                                            <p><strong>Note:</strong> Quality score is calculated using the formula: {test.questions[0]?.question_data.statistics?.quality_formula}</p>
+                                            <p>Higher quality scores indicate better questions with good discrimination and moderate difficulty.</p>
                                         </div>
                                     </div>
                                     
