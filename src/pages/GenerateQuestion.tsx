@@ -24,6 +24,9 @@ interface GeneratedQuestion {
         level: string;
         difficulty: string;
     }[];
+    metadata?: {
+        structure_valid?: boolean;
+    };
 }
 
 interface EditingQuestion {
@@ -129,7 +132,8 @@ const GenerateQuestion = () => {
                 id: String(index + 1),
                 question_text: q.question_text,
                 answers: q.answers,
-                taxonomies: q.taxonomies
+                taxonomies: q.taxonomies,
+                metadata: q.metadata || {}
             }));
 
             setGeneratedQuestions(formattedQuestions);
@@ -612,6 +616,25 @@ const GenerateQuestion = () => {
                                         ))}
                                     </div>
                                 )}
+
+                                <div className="flex items-center mb-2">
+                                    {question.metadata?.structure_valid !== undefined && (
+                                        <div className={`px-2 py-1 text-xs font-medium rounded-full mr-2 ${
+                                            question.metadata.structure_valid 
+                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
+                                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+                                        }`}>
+                                            {question.metadata.structure_valid ? 'Valid Structure' : 'Invalid Structure'}
+                                        </div>
+                                    )}
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        {question.taxonomies.map(taxonomy => (
+                                            <span key={taxonomy.taxonomy_id} className="mr-2">
+                                                {taxonomy.level} ({taxonomy.difficulty})
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         ))}
                     </div>
