@@ -4,7 +4,7 @@ import SimilarityDialog from '../components/SimilarityDialog';
 import ConfirmDialog from '../components/ConfirmDialog';
 import AddTagQuestion from '../components/AddTagQuestion';
 import { useNavigate, useParams } from 'react-router-dom';
-import { addQuestion, getQuestionBanks, fetchQuestionBanks, fetchCourses } from '../services/api';
+import { addQuestion, getQuestionBanks, fetchQuestionBanks, fetchCourses, checkQuestionSimilarity } from '../services/api';
 
 // Define a type for the expanded sections
 type ExpandedSections = {
@@ -56,21 +56,8 @@ const AddOneQues = () => {
     const [selectedTags, setSelectedTags] = useState<SelectedTags>({});
 
     const [isSimilarityDialogOpen, setIsSimilarityDialogOpen] = useState(false);
-    const [similarQuestions] = useState([
-        {
-            id: '1',
-            question: 'What is the primary purpose of TCP/IP in computer networking?',
-            similarity: 85,
-            questionBank: 'Networking Basics'
-        },
-        {
-            id: '2',
-            question: 'Explain the role of TCP/IP protocols in network communication.',
-            similarity: 75,
-            questionBank: 'Advanced Networking'
-        },
-        // Add more similar questions as needed
-    ]);
+    const [currentQuestionForSimilarity, setCurrentQuestionForSimilarity] = useState('');
+    const [currentBankForSimilarity, setCurrentBankForSimilarity] = useState<number>(0);
 
     const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
     const [questionType, setQuestionType] = useState('one');
@@ -230,6 +217,17 @@ const AddOneQues = () => {
             console.error('Failed to fetch question banks:', err);
             setError('Failed to load question banks');
         }
+    };
+
+    const handleCheckSimilarity = () => {
+        if (!selectedBank || !questionContent) {
+            setError('Please select a question bank and enter question content');
+            return;
+        }
+        
+        setCurrentQuestionForSimilarity(questionContent);
+        setCurrentBankForSimilarity(parseInt(selectedBank));
+        setIsSimilarityDialogOpen(true);
     };
 
     return (
@@ -428,7 +426,7 @@ const AddOneQues = () => {
                         <span className="text-danger font-medium">NOTE:</span> There are questions in your bank that are similar.
                     </p>
                     <button
-                        onClick={() => setIsSimilarityDialogOpen(true)}
+                        onClick={handleCheckSimilarity}
                         className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-2.5 text-center font-medium text-white hover:bg-opacity-90"
                     >
                         View similarity
@@ -501,7 +499,8 @@ const AddOneQues = () => {
             <SimilarityDialog
                 isOpen={isSimilarityDialogOpen}
                 onClose={() => setIsSimilarityDialogOpen(false)}
-                similarQuestions={similarQuestions}
+                questionText={currentQuestionForSimilarity}
+                questionBankId={currentBankForSimilarity}
             />
 
             <ConfirmDialog

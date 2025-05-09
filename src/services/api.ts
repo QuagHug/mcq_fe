@@ -584,4 +584,36 @@ export const fetchQuestionGroup = async (courseId: string, bankId: string, group
   }
   
   return response.json();
+};
+
+export const checkQuestionSimilarity = async (questionText: string, questionBankId: number, threshold: number = 0.75) => {
+  try {
+    // Strip HTML tags from the question text
+    const plainText = questionText.replace(/<[^>]*>/g, '');
+    
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/questions/check-similarity/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        question_text: plainText,
+        question_bank_id: questionBankId,
+        threshold
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Check similarity error:', errorData);
+      throw new Error(`Failed to check similarity: ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Check similarity error:', error);
+    throw error;
+  }
 }; 

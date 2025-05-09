@@ -2,41 +2,17 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { Editor } from '@tinymce/tinymce-react';
-import { fetchQuestionDetail, editQuestion } from '../services/api';
+import { fetchQuestionDetail, editQuestion, addQuestion } from '../services/api';
 import Paraphraser from '../components/Paraphraser';
 
-const MOCK_QUESTION_DATA = {
-    question: "What is the primary function of TCP/IP in computer networking?",
-    answers: [
-        {
-            id: "A",
-            text: "Transmission Control Protocol/Internet Protocol is responsible for data delivery between applications across diverse networks",
-            explanation: "TCP/IP is indeed the fundamental communication protocol of the Internet, handling how data is packaged, addressed, transmitted, routed, and received.",
-            isCorrect: true
-        },
-        {
-            id: "B",
-            text: "It's only used for web browsing",
-            explanation: "This is incorrect. TCP/IP is used for much more than just web browsing, including email, file transfer, and remote administration.",
-            isCorrect: false
-        },
-        {
-            id: "C",
-            text: "It's a programming language for network applications",
-            explanation: "This is incorrect. TCP/IP is a protocol suite, not a programming language.",
-            isCorrect: false
-        },
-        {
-            id: "D",
-            text: "It's a type of network cable",
-            explanation: "This is incorrect. TCP/IP is a protocol suite, not a physical component like a network cable.",
-            isCorrect: false
-        }
-    ]
-};
-
 const QuestionEdit = () => {
-    const [questionData] = useState(MOCK_QUESTION_DATA);
+    const [questionContent, setQuestionContent] = useState('');
+    const [answers, setAnswers] = useState<Array<{
+        id: string;
+        text: string;
+        explanation: string;
+        grade: string;
+    }>>([]);
     const [expandedAnswers, setExpandedAnswers] = useState<string[]>([]);
     const { courseId, chapterId, questionId } = useParams();
     const navigate = useNavigate();
@@ -45,13 +21,6 @@ const QuestionEdit = () => {
     const chapterName = location.state?.chapterName || `Chapter ${chapterId}`;
     const returnPath = location.state?.returnPath;
     const returnState = location.state?.returnState;
-    const [questionContent, setQuestionContent] = useState(questionData.question);
-    const [answers, setAnswers] = useState(questionData.answers.map(answer => ({
-        ...answer,
-        text: answer.text,
-        explanation: answer.explanation,
-        grade: answer.isCorrect ? '100' : '0'
-    })));
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -87,10 +56,10 @@ const QuestionEdit = () => {
     };
 
     const handleExpandCollapseAll = () => {
-        if (expandedAnswers.length === questionData.answers.length) {
+        if (expandedAnswers.length === answers.length) {
             setExpandedAnswers([]);
         } else {
-            setExpandedAnswers(questionData.answers.map(answer => answer.id));
+            setExpandedAnswers(answers.map(answer => answer.id));
         }
     };
 
@@ -150,6 +119,59 @@ const QuestionEdit = () => {
             handleGoBack();
         } catch (error) {
             console.error('Error saving question:', error);
+        }
+    };
+
+    const handleParaphraseComplete = async (paraphrasedText: string) => {
+        if (!courseId || !chapterId || !questionId) return;
+        
+        try {
+            setQuestionContent(`<p>${paraphrasedText}</p>`);
+            
+            // Prepare the question data
+            const questionData = {
+                question_text: `<p>${paraphrasedText}</p>`,
+                answers: answers.map(answer => ({
+                    answer_text: answer.text,
+                    explanation: answer.explanation,
+                    is_correct: answer.grade === '100',
+                    ...(answer.id ? { id: answer.id } : {})
+                }))
+            };
+            
+            // Call the API to update the question
+            await editQuestion(courseId, chapterId, questionId, questionData);
+            return true;
+        } catch (error) {
+            console.error('Error updating question:', error);
+            throw error;
+        }
+    };
+
+    const handleCreateNewQuestion = async (paraphrasedText: string) => {
+        if (!courseId || !chapterId) return;
+
+        try {
+            // Create a new question with the paraphrased text
+            const questionData = {
+                question_bank: chapterId,
+                question_text: `<p>${paraphrasedText}</p>`,
+                answers: answers.map(answer => ({
+                    answer_text: answer.text,
+                    explanation: answer.explanation,
+                    is_correct: answer.grade === '100'
+                }))
+            };
+
+            // Use the addQuestion API function to create a new question
+            const newQuestion = await addQuestion(courseId, chapterId, questionData);
+            
+            // Navigate to the new question
+            navigate(`/courses/${courseId}/question-banks/${chapterId}/questions/${newQuestion.id}/edit`, {
+                state: { courseName, chapterName }
+            });
+        } catch (error) {
+            console.error('Error creating new question:', error);
         }
     };
 
@@ -324,7 +346,11 @@ const QuestionEdit = () => {
             </div>
 
             {/* Paraphraser Section */}
-            <Paraphraser questionText={questionContent} />
+            <Paraphraser 
+                questionText={questionContent} 
+                onParaphraseComplete={handleParaphraseComplete}
+                onCreateNewQuestion={handleCreateNewQuestion}
+            />
 
             {/* Save and Paraphrase Button Section */}
             <div className="flex justify-end gap-4">

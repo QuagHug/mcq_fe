@@ -73,6 +73,8 @@ const GenerateQuestion = () => {
     const [editingQuestion, setEditingQuestion] = useState<EditingQuestion | null>(null);
     const [editedQuestions, setEditedQuestions] = useState<{ [key: string]: EditingQuestion }>({});
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const [currentQuestionForSimilarity, setCurrentQuestionForSimilarity] = useState('');
+    const [currentBankForSimilarity, setCurrentBankForSimilarity] = useState<number>(0);
 
     const bloomsLevels = [
         'Remember',
@@ -302,6 +304,17 @@ const GenerateQuestion = () => {
 
         setIsEditModalOpen(false);
         setEditingQuestion(null);
+    };
+
+    const handleCheckSimilarity = (questionText: string) => {
+        if (!selectedBank) {
+            setError('Please select a question bank first');
+            return;
+        }
+        
+        setCurrentQuestionForSimilarity(questionText);
+        setCurrentBankForSimilarity(parseInt(selectedBank));
+        setIsSimilarityDialogOpen(true);
     };
 
     return (
@@ -635,6 +648,15 @@ const GenerateQuestion = () => {
                                         ))}
                                     </div>
                                 </div>
+
+                                <div className="mt-3">
+                                    <button
+                                        onClick={() => handleCheckSimilarity(question.question_text)}
+                                        className="text-sm text-primary hover:underline"
+                                    >
+                                        Check similarity
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -645,7 +667,13 @@ const GenerateQuestion = () => {
                             <span className="text-danger font-medium">NOTE:</span> There are questions in your bank that are similar.
                         </p>
                         <button
-                            onClick={() => setIsSimilarityDialogOpen(true)}
+                            onClick={() => {
+                                if (generatedQuestions.length > 0) {
+                                    handleCheckSimilarity(generatedQuestions[0].question_text);
+                                } else {
+                                    setError('No questions to check for similarity');
+                                }
+                            }}
                             className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
                         >
                             View similarity
@@ -657,20 +685,8 @@ const GenerateQuestion = () => {
             <SimilarityDialog
                 isOpen={isSimilarityDialogOpen}
                 onClose={() => setIsSimilarityDialogOpen(false)}
-                similarQuestions={[
-                    {
-                        id: '1',
-                        question: 'What is the primary purpose of TCP/IP in computer networking?',
-                        similarity: 85,
-                        questionBank: 'Networking Basics'
-                    },
-                    {
-                        id: '2',
-                        question: 'Explain the role of TCP/IP protocols in network communication.',
-                        similarity: 75,
-                        questionBank: 'Advanced Networking'
-                    }
-                ]}
+                questionText={currentQuestionForSimilarity}
+                questionBankId={currentBankForSimilarity}
             />
 
             {/* Edit Modal */}

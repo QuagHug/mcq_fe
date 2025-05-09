@@ -1,12 +1,16 @@
-import React, { useState, useRef } from 'react';
-import Box from '@mui/material/Box';
-import Slider from '@mui/material/Slider';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface ParaphraserProps {
     questionText: string;
+    onParaphraseComplete?: (paraphrasedText: string) => void;
+    onCreateNewQuestion?: (paraphrasedText: string) => void;
 }
 
-const Paraphraser: React.FC<ParaphraserProps> = ({ questionText }) => {
+const Paraphraser: React.FC<ParaphraserProps> = ({ 
+    questionText, 
+    onParaphraseComplete,
+    onCreateNewQuestion 
+}) => {
     // Remove <p> tags from the initial question text
     const cleanQuestionText = questionText.replace(/<\/?p>/g, '');
 
@@ -16,12 +20,21 @@ const Paraphraser: React.FC<ParaphraserProps> = ({ questionText }) => {
     const [text, setText] = useState(cleanQuestionText);
     const [showParaphrasedText, setShowParaphrasedText] = useState(false);
     const [paraphrasedText, setParaphrasedText] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Update text when questionText prop changes
+    useEffect(() => {
+        const cleanText = questionText.replace(/<\/?p>/g, '');
+        setText(cleanText);
+    }, [questionText]);
 
     const modes = ['Standard', 'Academic', 'Simple'];
 
-    const handleSliderChange = (event: Event, newValue: number | number[]) => {
-        setSynonymValue(newValue as number);
+    const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setSynonymValue(parseInt(event.target.value));
     };
 
     const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,6 +48,10 @@ const Paraphraser: React.FC<ParaphraserProps> = ({ questionText }) => {
     const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
         setText(event.target.value);
         setShowParaphrasedText(false);
+    };
+
+    const handleParaphrasedTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setParaphrasedText(event.target.value);
     };
 
     const handleInputBlur = () => {
@@ -57,137 +74,198 @@ const Paraphraser: React.FC<ParaphraserProps> = ({ questionText }) => {
         }, 0);
     };
 
-    const handleParaphrase = () => {
-        const cleanText = text.replace(/<\/?p>/g, '');
-        setParaphrasedText(cleanText);
-        setShowParaphrasedText(true);
+    const handleParaphrase = async () => {
+        setIsLoading(true);
+        setError(null);
+        setSuccessMessage(null);
+        
+        try {
+            const cleanText = text.replace(/<\/?p>/g, '');
+            
+            // Format the text to include answer options if they exist
+            let formattedText = cleanText;
+            
+            const response = await fetch('http://localhost:80/api/paraphrase/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    mcq: formattedText
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            setParaphrasedText(data.paraphrased);
+            setShowParaphrasedText(true);
+            setSuccessMessage(`Paraphrasing completed in ${data.processing_time || 'a few seconds'}`);
+        } catch (err) {
+            console.error('Paraphrasing error:', err);
+            setError(err instanceof Error ? err.message : 'Failed to paraphrase text');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleUpdateAndSave = async () => {
+        if (onParaphraseComplete && paraphrasedText) {
+            setSuccessMessage(null);
+            setError(null);
+            try {
+                onParaphraseComplete(paraphrasedText);
+                setSuccessMessage("Question updated successfully!");
+            } catch (err) {
+                setError("Failed to update question");
+                console.error('Update error:', err);
+            }
+        }
+    };
+
+    const handleCreateNewQuestion = async () => {
+        if (onCreateNewQuestion && paraphrasedText) {
+            setSuccessMessage(null);
+            setError(null);
+            try {
+                onCreateNewQuestion(paraphrasedText);
+                setSuccessMessage("New question created successfully!");
+            } catch (err) {
+                setError("Failed to create new question");
+                console.error('Create error:', err);
+            }
+        }
     };
 
     return (
-        <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-            <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                <h3 className="text-2xl font-semibold text-black dark:text-white">
-                    Paraphrase
-                </h3>
-            </div>
-            {/* Paraphraser Section */}
-            <div className="p-6.5">
-                <div className="space-y-4">
-                    {/* Top section with modes and slider */}
-                    <div className="flex justify-between items-center">
-                        {/* Mode selection buttons */}
-                        <div className="flex gap-2">
-                            {modes.map((mode) => (
-                                <button
-                                    key={mode}
-                                    onClick={() => setSelectedMode(mode)}
-                                    className={`px-6 py-2 rounded-full transition-all duration-300 font-medium
-                                        ${selectedMode === mode
-                                            ? 'bg-primary text-white shadow-lg shadow-primary/50 scale-105'
-                                            : 'text-gray-500 hover:text-primary hover:bg-primary/10 hover:scale-105'
-                                        }`}
-                                >
-                                    {mode}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Synonyms slider */}
-                        <div className="flex items-center gap-4 w-72">
-                            <span className="text-black dark:text-white whitespace-nowrap font-medium">Synonyms:</span>
-                            <Box sx={{ flex: 1 }}>
-                                <Slider
+        <div className="mb-6 rounded-sm border border-stroke bg-white p-4 shadow-default dark:border-strokedark dark:bg-boxdark">
+            <h3 className="mb-4 text-xl font-semibold text-black dark:text-white">Paraphraser</h3>
+            
+            <div className="mb-4">
+                <div className="flex flex-wrap gap-3 mb-4">
+                    {modes.map((mode) => (
+                        <button
+                            key={mode}
+                            onClick={() => setSelectedMode(mode)}
+                            className={`rounded-md px-4 py-2 text-sm font-medium ${
+                                selectedMode === mode
+                                    ? 'bg-primary text-white'
+                                    : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                            }`}
+                        >
+                            {mode}
+                        </button>
+                    ))}
+                </div>
+                
+                <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Synonym Slider
+                        </label>
+                        <div
+                            className="flex items-center justify-center w-12 h-6 bg-gray-100 dark:bg-gray-700 rounded-md cursor-pointer"
+                            onDoubleClick={handlePercentageDoubleClick}
+                        >
+                            {isEditing ? (
+                                <input
+                                    ref={inputRef}
+                                    type="number"
                                     value={synonymValue}
-                                    onChange={handleSliderChange}
-                                    aria-label="Synonyms"
-                                    size="small"
-                                    min={0}
-                                    max={100}
-                                    sx={{
-                                        color: '#3b82f6',
-                                        padding: '5px 0',
-                                        '& .MuiSlider-thumb': {
-                                            width: 12,
-                                            height: 12,
-                                            backgroundColor: '#fff',
-                                            border: '2px solid currentColor',
-                                            '&:hover, &.Mui-focusVisible': {
-                                                boxShadow: 'none',
-                                            },
-                                            '&:before': {
-                                                display: 'none',
-                                            },
-                                        },
-                                        '& .MuiSlider-track': {
-                                            height: 4,
-                                            border: 'none',
-                                        },
-                                        '& .MuiSlider-rail': {
-                                            height: 4,
-                                            opacity: 0.2,
-                                            backgroundColor: 'currentColor',
-                                        },
-                                        '& .MuiSlider-mark': {
-                                            display: 'none',
-                                        },
-                                    }}
+                                    onChange={handleInputChange}
+                                    onBlur={handleInputBlur}
+                                    onKeyDown={handleInputKeyDown}
+                                    className="w-12 h-6 bg-gray-100 dark:bg-gray-700 text-center text-sm outline-none"
                                 />
-                            </Box>
-                            <div
-                                className="text-black dark:text-white whitespace-nowrap font-medium min-w-[3.5rem] text-right cursor-pointer"
-                                onDoubleClick={handlePercentageDoubleClick}
-                            >
-                                {isEditing ? (
-                                    <input
-                                        ref={inputRef}
-                                        type="number"
-                                        value={synonymValue}
-                                        onChange={handleInputChange}
-                 Paraphraser                       onBlur={handleInputBlur}
-                                        onKeyDown={handleInputKeyDown}
-                                        className="w-12 bg-transparent border-b border-primary outline-none text-right"
-                                        min="0"
-                                        max="100"
-                                    />
-                                ) : (
-                                    `${synonymValue}%`
-                                )}
-                            </div>
+                            ) : (
+                                <span className="text-sm font-medium">{synonymValue}%</span>
+                            )}
                         </div>
                     </div>
-
-                    {/* Text input area */}
+                    <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={synonymValue}
+                        onChange={handleSliderChange}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                    />
+                </div>
+                
+                <div className="mb-4">
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Original Text
+                    </label>
                     <textarea
-                        rows={4}
                         value={text}
                         onChange={handleTextChange}
-                        className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                    />
-
-                    {/* Paraphrased text area */}
-                    {showParaphrasedText && (
-                        <div className="space-y-2">
-                            <label className="block font-medium text-black dark:text-white">
-                                Paraphrased Text:
-                            </label>
-                            <textarea
-                                rows={4}
-                                value={paraphrasedText}
-                                readOnly
-                                className="w-full rounded-lg border-[1.5px] border-primary/20 bg-transparent px-5 py-3 text-black outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                            />
-                        </div>
-                    )}
-
-                    {/* Paraphrase button */}
-                    <button
-                        onClick={handleParaphrase}
-                        className="flex w-full justify-center rounded bg-primary p-3 font-medium text-white hover:bg-primary/90 transition-colors"
-                    >
-                        Paraphrase
-                    </button>
+                        className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                        rows={4}
+                    ></textarea>
                 </div>
+                
+                <button
+                    onClick={handleParaphrase}
+                    disabled={isLoading || !text.trim()}
+                    className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90 disabled:bg-opacity-50"
+                >
+                    {isLoading ? (
+                        <>
+                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Paraphrasing...
+                        </>
+                    ) : (
+                        'Paraphrase'
+                    )}
+                </button>
             </div>
+            
+            {error && (
+                <div className="mb-4 p-3 bg-danger/10 text-danger rounded-md">
+                    {error}
+                </div>
+            )}
+            
+            {successMessage && (
+                <div className="mb-4 p-3 bg-success/10 text-success rounded-md">
+                    {successMessage}
+                </div>
+            )}
+            
+            {showParaphrasedText && (
+                <div className="mb-4">
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Paraphrased Text
+                    </label>
+                    <textarea
+                        value={paraphrasedText}
+                        onChange={handleParaphrasedTextChange}
+                        className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                        rows={4}
+                    ></textarea>
+                    <div className="mt-3 flex justify-end gap-3">
+                        <button
+                            onClick={handleUpdateAndSave}
+                            className="inline-flex items-center justify-center rounded-md bg-success py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
+                        >
+                            Update and Save
+                        </button>
+                        {onCreateNewQuestion && (
+                            <button
+                                onClick={handleCreateNewQuestion}
+                                className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
+                            >
+                                Create New Question
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
