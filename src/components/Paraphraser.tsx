@@ -85,7 +85,7 @@ const Paraphraser: React.FC<ParaphraserProps> = ({
             // Format the text to include answer options if they exist
             let formattedText = cleanText;
             
-            const response = await fetch('http://localhost:80/api/paraphrase/', {
+            const response = await fetch('https://kong-2cabd4da88injmaw8.kongcloud.dev/t5', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
