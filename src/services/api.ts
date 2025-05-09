@@ -323,7 +323,7 @@ export const fetchChildBanks = async (courseId: string, parentBankId: string) =>
 
 export const fetchCourseTests = async (courseId: string) => {
   const token = await getValidToken();
-  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests`, {
+  const response = await fetch(`${API_BASE_URL}/courses/${courseId}/tests/`, {
     headers: {
       'Authorization': `Bearer ${token}`
     }
