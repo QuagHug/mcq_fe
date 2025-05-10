@@ -15,7 +15,13 @@ interface QuestionData {
     question_text: string;
     image_url: string | null;
     answers: Answer[];
+    taxonomies?: { taxonomy: { name: string }; level: string }[];
+    difficulty?: 'easy' | 'medium' | 'hard';
 }
+
+const capitalizeFirstLetter = (string: string): string => {
+    return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+};
 
 const QuestionDetail = () => {
     const { courseId, chapterId, questionId } = useParams();
@@ -86,11 +92,45 @@ const QuestionDetail = () => {
                     <div className="px-6.5 py-4">
                         <div dangerouslySetInnerHTML={{ __html: questionData.question_text }} />
                         <div className="flex gap-3 mt-4">
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary/10 text-primary">
-                                Medium
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                                (() => {
+                                    const difficulty = questionData.difficulty || 'medium';
+                                    switch (difficulty.toLowerCase()) {
+                                        case 'easy':
+                                            return 'bg-success/10 text-success';
+                                        case 'hard':
+                                            return 'bg-danger/10 text-danger';
+                                        default: // medium
+                                            return 'bg-primary/10 text-primary';
+                                    }
+                                })()
+                            }`}>
+                                {capitalizeFirstLetter(questionData.difficulty || 'Medium')}
                             </span>
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-success/10 text-success">
-                                Remember
+                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                                (() => {
+                                    const level = questionData.taxonomies?.find(tax => 
+                                        tax.taxonomy.name === "Bloom's Taxonomy")?.level?.toLowerCase() || 'remember';
+                                    switch (level) {
+                                        case 'remember':
+                                            return 'bg-[#D41010]/10 text-[#D41010]';
+                                        case 'understand':
+                                            return 'bg-[#F3543A]/10 text-[#F3543A]';
+                                        case 'apply':
+                                            return 'bg-[#F7EB2E]/10 text-[#F7EB2E]';
+                                        case 'analyze':
+                                            return 'bg-[#168E3A]/10 text-[#168E3A]';
+                                        case 'evaluate':
+                                            return 'bg-[#2CB3C7]/10 text-[#2CB3C7]';
+                                        case 'create':
+                                            return 'bg-[#7272D8]/10 text-[#7272D8]';
+                                        default:
+                                            return 'bg-gray-100 text-gray-500';
+                                    }
+                                })()
+                            }`}>
+                                {questionData.taxonomies?.find(tax => 
+                                    tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'Remember'}
                             </span>
                         </div>
                         {questionData.image_url && (

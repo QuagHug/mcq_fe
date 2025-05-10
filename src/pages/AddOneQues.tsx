@@ -23,6 +23,7 @@ type Answer = {
 type SelectedTags = {
     subject?: string;
     bloom?: string;
+    difficulty?: string;  // Add difficulty field
 };
 
 // Add this interface at the top with other interfaces
@@ -190,7 +191,16 @@ const AddOneQues = () => {
                     answer_text: answer.text,
                     is_correct: answer.grade === "100", // Convert grade to boolean
                     explanation: answer.explanation || ""  // Use empty string if no explanation
-                }))
+                })),
+                // Add taxonomy information if available
+                taxonomies: selectedTags.bloom ? [
+                    {
+                        taxonomy_id: 1, // Assuming 1 is the ID for Bloom's Taxonomy
+                        level: selectedTags.bloom
+                    }
+                ] : undefined,
+                // Add difficulty if available - ensure it's lowercase
+                difficulty: (selectedTags.difficulty || "medium").toLowerCase()
             };
 
             await addQuestion(selectedCourse, selectedBank, questionData);
@@ -413,9 +423,21 @@ const AddOneQues = () => {
             {/* Tags Block */}
             <AddTagQuestion
                 expandedSections={expandedSections}
-                selectedTags={selectedTags}
+                selectedTags={{
+                    taxonomy: selectedTags.bloom,
+                    difficulty: selectedTags.difficulty
+                }}
                 onToggleSection={toggleSection}
-                onTagChange={handleTagChange}
+                onTagChange={(category, value) => {
+                    // Map the category names from AddTagQuestion to our local state
+                    if (category === 'taxonomy') {
+                        handleTagChange('bloom', value);
+                    } else if (category === 'difficulty') {
+                        handleTagChange('difficulty', value);
+                    } else {
+                        handleTagChange(category as keyof SelectedTags, value);
+                    }
+                }}
             />
 
             {/* Upper block: Similarity Note + Course Selection */}

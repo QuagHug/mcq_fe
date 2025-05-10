@@ -234,13 +234,25 @@ const Questions = () => {
             }
             
             // Now safely map over the questions array
-            const csvData = questions.map(question => ({
-                id: question.id,
-                question_text: truncateText(question.question_text),
-                difficulty: question.taxonomies?.find((tax: { taxonomy: { name: string } }) => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A',
-                taxonomy_level: question.taxonomies?.find((tax: { taxonomy: { name: string } }) => tax.taxonomy.name === "Bloom's Taxonomy")?.level || 'N/A',
-                // Add any other fields you need
-            }));
+            const csvData = questions.map(question => {
+                // Get taxonomy level and convert to lowercase
+                const taxonomyLevel = question.taxonomies?.find(
+                    (tax) => tax.taxonomy.name === "Bloom's Taxonomy"
+                )?.level || 'N/A';
+                
+                // Get difficulty and convert to lowercase
+                const difficulty = question.taxonomies?.find(
+                    (tax) => tax.taxonomy.name === "Bloom's Taxonomy"
+                )?.difficulty || 'medium';
+                
+                return {
+                    id: question.id,
+                    question_text: truncateText(question.question_text),
+                    difficulty: difficulty.toLowerCase(),
+                    taxonomy_level: taxonomyLevel.toLowerCase(),
+                    // Add any other fields you need
+                };
+            });
             
             // Proceed with export logic
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -259,7 +271,14 @@ const Questions = () => {
 
         try {
             const text = await file.text();
-            const importedQuestions = JSON.parse(text);
+            let importedQuestions = JSON.parse(text);
+            
+            // Ensure all difficulty and taxonomy_level values are lowercase
+            importedQuestions = importedQuestions.map((question: any) => ({
+                ...question,
+                difficulty: question.difficulty?.toLowerCase() || 'medium',
+                taxonomy_level: question.taxonomy_level?.toLowerCase() || 'remember'
+            }));
             
             await bulkCreateQuestions(courseId, chapterId, importedQuestions);
             
