@@ -2,8 +2,7 @@ import { useState, useRef, DragEvent, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { Editor } from '@tinymce/tinymce-react';
 import ConfirmDialog from '../components/ConfirmDialog';
-import { fetchQuestionBanks } from '../services/api';
-import SimilarityDialog from '../components/SimilarityDialog';
+import { fetchQuestionBanks, getValidToken, fetchBankQuestions, fetchCourses, generateDistractors, addDistractorsToQuestion } from '../services/api';
 
 interface QuestionBank {
     id: number;
@@ -22,13 +21,21 @@ const GenerateDistractors = () => {
     const [question, setQuestion] = useState('');
     const [correctAnswer, setCorrectAnswer] = useState('');
     const [loading, setLoading] = useState(false);
-    const [generatedDistractors, setGeneratedDistractors] = useState<string[]>([]);
+    const [generatedDistractors, setGeneratedDistractors] = useState<Array<{
+        answer_text: string;
+        explanation: string;
+        difficulty: string;
+    }>>([]);
     const [error, setError] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [numDistractors, setNumDistractors] = useState(3);
     const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
-    const [selectedDistractor, setSelectedDistractor] = useState<string | null>(null);
+    const [selectedDistractor, setSelectedDistractor] = useState<{
+        answer_text: string;
+        explanation: string;
+        difficulty: string;
+    } | null>(null);
     const [contextSettings, setContextSettings] = useState<Array<{
         numQuestions: number;
         level: string;
@@ -39,25 +46,26 @@ const GenerateDistractors = () => {
         difficulty: 'easy'
     }]);
 
-    // New state for bank selection
+    // State for bank selection
     const [questionBanks, setQuestionBanks] = useState<QuestionBank[]>([]);
     const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
     const [selectedSubBankId, setSelectedSubBankId] = useState<number | null>(null);
     const [selectedQuestionId, setSelectedQuestionId] = useState<number | null>(null);
     const [bankLoading, setBankLoading] = useState(false);
 
-    // New state for similarity dialog
-    const [isSimilarityDialogOpen, setIsSimilarityDialogOpen] = useState(false);
+    // State for available questions
+    const [availableQuestions, setAvailableQuestions] = useState<Question[]>([]);
 
     // Fetch question banks on component mount
     useEffect(() => {
         const loadQuestionBanks = async () => {
             try {
                 setBankLoading(true);
-                const data = await fetchQuestionBanks('default');
+                // Use the fetchCourses function from api.ts instead of direct fetch
+                const data = await fetchCourses();
                 setQuestionBanks(data);
             } catch (err) {
-                setError('Failed to load question banks');
+                setError('Failed to load courses');
             } finally {
                 setBankLoading(false);
             }
@@ -68,75 +76,79 @@ const GenerateDistractors = () => {
     // Get current selected bank, sub-bank, and questions
     const selectedBank = questionBanks.find(bank => bank.id === selectedBankId);
     const selectedSubBank = selectedBank?.subBanks?.find(bank => bank.id === selectedSubBankId);
-    const availableQuestions = selectedSubBank?.questions || [];
 
     // Reset dependent selections when parent selection changes
     const handleBankChange = (bankId: number) => {
         setSelectedBankId(bankId);
         setSelectedSubBankId(null);
         setSelectedQuestionId(null);
+        if (bankId) {
+            loadBanksForCourse(bankId);
+        }
     };
 
     const handleSubBankChange = (subBankId: number) => {
         setSelectedSubBankId(subBankId);
         setSelectedQuestionId(null);
+        if (selectedBankId && subBankId) {
+            loadQuestionsForBank(selectedBankId, subBankId);
+        }
     };
 
     const handleQuestionChange = (questionId: number) => {
         setSelectedQuestionId(questionId);
         const question = availableQuestions.find(q => q.id === questionId);
         if (question) {
-            setCorrectAnswer(question.question_text);
+            // Set the question text
+            setQuestion(question.question_text);
+            
+            // Find the correct answer from the question's answers
+            const correctAnswerObj = question.answers?.find(a => a.is_correct);
+            if (correctAnswerObj) {
+                setCorrectAnswer(correctAnswerObj.answer_text);
+            } else {
+                // If no correct answer is found, clear the correct answer field
+                setCorrectAnswer('');
+            }
         }
     };
 
     const handleGenerate = async () => {
-        if (!question || !correctAnswer) {
-            setError('Please provide both question and correct answer');
+        if (!selectedQuestionId || !correctAnswer) {
+            setError('Please select a question and ensure there is a correct answer');
             return;
         }
 
         setLoading(true);
+        setError(null);
+
         try {
-            // TODO: Implement the actual API call
-            setGeneratedDistractors([
-                'Sample distractor 1',
-                'Sample distractor 2',
-                'Sample distractor 3',
-            ]);
+            // Create difficulty distribution from context settings
+            const difficultyDistribution: Record<string, number> = {};
+            contextSettings.forEach(setting => {
+                const difficulty = setting.difficulty.toLowerCase();
+                difficultyDistribution[difficulty] = (difficultyDistribution[difficulty] || 0) + setting.numQuestions;
+            });
+            
+            // Get the selected question's text
+            const selectedQuestion = availableQuestions.find(q => q.id === selectedQuestionId);
+            if (!selectedQuestion) {
+                throw new Error('Selected question not found');
+            }
+            
+            const data = await generateDistractors(
+                selectedQuestion.question_text,
+                correctAnswer,
+                difficultyDistribution
+            );
+            
+            setGeneratedDistractors(data.distractors);
             setError(null);
         } catch (err) {
+            console.error('Error generating distractors:', err);
             setError('Failed to generate distractors');
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleFileUpload = (file: File) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const text = e.target?.result;
-            setQuestion(text as string);
-        };
-        reader.readAsText(file);
-    };
-
-    const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        setIsDragging(false);
-    };
-
-    const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        setIsDragging(false);
-        const file = e.dataTransfer.files[0];
-        if (file) {
-            handleFileUpload(file);
         }
     };
 
@@ -164,17 +176,73 @@ const GenerateDistractors = () => {
         ]);
     };
 
-    const handleAddDistractor = (distractor: string) => {
+    const handleAddDistractor = (distractor: {
+        answer_text: string;
+        explanation: string;
+        difficulty: string;
+    }) => {
         setSelectedDistractor(distractor);
         setIsConfirmDialogOpen(true);
     };
 
-    const handleConfirmAdd = () => {
-        if (selectedDistractor && correctAnswer) {
-            // TODO: Implement the actual API call to add the distractor to the question
-            console.log('Adding distractor:', selectedDistractor, 'to question:', correctAnswer);
-            setIsConfirmDialogOpen(false);
-            setSelectedDistractor(null);
+    const handleConfirmAdd = async () => {
+        if (selectedDistractor && selectedQuestionId) {
+            try {
+                await addDistractorsToQuestion(
+                    selectedQuestionId,
+                    [{
+                        answer_text: selectedDistractor.answer_text,
+                        explanation: selectedDistractor.explanation || '',
+                        difficulty: selectedDistractor.difficulty || 'medium'
+                    }]
+                );
+
+                // Show success message or update UI
+                console.log('Distractor added successfully');
+                setIsConfirmDialogOpen(false);
+                setSelectedDistractor(null);
+                
+                // Optionally refresh the question data
+                // You might want to add a success message here
+            } catch (err) {
+                console.error('Error adding distractor:', err);
+                setError('Failed to add distractor to question');
+            }
+        }
+    };
+
+    // Add a function to load question banks when a course is selected
+    const loadBanksForCourse = async (courseId: number) => {
+        try {
+            setBankLoading(true);
+            const data = await fetchQuestionBanks(courseId.toString());
+            
+            // Update the questionBanks array instead of selectedBank
+            setQuestionBanks(prevBanks => {
+                return prevBanks.map(bank => {
+                    if (bank.id === courseId) {
+                        return { ...bank, subBanks: data };
+                    }
+                    return bank;
+                });
+            });
+        } catch (err) {
+            setError('Failed to load question banks for this course');
+        } finally {
+            setBankLoading(false);
+        }
+    };
+
+    // Add a function to load questions when a bank is selected
+    const loadQuestionsForBank = async (courseId: number, bankId: number) => {
+        try {
+            setBankLoading(true);
+            const data = await fetchBankQuestions(courseId.toString(), bankId.toString());
+            setAvailableQuestions(data);
+        } catch (err) {
+            setError('Failed to load questions for this bank');
+        } finally {
+            setBankLoading(false);
         }
     };
 
@@ -308,25 +376,6 @@ const GenerateDistractors = () => {
                                 </button>
                             </div>
                         </div>
-                        <div
-                            className={`relative ${isDragging ? 'bg-primary bg-opacity-10' : ''}`}
-                            onDragOver={handleDragOver}
-                            onDragLeave={handleDragLeave}
-                            onDrop={handleDrop}
-                        >
-                            <textarea
-                                rows={6}
-                                value={question}
-                                onChange={(e) => setQuestion(e.target.value)}
-                                placeholder="Enter your context here or drag & drop a file..."
-                                className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                            />
-                            {isDragging && (
-                                <div className="absolute inset-0 flex items-center justify-center rounded border-2 border-dashed border-primary bg-primary bg-opacity-10">
-                                    <p className="text-primary">Drop your file here</p>
-                                </div>
-                            )}
-                        </div>
                     </div>
 
                     {/* Settings section */}
@@ -430,7 +479,15 @@ const GenerateDistractors = () => {
                             <div key={index} className="p-4 border rounded-sm dark:border-strokedark">
                                 <div className="flex justify-between items-start">
                                     <div className="flex-1">
-                                        <p className="text-body dark:text-bodydark">{distractor}</p>
+                                        <p className="text-body dark:text-bodydark">{distractor.answer_text}</p>
+                                        {distractor.explanation && (
+                                            <p className="text-sm text-bodydark2 mt-2">
+                                                <span className="font-medium">Explanation:</span> {distractor.explanation}
+                                            </p>
+                                        )}
+                                        <p className="text-xs text-bodydark2 mt-1">
+                                            <span className="font-medium">Difficulty:</span> {distractor.difficulty}
+                                        </p>
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <button
@@ -460,51 +517,16 @@ const GenerateDistractors = () => {
                             </div>
                         )}
                     </div>
-
-                    {/* Similarity Note */}
-                    <div className="mt-6 flex items-center gap-4">
-                        <p className="text-body">
-                            <span className="text-danger font-medium">NOTE:</span> There are distractors in your question that are similar.
-                        </p>
-                        <button
-                            onClick={() => setIsSimilarityDialogOpen(true)}
-                            className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
-                        >
-                            View similarity
-                        </button>
-                    </div>
                 </div>
             </div>
 
-            {/* Similarity Dialog */}
-            <SimilarityDialog
-                isOpen={isSimilarityDialogOpen}
-                onClose={() => setIsSimilarityDialogOpen(false)}
-                similarQuestions={[
-                    {
-                        id: '1',
-                        question: 'Sample distractor 1',
-                        similarity: 85,
-                        questionBank: 'DSA Bank'
-                    },
-                    {
-                        id: '2',
-                        question: 'Sample distractor 2',
-                        similarity: 75,
-                        questionBank: 'PPL Bank'
-                    }
-                ]}
-            />
-
-            {/* Confirmation Dialog */}
+            {/* Confirm Dialog */}
             <ConfirmDialog
                 isOpen={isConfirmDialogOpen}
-                onClose={() => {
-                    setIsConfirmDialogOpen(false);
-                    setSelectedDistractor(null);
-                }}
+                onClose={() => setIsConfirmDialogOpen(false)}
                 onConfirm={handleConfirmAdd}
-                message={`Are you sure you want to add this distractor to the selected question?`}
+                title="Add Distractor"
+                message={`Are you sure you want to add "${selectedDistractor?.answer_text}" as a distractor to the selected question?`}
             />
         </div>
     );

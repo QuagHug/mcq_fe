@@ -616,4 +616,83 @@ export const checkQuestionSimilarity = async (questionText: string, questionBank
     console.error('Check similarity error:', error);
     throw error;
   }
+};
+
+/**
+ * Generate distractors for a question
+ * @param questionText - The text of the question
+ * @param correctAnswer - The correct answer
+ * @param difficultyDistribution - Distribution of difficulty levels
+ * @param explanation - Optional explanation
+ * @returns Promise containing the generated distractors
+ */
+export const generateDistractors = async (
+  questionText: string,
+  correctAnswer: string,
+  difficultyDistribution: Record<string, number>,
+  explanation: string = ''
+) => {
+  try {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/generate-distractors/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        question_text: questionText,
+        correct_answer: correctAnswer,
+        difficulty_distribution: difficultyDistribution,
+        explanation: explanation
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status}`);
+    }
+
+    return response.json();
+  } catch (err) {
+    console.error('Error generating distractors:', err);
+    throw err;
+  }
+};
+
+/**
+ * Add distractors to a question
+ * @param questionId - The ID of the question
+ * @param distractors - Array of distractor objects
+ * @returns Promise containing the response
+ */
+export const addDistractorsToQuestion = async (
+  questionId: number,
+  distractors: Array<{
+    answer_text: string;
+    explanation: string;
+    difficulty: string;
+  }>
+) => {
+  try {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/questions/${questionId}/add-distractors/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        distractors: distractors
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status}`);
+    }
+
+    return response.json();
+  } catch (err) {
+    console.error('Error adding distractor:', err);
+    throw err;
+  }
 }; 
