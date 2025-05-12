@@ -3,7 +3,7 @@ import { getRefreshToken, getAccessToken } from "../utils/auth";
 const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api`;
 
 // Add helper function to handle token management
-const getValidToken = async () => {
+export const getValidToken = async () => {
   console.warn('All cookies at start of getValidToken:', document.cookie); // Debug log
 
   // Improved cookie parsing

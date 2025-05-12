@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { getValidToken } from '../services/api'; // Import the token function
 
 interface ParaphraserProps {
     questionText: string;
@@ -85,10 +86,14 @@ const Paraphraser: React.FC<ParaphraserProps> = ({
             // Format the text to include answer options if they exist
             let formattedText = cleanText;
             
+            // Get a valid token
+            const token = await getValidToken();
+            
             const response = await fetch('https://kong-2cabd4da88injmaw8.kongcloud.dev/t5/api/paraphrase/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // Add the Bearer token
                 },
                 body: JSON.stringify({
                     mcq: formattedText
