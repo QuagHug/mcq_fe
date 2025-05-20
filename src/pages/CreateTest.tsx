@@ -1836,6 +1836,51 @@ const CreateTest = () => {
         });
     };
 
+    // Add this function to create the test after similarity check
+    const saveTest = async () => {
+        try {
+            // Create the test payload
+            const testPayload = {
+                title: testData.title || 'Untitled Test',
+                description: testData.description || '',
+                duration: testData.duration,
+                passing_score: testData.passingScore,
+                configuration: {
+                    letterCase: answerFormat.case,
+                    separator: answerFormat.separator,
+                    includeAnswerKey: includeKey,
+                    shuffleQuestions: shuffleQuestions,
+                    shuffleAnswers: shuffleAnswers
+                },
+                question_ids: selectedQuestions.map(q => q.id)
+            };
+
+            // Call the API to create the test
+            const response = await createTest(selectedCourse, testPayload);
+            
+            if (response.id) {
+                // Show success message
+                setAlertMessage('Test created successfully!');
+                setAlertType('success');
+                setShowAlert(true);
+                
+                // Navigate to the test page
+                setTimeout(() => {
+                    navigate(`/test-bank/${selectedCourse}/tests/${response.id}/edit`);
+                }, 1500);
+            } else {
+                throw new Error('Invalid response from server');
+            }
+            
+            // Delete the draft after successful creation
+            await deleteTestDraft();
+            
+        } catch (error) {
+            console.error('Error creating test:', error);
+            throw error;
+        }
+    };
+
     return (
         <div className="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
             {/* Alert message */}
@@ -2779,4 +2824,4 @@ const CreateTest = () => {
     );
 };
 
-export default CreateTest; 
+export default CreateTest;  

@@ -56,6 +56,18 @@ const GenerateDistractors = () => {
     // State for available questions
     const [availableQuestions, setAvailableQuestions] = useState<Question[]>([]);
 
+    // State for existing distractors
+    const [existingDistractors, setExistingDistractors] = useState<Array<{
+        answer_text: string;
+        explanation?: string;
+        difficulty?: string;
+        is_correct: boolean;
+    }>>([]);
+
+    // Add these state variables with your other state declarations
+    const [editingDistractorIndex, setEditingDistractorIndex] = useState<number | null>(null);
+    const [editDistractorText, setEditDistractorText] = useState('');
+
     // Fetch question banks on component mount
     useEffect(() => {
         const loadQuestionBanks = async () => {
@@ -102,14 +114,24 @@ const GenerateDistractors = () => {
             // Set the question text
             setQuestion(question.question_text);
             
-            // Find the correct answer from the question's answers
+            // Find the correct answer and incorrect answers (distractors)
             const correctAnswerObj = question.answers?.find(a => a.is_correct);
+            const distractors = question.answers?.filter(a => !a.is_correct) || [];
+            
             if (correctAnswerObj) {
                 setCorrectAnswer(correctAnswerObj.answer_text);
             } else {
-                // If no correct answer is found, clear the correct answer field
                 setCorrectAnswer('');
             }
+            
+            // Set existing distractors
+            setExistingDistractors(distractors.map(d => ({
+                answer_text: d.answer_text,
+                is_correct: false,
+                // Add default values for explanation and difficulty
+                explanation: '',
+                difficulty: 'medium'
+            })));
         }
     };
 
@@ -176,13 +198,47 @@ const GenerateDistractors = () => {
         ]);
     };
 
-    const handleAddDistractor = (distractor: {
+    const handleAddDistractor = async (distractor: {
         answer_text: string;
         explanation: string;
         difficulty: string;
     }) => {
-        setSelectedDistractor(distractor);
-        setIsConfirmDialogOpen(true);
+        if (!selectedQuestionId) {
+            setError('No question selected');
+            return;
+        }
+        
+        setLoading(true);
+        try {
+            await addDistractorsToQuestion(
+                selectedQuestionId,
+                [{
+                    answer_text: distractor.answer_text,
+                    explanation: distractor.explanation || '',
+                    difficulty: distractor.difficulty || 'medium'
+                }]
+            );
+            
+            // Add to existing distractors for immediate UI update
+            setExistingDistractors(prev => [...prev, {
+                ...distractor,
+                is_correct: false
+            }]);
+            
+            // Show success message
+            setError('Distractor added successfully');
+            setTimeout(() => setError(null), 2000);
+            
+            // Refresh question data to get updated distractors
+            if (selectedBankId && selectedSubBankId) {
+                loadQuestionsForBank(selectedBankId, selectedSubBankId);
+            }
+        } catch (err) {
+            console.error('Error adding distractor:', err);
+            setError('Failed to add distractor to question');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleConfirmAdd = async () => {
@@ -244,6 +300,66 @@ const GenerateDistractors = () => {
         } finally {
             setBankLoading(false);
         }
+    };
+
+    // Function to start editing a distractor
+    const handleEditDistractor = (index: number) => {
+        const distractor = existingDistractors[index];
+        setEditDistractorText(distractor.answer_text);
+        setEditingDistractorIndex(index);
+    };
+
+    // Function to save edited distractor
+    const handleSaveDistractorEdit = async () => {
+        if (editingDistractorIndex === null || !editDistractorText.trim() || !selectedQuestionId) {
+            return;
+        }
+        
+        setLoading(true);
+        try {
+            // Get the current distractor
+            const currentDistractor = existingDistractors[editingDistractorIndex];
+            
+            // First, delete the old distractor by adding a new one with the updated text
+            await addDistractorsToQuestion(
+                selectedQuestionId,
+                [{
+                    answer_text: editDistractorText,
+                    explanation: currentDistractor.explanation || '',
+                    difficulty: currentDistractor.difficulty || 'medium'
+                }]
+            );
+            
+            // Update the local state
+            const updatedDistractors = [...existingDistractors];
+            updatedDistractors[editingDistractorIndex] = {
+                ...updatedDistractors[editingDistractorIndex],
+                answer_text: editDistractorText
+            };
+            setExistingDistractors(updatedDistractors);
+            
+            // Show success message
+            setError('Distractor updated successfully');
+            setTimeout(() => setError(null), 2000);
+            
+            // Refresh question data to get updated distractors
+            if (selectedBankId && selectedSubBankId) {
+                loadQuestionsForBank(selectedBankId, selectedSubBankId);
+            }
+        } catch (err) {
+            console.error('Error updating distractor:', err);
+            setError('Failed to update distractor');
+        } finally {
+            setLoading(false);
+            setEditingDistractorIndex(null);
+            setEditDistractorText('');
+        }
+    };
+
+    // Function to cancel editing
+    const handleCancelEdit = () => {
+        setEditingDistractorIndex(null);
+        setEditDistractorText('');
     };
 
     return (
@@ -514,6 +630,101 @@ const GenerateDistractors = () => {
                                 ) : (
                                     ''
                                 )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Existing Distractors Section */}
+            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mt-5">
+                <div className="p-6.5">
+                    <div className="mb-4">
+                        <h2 className="text-title-md2 font-semibold text-black dark:text-white">
+                            Current Question Distractors
+                        </h2>
+                    </div>
+
+                    {selectedQuestionId && (
+                        <div className="mb-5 p-4 bg-bodydark2 bg-opacity-10 rounded dark:bg-boxdark-2">
+                            <h3 className="text-sm font-medium mb-1">Current Question:</h3>
+                            <div 
+                                className="text-black dark:text-white"
+                                dangerouslySetInnerHTML={{ __html: question }}
+                            />
+                            
+                            <div className="mt-2">
+                                <h3 className="text-sm font-medium mb-1">Correct Answer:</h3>
+                                <div className="text-success">
+                                    {correctAnswer}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Existing Distractors List */}
+                    <div className="space-y-4">
+                        {existingDistractors.length > 0 ? (
+                            existingDistractors.map((distractor, index) => (
+                                <div key={index} className="p-4 border rounded-sm dark:border-strokedark bg-gray-50 dark:bg-boxdark-2">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            {editingDistractorIndex === index ? (
+                                                <div className="mb-3">
+                                                    <input
+                                                        type="text"
+                                                        value={editDistractorText}
+                                                        onChange={(e) => setEditDistractorText(e.target.value)}
+                                                        className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                                    />
+                                                    <div className="flex mt-2 space-x-2">
+                                                        <button
+                                                            onClick={handleSaveDistractorEdit}
+                                                            className="text-success hover:underline"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            onClick={handleCancelEdit}
+                                                            className="text-danger hover:underline"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-body dark:text-bodydark">{distractor.answer_text}</p>
+                                            )}
+                                            
+                                            {distractor.explanation && (
+                                                <p className="text-sm text-bodydark2 mt-2">
+                                                    <span className="font-medium">Explanation:</span> {distractor.explanation}
+                                                </p>
+                                            )}
+                                            {distractor.difficulty && (
+                                                <p className="text-xs text-bodydark2 mt-1">
+                                                    <span className="font-medium">Difficulty:</span> {distractor.difficulty}
+                                                </p>
+                                            )}
+                                        </div>
+                                        {editingDistractorIndex !== index && (
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => handleEditDistractor(index)}
+                                                    className="text-primary hover:text-opacity-80"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-center py-8 text-body dark:text-bodydark">
+                                No distractors for this question yet. Generate and add distractors above.
                             </div>
                         )}
                     </div>
