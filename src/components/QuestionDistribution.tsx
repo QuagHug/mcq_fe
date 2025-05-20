@@ -36,7 +36,7 @@ const QuestionDistribution: React.FC<QuestionDistributionProps> = ({
             // Get taxonomy level
             const taxonomy = questionToUse.taxonomies?.find(tax =>
                 tax.taxonomy.name === "Bloom's Taxonomy"
-            )?.level || 'Remember';
+            )?.level || questionToUse.taxonomyLevel || 'Remember';
 
             // Get difficulty (use edited difficulty if available)
             const difficulty = (questionToUse.difficulty || 'medium').toLowerCase() as 'easy' | 'medium' | 'hard';

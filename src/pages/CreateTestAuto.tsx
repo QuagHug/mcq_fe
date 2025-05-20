@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
-import { fetchQuestionBanks, fetchCourses, createTest } from '../services/api';
+import { fetchQuestionBanks, fetchCourses, createTest, checkTestSimilarity } from '../services/api';
 import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Pie } from 'react-chartjs-2';
 import { Dialog } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import TestSimilarityDialog from '../components/TestSimilarityDialog';
 
 interface QuestionBank {
     id: number;
@@ -118,6 +119,9 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
     const [availableTaxonomies, setAvailableTaxonomies] = useState<string[]>([]);
     const [availableDifficulties, setAvailableDifficulties] = useState<string[]>([]);
     const [showDistribution, setShowDistribution] = useState(false);
+    const [isSimilarityDialogOpen, setIsSimilarityDialogOpen] = useState(false);
+    const [similarityData, setSimilarityData] = useState(null);
+    const [isCheckingSimilarity, setIsCheckingSimilarity] = useState(false);
 
     // Fetch courses on component mount
     useEffect(() => {
@@ -250,7 +254,33 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
         }
     }, [questionBanks]);
 
-    // Add the handleCreateTest function (after generateQuestions function)
+    // Add the check similarity function
+    const checkForSimilarTests = async (questionIds: number[]) => {
+        if (!selectedCourse || !questionIds.length) {
+            return false;
+        }
+        
+        setIsCheckingSimilarity(true);
+        try {
+            const result = await checkTestSimilarity(selectedCourse, questionIds);
+            
+            if (result && result.similar_tests && result.similar_tests.length > 0) {
+                setSimilarityData(result);
+                setIsSimilarityDialogOpen(true);
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('Error checking for similar tests:', error);
+            setError('Failed to check for similar tests');
+            return false;
+        } finally {
+            setIsCheckingSimilarity(false);
+        }
+    };
+
+    // Update the handleCreateTest function
     const handleCreateTest = async () => {
         try {
             setLoading(true);
@@ -260,7 +290,26 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                 throw new Error('Please select at least one question');
             }
 
-            // Format the test data
+            // Check for similar tests first
+            const questionIds = selectedQuestions.map(question => question.id);
+            const hasSimilarTests = await checkForSimilarTests(questionIds);
+            
+            if (hasSimilarTests) {
+                return; // Stop here and let the dialog handle next steps
+            }
+
+            await createTestWithQuestions(questionIds);
+        } catch (err) {
+            console.error('Error creating test:', err);
+            setError(err instanceof Error ? err.message : 'Failed to create test');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Add the function to create test after similarity check
+    const createTestWithQuestions = async (questionIds: number[]) => {
+        try {
             const testPayload = {
                 title: testData.title || 'Untitled Test',
                 description: testData.description || '',
@@ -271,10 +320,9 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                     separator: ')',
                     includeAnswerKey: false
                 },
-                question_ids: selectedQuestions.map(question => question.id)
+                question_ids: questionIds
             };
 
-            // Call API to create test
             const response = await createTest(selectedCourse, testPayload);
             
             if (response.id) {
@@ -282,12 +330,17 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
             } else {
                 throw new Error('Invalid response from server');
             }
-        } catch (err) {
-            console.error('Error creating test:', err);
-            setError(err instanceof Error ? err.message : 'Failed to create test');
-        } finally {
-            setLoading(false);
+        } catch (error) {
+            console.error('Error creating test:', error);
+            throw error;
         }
+    };
+
+    // Add the proceed anyway function
+    const proceedWithCreation = async () => {
+        setIsSimilarityDialogOpen(false);
+        const questionIds = selectedQuestions.map(question => question.id);
+        await createTestWithQuestions(questionIds);
     };
 
     // Add this function to calculate distribution
@@ -627,6 +680,15 @@ const CreateTestAuto: React.FC = (): JSX.Element => {
                     </div>
                 </>
             )}
+
+            {/* Similarity Dialog */}
+            <TestSimilarityDialog
+                isOpen={isSimilarityDialogOpen}
+                onClose={() => setIsSimilarityDialogOpen(false)}
+                similarityData={similarityData}
+                courseId={selectedCourse}
+                onProceedAnyway={proceedWithCreation}
+            />
         </div>
     );
 };

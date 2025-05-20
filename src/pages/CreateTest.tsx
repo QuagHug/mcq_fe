@@ -12,7 +12,8 @@ import {
     deleteTestDraft,
     getTestDrafts,
     fetchQuestionGroups,
-    fetchQuestionGroup
+    fetchQuestionGroup,
+    checkTestSimilarity
 } from '../services/api';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
@@ -21,6 +22,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import React from 'react';
 import QuestionList from '../components/QuestionList';
 import QuestionDistribution from '../components/QuestionDistribution';
+import TestSimilarityDialog from '../components/TestSimilarityDialog';
 
 interface TagProps {
     value: string;
@@ -274,6 +276,11 @@ const CreateTest = () => {
     const [questionGroupsMap, setQuestionGroupsMap] = useState<Record<number, QuestionGroup>>({});
     const [groupBankMap, setGroupBankMap] = useState<Record<number, string>>({});
     const [loadingGroups, setLoadingGroups] = useState<Record<number, boolean>>({});
+
+    // Add these state variables after your other state declarations
+    const [isSimilarityDialogOpen, setIsSimilarityDialogOpen] = useState(false);
+    const [similarityData, setSimilarityData] = useState(null);
+    const [isCheckingSimilarity, setIsCheckingSimilarity] = useState(false);
 
     const handleSubjectChange = (subjectId: string) => {
         setSelectedSubject(subjectId);
@@ -707,9 +714,40 @@ const CreateTest = () => {
         }
     };
 
-    // Update the handleCreateTest function to delete the draft after successful test creation
+    // Add this function to check for similar tests
+    const checkForSimilarTests = async () => {
+        if (!selectedCourse || selectedQuestions.length === 0) {
+            return false;
+        }
+        
+        setIsCheckingSimilarity(true);
+        try {
+            // Get all selected question IDs
+            const questionIds = selectedQuestions.map(q => q.id);
+            
+            // Check for similar tests
+            const result = await checkTestSimilarity(selectedCourse, questionIds);
+            
+            // If similar tests are found, show the dialog
+            if (result && result.similar_tests && result.similar_tests.length > 0) {
+                setSimilarityData(result);
+                setIsSimilarityDialogOpen(true);
+                return true; // Return true if similar tests were found
+            }
+            
+            return false; // No similar tests found
+        } catch (error) {
+            console.error('Error checking for similar tests:', error);
+            setError('Failed to check for similar tests');
+            return false;
+        } finally {
+            setIsCheckingSimilarity(false);
+        }
+    };
+
+    // Update the handleCreateTest function to check for similarity first
     const handleCreateTest = async () => {
-        // Validate test data
+        // Validate test title
         if (!testData.title.trim()) {
             setShowTitleWarning(true);
             scrollToElement(titleInputRef.current);
@@ -724,43 +762,18 @@ const CreateTest = () => {
 
         try {
             setLoading(true);
-
-            // Use shuffled questions if available, otherwise use selected questions
-            const questionsToUse = shuffledQuestions.length > 0 ? shuffledQuestions : selectedQuestions;
-
-            // Prepare the test data
-            const testPayload = {
-                title: testData.title,
-                description: testData.description,
-                question_ids: questionsToUse.map(q => q.id),
-                config: {
-                    letterCase: answerFormat.case,
-                    separator: answerFormat.separator,
-                    includeAnswerKey: includeKey
-                }
-            };
-
-            // Create the test
-            await createTest(selectedCourse, testPayload);
-
-            // After successful test creation, delete the draft
-            try {
-                await deleteTestDraft();
-                console.log('Draft deleted after test creation');
-            } catch (draftError) {
-                console.error('Error deleting draft after test creation:', draftError);
-                // Continue even if draft deletion fails
+            
+            // First check for similar tests
+            const hasSimilarTests = await checkForSimilarTests();
+            
+            // If similar tests were found, the dialog will be shown and we should stop here
+            if (hasSimilarTests) {
+                setLoading(false);
+                return;
             }
-
-            // Show success message
-            setAlertMessage('Test created successfully!');
-            setAlertType('success');
-            setShowAlert(true);
-
-            // Navigate to the test bank after a short delay
-            setTimeout(() => {
-                navigate(`/test-bank/${selectedCourse}`);
-            }, 1500);
+            
+            // If no similar tests, proceed with test creation
+            await saveTest();
         } catch (error) {
             console.error('Error creating test:', error);
             setError('Failed to create test');
@@ -772,6 +785,12 @@ const CreateTest = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Add a function to proceed with creation anyway
+    const proceedWithCreation = async () => {
+        setIsSimilarityDialogOpen(false);
+        await saveTest();
     };
 
     // Clear title warning when user types in title
@@ -2747,6 +2766,15 @@ const CreateTest = () => {
                     </div>
                 </div>
             )}
+
+            {/* Add this inside your component's JSX */}
+            <TestSimilarityDialog
+                isOpen={isSimilarityDialogOpen}
+                onClose={() => setIsSimilarityDialogOpen(false)}
+                similarityData={similarityData}
+                courseId={selectedCourse}
+                onProceedAnyway={proceedWithCreation}
+            />
         </div>
     );
 };

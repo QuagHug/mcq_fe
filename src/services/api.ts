@@ -695,4 +695,102 @@ export const addDistractorsToQuestion = async (
     console.error('Error adding distractor:', err);
     throw err;
   }
-}; 
+};
+
+/**
+ * Fetch details for a question bank
+ * @param bankId - The ID of the bank
+ * @returns Promise containing the bank details
+ */
+export const fetchBankDetails = async (bankId: string) => {
+  try {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/question-banks/${bankId}/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch bank details');
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching bank details:', error);
+    throw error;
+  }
+};
+
+/**
+ * Paraphrase a question text
+ * @param questionText The text to paraphrase
+ * @returns Promise containing the paraphrased text
+ */
+export const paraphraseQuestion = async (questionText: string) => {
+  try {
+    const token = await getValidToken();
+    const response = await fetch('https://kong-2cabd4da88injmaw8.kongcloud.dev/t5/api/paraphrase/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        mcq: questionText
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to paraphrase question');
+    }
+
+    const data = await response.json();
+    return data.paraphrased_text || data.result || data.text;
+  } catch (error) {
+    console.error('Error paraphrasing question:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if a test with these questions is similar to existing tests
+ * @param courseId - The course ID
+ * @param questionIds - Array of question IDs to check
+ * @param threshold - Similarity threshold (default: 0.3)
+ * @param maxResults - Maximum number of similar tests to return
+ * @returns Promise containing similar test information
+ */
+export const checkTestSimilarity = async (
+  courseId: string, 
+  questionIds: number[], 
+  threshold: number = 0.3,
+  maxResults: number = 5
+) => {
+  try {
+    const token = await getValidToken();
+    const response = await fetch(`${API_BASE_URL}/courses/${courseId}/check-test-similarity/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        question_ids: questionIds,
+        threshold,
+        max_results: maxResults
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to check test similarity: ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Test similarity check error:', error);
+    throw error;
+  }
+};

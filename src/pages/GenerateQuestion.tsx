@@ -2,7 +2,7 @@ import React, { useState, useRef, DragEvent, useEffect, Fragment } from 'react';
 import Breadcrumb from '../components/Breadcrumb';
 import { Menu, Transition, Dialog } from '@headlessui/react';
 import SimilarityDialog from '../components/SimilarityDialog';
-import { generateQuestions, fetchCourses, fetchQuestionBanks, bulkCreateQuestions } from '../services/api';
+import { generateQuestions, fetchCourses, fetchQuestionBanks, bulkCreateQuestions, checkQuestionSimilarity, paraphraseQuestion } from '../services/api';
 
 interface Answer {
     id: string;
@@ -26,6 +26,7 @@ interface GeneratedQuestion {
     }[];
     metadata?: {
         structure_valid?: boolean;
+        paraphrased?: boolean;
     };
 }
 
@@ -75,6 +76,11 @@ const GenerateQuestion = () => {
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [currentQuestionForSimilarity, setCurrentQuestionForSimilarity] = useState('');
     const [currentBankForSimilarity, setCurrentBankForSimilarity] = useState<number>(0);
+    const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+    const [similarityCheckResults, setSimilarityCheckResults] = useState<any[]>([]);
+    const [showSimilarityNote, setShowSimilarityNote] = useState(false);
+    const [isSimilarityChecking, setIsSimilarityChecking] = useState(false);
+    const [questionSimilarityResults, setQuestionSimilarityResults] = useState<{[key: string]: boolean}>({});
 
     const bloomsLevels = [
         'Remember',
@@ -83,6 +89,46 @@ const GenerateQuestion = () => {
         'Analyze',
         'Evaluate',
         'Create'
+    ];
+
+    // Define prompt templates
+    const promptTemplates = [
+        {
+            id: 'basic',
+            name: "Basic Topic Template",
+            description: "Simple template for generating questions on a specific topic",
+            template: `Provide me questions in the topic of [YOUR TOPIC HERE].
+
+The questions should have the following characteristics:
+- Clear and concise wording
+- One definitively correct answer
+- Plausible incorrect options
+- Appropriate for the specified difficulty level`
+        },
+        {
+            id: 'concept',
+            name: "Concept Understanding",
+            description: "For testing understanding of concepts rather than facts",
+            template: `Provide me questions in the topic of [YOUR TOPIC HERE].
+
+The questions should have the following characteristics:
+- Test conceptual understanding rather than memorization
+- Require application of knowledge
+- Include scenario-based questions where appropriate
+- Have distractors that represent common misconceptions`
+        },
+        {
+            id: 'problem',
+            name: "Problem Solving",
+            description: "For testing problem-solving abilities",
+            template: `Provide me questions in the topic of [YOUR TOPIC HERE] that involve problem-solving.
+
+The questions should have the following characteristics:
+- Present clear problems to solve
+- Require application of formulas or procedures
+- Include step-by-step solutions
+- Have distractors that represent common calculation errors`
+        }
     ];
 
     useEffect(() => {
@@ -110,6 +156,22 @@ const GenerateQuestion = () => {
             setBanks([]);
         }
         setSelectedBank('');
+    };
+
+    const handleBankChange = (bankId: string) => {
+        console.log('Bank changed to:', bankId);
+        setSelectedBank(bankId);
+        
+        // If we have generated questions, check for similarity immediately
+        if (generatedQuestions.length > 0) {
+            console.log('Has generated questions, checking similarity');
+            // Add a small delay to ensure state updates have propagated
+            setTimeout(() => {
+                checkForSimilarQuestions();
+            }, 100);
+        } else {
+            console.log('No generated questions yet, skipping similarity check');
+        }
     };
 
     const handleGenerate = async () => {
@@ -140,6 +202,13 @@ const GenerateQuestion = () => {
 
             setGeneratedQuestions(formattedQuestions);
             setError(null);
+            
+            // Check for similarity if a bank is selected
+            if (selectedBank) {
+                setTimeout(() => {
+                    checkForSimilarQuestions();
+                }, 500);
+            }
         } catch (err) {
             setError('Failed to generate questions');
             console.error(err);
@@ -317,6 +386,198 @@ const GenerateQuestion = () => {
         setIsSimilarityDialogOpen(true);
     };
 
+    const applyTemplate = (templateId: string) => {
+        const template = promptTemplates.find(t => t.id === templateId);
+        if (template) {
+            setPrompt(template.template);
+        }
+        setIsTemplateModalOpen(false);
+    };
+
+    const checkForSimilarQuestions = async () => {
+        console.log('Starting similarity check with bank:', selectedBank);
+        console.log('Generated questions length:', generatedQuestions.length);
+        
+        if (!selectedBank || generatedQuestions.length === 0) {
+            console.log('Skipping similarity check - no bank selected or no questions generated');
+            return;
+        }
+        
+        setIsSimilarityChecking(true);
+        
+        // Create a new object to store similarity results for each question
+        const similarityResults: {[key: string]: boolean} = {};
+        
+        try {
+            // Pass the bank ID directly rather than relying on state
+            const bankId = parseInt(selectedBank);
+            console.log('Using bank ID for similarity check:', bankId);
+            
+            // Check each question individually
+            for (const question of generatedQuestions) {
+                console.log(`Checking similarity for question ${question.id}: ${question.question_text.substring(0, 50)}...`);
+                
+                const result = await checkQuestionSimilarity(
+                    question.question_text, 
+                    bankId,
+                    0.75
+                );
+                
+                // Store the result for this specific question
+                const hasSimilar = result && result.similar_questions && result.similar_questions.length > 0;
+                similarityResults[question.id] = hasSimilar;
+                
+                console.log(`Question ${question.id} has similar questions: ${hasSimilar}`);
+                
+                // No longer setting global similarity results or showing the global note
+                if (hasSimilar) {
+                    setCurrentQuestionForSimilarity(question.question_text);
+                    setCurrentBankForSimilarity(bankId);
+                }
+            }
+            
+            // Update the state with all results
+            setQuestionSimilarityResults(similarityResults);
+        } catch (error) {
+            console.error('Error checking for similar questions:', error);
+        } finally {
+            setIsSimilarityChecking(false);
+        }
+    };
+
+    const handleParaphraseQuestion = async () => {
+        if (!currentQuestionForSimilarity) return;
+        
+        try {
+            setLoading(true);
+            
+            // Find the question by text
+            const questionToParaphrase = generatedQuestions.find(
+                q => q.question_text === currentQuestionForSimilarity
+            );
+            
+            if (!questionToParaphrase) return;
+            
+            // Paraphrase the question text (strip HTML for better results)
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = questionToParaphrase.question_text;
+            const plainText = tempDiv.textContent || tempDiv.innerText || questionToParaphrase.question_text;
+            
+            // Call the API to paraphrase the question
+            const paraphrasedText = await paraphraseQuestion(plainText);
+            
+            // Update the question in the generated questions list
+            setGeneratedQuestions(prev => prev.map(q => {
+                if (q.id === questionToParaphrase.id) {
+                    return {
+                        ...q,
+                        question_text: `<p>${paraphrasedText}</p>`, // Wrap in paragraph tags
+                        // Mark as paraphrased
+                        metadata: {
+                            ...q.metadata,
+                            paraphrased: true
+                        }
+                    };
+                }
+                return q;
+            }));
+            
+            // Mark as edited
+            setEditedQuestions(prev => ({
+                ...prev,
+                [questionToParaphrase.id]: {
+                    ...questionToParaphrase,
+                    question_text: `<p>${paraphrasedText}</p>`
+                }
+            }));
+            
+            // Re-check similarity if a bank is selected
+            if (selectedBank) {
+                setTimeout(() => {
+                    checkForSimilarQuestions();
+                }, 100);
+            }
+            
+        } catch (error) {
+            console.error('Error paraphrasing question:', error);
+            setError('Failed to paraphrase the question');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDiscardQuestion = () => {
+        // Find the question by text
+        const questionToDiscard = generatedQuestions.find(
+            q => q.question_text === currentQuestionForSimilarity
+        );
+        
+        if (!questionToDiscard) return;
+        
+        // Remove the question from the generated questions list
+        setGeneratedQuestions(prev => prev.filter(q => q.id !== questionToDiscard.id));
+        
+        // If the question was edited, remove it from edited questions
+        if (editedQuestions[questionToDiscard.id]) {
+            const newEditedQuestions = { ...editedQuestions };
+            delete newEditedQuestions[questionToDiscard.id];
+            setEditedQuestions(newEditedQuestions);
+        }
+        
+        // Uncheck if it was selected
+        if (selectedQuestions[questionToDiscard.id]) {
+            setSelectedQuestions(prev => {
+                const newSelected = { ...prev };
+                delete newSelected[questionToDiscard.id];
+                return newSelected;
+            });
+        }
+    };
+
+    // Template Modal Component
+    const TemplateModal = () => {
+        return (
+            <div className={`fixed inset-0 z-999 flex items-center justify-center ${isTemplateModalOpen ? 'visible' : 'invisible'}`}>
+                <div 
+                    className="absolute inset-0 bg-black bg-opacity-50"
+                    onClick={() => setIsTemplateModalOpen(false)}
+                ></div>
+                <div className="relative w-full max-w-lg bg-white dark:bg-boxdark rounded-sm shadow-default p-8 max-h-[80vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-black dark:text-white">
+                            Choose a Prompt Template
+                        </h3>
+                        <button
+                            onClick={() => setIsTemplateModalOpen(false)}
+                            className="text-body hover:text-danger"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                        <p className="text-sm text-bodydark2 mb-4">
+                            Select a template to help you create effective questions. The template will be inserted into the prompt area.
+                        </p>
+                        
+                        {promptTemplates.map((template) => (
+                            <div 
+                                key={template.id}
+                                className="border border-stroke dark:border-strokedark rounded-sm p-4 hover:border-primary dark:hover:border-primary cursor-pointer transition-all"
+                                onClick={() => applyTemplate(template.id)}
+                            >
+                                <h4 className="font-medium text-black dark:text-white">{template.name}</h4>
+                                <p className="text-sm text-bodydark2 mt-1">{template.description}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="space-y-6">
             <Breadcrumb
@@ -341,6 +602,27 @@ const GenerateQuestion = () => {
                         <div className="flex items-center justify-between mb-2.5">
                             <div className="w-[120px]"></div>
                             <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setIsTemplateModalOpen(true)}
+                                    className="hover:text-primary flex items-center gap-1"
+                                    title="Use a prompt template"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        strokeWidth={1.5}
+                                        stroke="currentColor"
+                                        className="w-5 h-5"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"
+                                        />
+                                    </svg>
+                                    <span className="text-sm">Templates</span>
+                                </button>
                                 <input
                                     type="file"
                                     ref={fileInputRef}
@@ -526,7 +808,7 @@ const GenerateQuestion = () => {
 
                                 <select
                                     value={selectedBank}
-                                    onChange={(e) => setSelectedBank(e.target.value)}
+                                    onChange={(e) => handleBankChange(e.target.value)}
                                     className="rounded border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none"
                                     disabled={!selectedCourse}
                                 >
@@ -657,27 +939,22 @@ const GenerateQuestion = () => {
                                         Check similarity
                                     </button>
                                 </div>
+
+                                {selectedBank && questionSimilarityResults[question.id] && (
+                                    <div className="mt-3">
+                                        <p className="text-sm">
+                                            <span className="text-danger font-medium">NOTE:</span> There are similar questions in the selected bank.
+                                            <button
+                                                onClick={() => handleCheckSimilarity(question.question_text)}
+                                                className="text-primary hover:underline ml-2"
+                                            >
+                                                View similarity
+                                            </button>
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         ))}
-                    </div>
-
-                    {/* Similarity Note */}
-                    <div className="mt-6 flex items-center gap-4">
-                        <p className="text-body">
-                            <span className="text-danger font-medium">NOTE:</span> There are questions in your bank that are similar.
-                        </p>
-                        <button
-                            onClick={() => {
-                                if (generatedQuestions.length > 0) {
-                                    handleCheckSimilarity(generatedQuestions[0].question_text);
-                                } else {
-                                    setError('No questions to check for similarity');
-                                }
-                            }}
-                            className="inline-flex items-center justify-center rounded-md bg-primary py-2 px-6 text-center font-medium text-white hover:bg-opacity-90"
-                        >
-                            View similarity
-                        </button>
                     </div>
                 </div>
             </div>
@@ -687,6 +964,25 @@ const GenerateQuestion = () => {
                 onClose={() => setIsSimilarityDialogOpen(false)}
                 questionText={currentQuestionForSimilarity}
                 questionBankId={currentBankForSimilarity}
+                courseId={selectedCourse}
+                onEditQuestion={() => {
+                    // Find the question by text and open the edit modal
+                    const questionToEdit = generatedQuestions.find(
+                        q => q.question_text === currentQuestionForSimilarity
+                    );
+                    if (questionToEdit) {
+                        setEditingQuestion({
+                            id: questionToEdit.id,
+                            question_text: questionToEdit.question_text,
+                            answers: questionToEdit.answers,
+                            taxonomies: questionToEdit.taxonomies || [],
+                            metadata: questionToEdit.metadata || {}
+                        });
+                        setIsEditModalOpen(true);
+                    }
+                }}
+                onParaphraseQuestion={handleParaphraseQuestion}
+                onDiscardQuestion={handleDiscardQuestion}
             />
 
             {/* Edit Modal */}
@@ -830,6 +1126,9 @@ const GenerateQuestion = () => {
                     </div>
                 </Dialog>
             </Transition>
+
+            {/* Template Modal */}
+            <TemplateModal />
         </div>
     );
 };

@@ -92,6 +92,9 @@ const TestDetails = () => {
         data: []
     });
     const [isAnalyticsExpanded, setIsAnalyticsExpanded] = useState(false);
+    const [isQuestionsDialogOpen, setIsQuestionsDialogOpen] = useState(false);
+    const [selectedCategoryQuestions, setSelectedCategoryQuestions] = useState<Question[]>([]);
+    const [dialogTitle, setDialogTitle] = useState('');
 
     useEffect(() => {
         const loadTest = async () => {
@@ -183,6 +186,12 @@ const TestDetails = () => {
             });
         }
     }, [test]);
+
+    const handleViewQuestions = (questions: Question[], title: string) => {
+        setSelectedCategoryQuestions(questions);
+        setDialogTitle(title);
+        setIsQuestionsDialogOpen(true);
+    };
 
     return (
         <div className="mx-auto max-w-270">
@@ -304,13 +313,55 @@ const TestDetails = () => {
                                                                                 questions = [];
                                                                         }
                                                                         
-                                                                        return questions.slice(0, 5).map(q => {
+                                                                        const tooltipLines = questions.slice(0, 5).map(q => {
                                                                             const questionIndex = test.questions.findIndex(tq => tq.id === q.id);
                                                                             const orderNumber = questionIndex + 1;
                                                                             const text = q.question_data.question_text.replace(/<[^>]*>/g, '');
                                                                             const truncatedText = text.length > 40 ? text.substring(0, 40) + '...' : text;
                                                                             return `• Q${orderNumber}: ${truncatedText} (D: ${q.question_data.statistics?.scaled_difficulty.toFixed(2)})`;
                                                                         });
+                                                                        
+                                                                        // Add a line indicating more questions can be viewed
+                                                                        if (questions.length > 5) {
+                                                                            tooltipLines.push(`\n[Click to view all ${questions.length} questions]`);
+                                                                        }
+                                                                        
+                                                                        return tooltipLines;
+                                                                    }
+                                                                },
+                                                                onClick: (event, elements) => {
+                                                                    if (elements.length > 0) {
+                                                                        const index = elements[0].index;
+                                                                        let questions;
+                                                                        let title;
+                                                                        
+                                                                        switch(index) {
+                                                                            case 0:
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_difficulty < 2);
+                                                                                title = 'Very Easy Questions (0-2)';
+                                                                                break;
+                                                                            case 1:
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_difficulty >= 2 && q.question_data.statistics?.scaled_difficulty < 4);
+                                                                                title = 'Easy Questions (2-4)';
+                                                                                break;
+                                                                            case 2:
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_difficulty >= 4 && q.question_data.statistics?.scaled_difficulty < 6);
+                                                                                title = 'Moderate Questions (4-6)';
+                                                                                break;
+                                                                            case 3:
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_difficulty >= 6 && q.question_data.statistics?.scaled_difficulty < 8);
+                                                                                title = 'Hard Questions (6-8)';
+                                                                                break;
+                                                                            case 4:
+                                                                                questions = test.questions.filter(q => q.question_data.statistics?.scaled_difficulty >= 8);
+                                                                                title = 'Very Hard Questions (8-10)';
+                                                                                break;
+                                                                            default:
+                                                                                questions = [];
+                                                                                title = '';
+                                                                        }
+                                                                        
+                                                                        handleViewQuestions(questions, title);
                                                                     }
                                                                 }
                                                             }
@@ -716,30 +767,70 @@ const TestDetails = () => {
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="mt-4">
-                                        <h4 className="font-semibold mb-2">Test Quality Insights</h4>
-                                        <ul className="list-disc list-inside space-y-1 text-sm">
-                                            <li>
-                                                {test.questions.filter(q => 
-                                                    q.question_data?.statistics?.scaled_difficulty >= 4 && 
-                                                    q.question_data?.statistics?.scaled_difficulty <= 6 && 
-                                                    q.question_data?.statistics?.scaled_discrimination > 5
-                                                ).length} questions are in the optimal range (moderate difficulty with good discrimination)
+                                    <div className="mt-6">
+                                        <h4 className="text-lg font-medium mb-3">Test Quality Insights</h4>
+                                        <ul className="space-y-2">
+                                            <li className="flex items-center justify-between">
+                                                <span>{test.questions.filter(q => 
+                                                    q.question_data.statistics?.scaled_difficulty >= 4 && 
+                                                    q.question_data.statistics?.scaled_difficulty < 6 && 
+                                                    q.question_data.statistics?.scaled_discrimination >= 4
+                                                ).length} questions are in the optimal range (moderate difficulty with good discrimination)</span>
+                                                <button
+                                                    onClick={() => handleViewQuestions(
+                                                        test.questions.filter(q => 
+                                                            q.question_data.statistics?.scaled_difficulty >= 4 && 
+                                                            q.question_data.statistics?.scaled_difficulty < 6 && 
+                                                            q.question_data.statistics?.scaled_discrimination >= 4
+                                                        ),
+                                                        'Optimal Questions'
+                                                    )}
+                                                    className="px-3 py-1 bg-primary text-white text-sm rounded hover:bg-opacity-90"
+                                                >
+                                                    View
+                                                </button>
                                             </li>
-                                            <li>
-                                                {test.questions.filter(q => 
-                                                    q.question_data?.statistics?.scaled_discrimination < 2
-                                                ).length} questions have poor discrimination and may need review
+                                            <li className="flex items-center justify-between">
+                                                <span>{test.questions.filter(q => 
+                                                    q.question_data.statistics?.scaled_discrimination < 3
+                                                ).length} questions have poor discrimination and may need review</span>
+                                                <button
+                                                    onClick={() => handleViewQuestions(
+                                                        test.questions.filter(q => q.question_data.statistics?.scaled_discrimination < 3),
+                                                        'Poor Discrimination Questions'
+                                                    )}
+                                                    className="px-3 py-1 bg-primary text-white text-sm rounded hover:bg-opacity-90"
+                                                >
+                                                    View
+                                                </button>
                                             </li>
-                                            <li>
-                                                {test.questions.filter(q => 
-                                                    q.question_data?.statistics?.scaled_difficulty > 8
-                                                ).length} questions are very difficult (may be too challenging)
+                                            <li className="flex items-center justify-between">
+                                                <span>{test.questions.filter(q => 
+                                                    q.question_data.statistics?.scaled_difficulty >= 7
+                                                ).length} questions are very difficult (may be too challenging)</span>
+                                                <button
+                                                    onClick={() => handleViewQuestions(
+                                                        test.questions.filter(q => q.question_data.statistics?.scaled_difficulty >= 7),
+                                                        'Very Difficult Questions'
+                                                    )}
+                                                    className="px-3 py-1 bg-primary text-white text-sm rounded hover:bg-opacity-90"
+                                                >
+                                                    View
+                                                </button>
                                             </li>
-                                            <li>
-                                                {test.questions.filter(q => 
-                                                    q.question_data?.statistics?.scaled_difficulty < 2
-                                                ).length} questions are very easy (may be too simple)
+                                            <li className="flex items-center justify-between">
+                                                <span>{test.questions.filter(q => 
+                                                    q.question_data.statistics?.scaled_difficulty < 3
+                                                ).length} questions are very easy (may be too simple)</span>
+                                                <button
+                                                    onClick={() => handleViewQuestions(
+                                                        test.questions.filter(q => q.question_data.statistics?.scaled_difficulty < 3),
+                                                        'Very Easy Questions'
+                                                    )}
+                                                    className="px-3 py-1 bg-primary text-white text-sm rounded hover:bg-opacity-90"
+                                                >
+                                                    View
+                                                </button>
                                             </li>
                                         </ul>
                                     </div>
@@ -894,6 +985,85 @@ const TestDetails = () => {
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* Questions Dialog with answers */}
+            {isQuestionsDialogOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="w-full max-w-4xl rounded-lg bg-white p-6 shadow-lg dark:bg-boxdark max-h-[90vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-semibold text-black dark:text-white">
+                                {dialogTitle} ({selectedCategoryQuestions.length} questions)
+                            </h3>
+                            <button
+                                onClick={() => setIsQuestionsDialogOpen(false)}
+                                className="text-black dark:text-white hover:text-opacity-70"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <div className="overflow-y-auto flex-grow">
+                            {selectedCategoryQuestions.map((question, index) => (
+                                <div key={question.id} className="mb-6 p-4 border rounded dark:border-strokedark">
+                                    <div className="font-medium mb-2 text-lg">Question {index + 1}</div>
+                                    <div dangerouslySetInnerHTML={{ __html: question.question_data.question_text }} className="mb-4" />
+                                    
+                                    {/* Display answers */}
+                                    <div className="mb-2 font-medium">Answers:</div>
+                                    <ul className="space-y-2 mb-4">
+                                        {question.question_data.answers.map((answer, ansIdx) => (
+                                            <li 
+                                                key={ansIdx} 
+                                                className={`p-2 rounded flex items-start ${answer.is_correct ? 'bg-success bg-opacity-10 border-l-4 border-success' : ''}`}
+                                            >
+                                                <div className="flex items-center">
+                                                    <div className={`h-5 w-5 flex-shrink-0 rounded-full border mr-2 ${answer.is_correct ? 'bg-success border-success' : 'border-gray-300'}`}>
+                                                        {answer.is_correct && (
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1">
+                                                    <span dangerouslySetInnerHTML={{ __html: answer.answer_text }} />
+                                                    {answer.explanation && (
+                                                        <p className="text-xs text-gray-500 mt-1">
+                                                            Explanation: {answer.explanation.replace(/<\/?[^>]+(>|$)/g, '')}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    
+                                    <div className="grid grid-cols-2 gap-2 mt-3">
+                                        <div className="text-sm text-body-color dark:text-body-color-dark">
+                                            <span className="font-medium">Difficulty:</span> {question.question_data.statistics?.scaled_difficulty.toFixed(2)}
+                                        </div>
+                                        {question.question_data.statistics?.scaled_discrimination !== undefined && (
+                                            <div className="text-sm text-body-color dark:text-body-color-dark">
+                                                <span className="font-medium">Discrimination:</span> {question.question_data.statistics.scaled_discrimination.toFixed(2)}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div className="flex justify-end mt-4">
+                            <button
+                                onClick={() => setIsQuestionsDialogOpen(false)}
+                                className="px-4 py-2 bg-primary text-white rounded hover:bg-opacity-90"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

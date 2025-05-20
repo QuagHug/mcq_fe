@@ -5,6 +5,7 @@ import { Dialog } from '@headlessui/react';
 import { updateTest, fetchTestDetail, fetchQuestions, fetchQuestionBanks } from '../services/api';
 import TestConfiguration from '../components/TestConfiguration';
 import QuestionDisplay from '../components/QuestionDisplay';
+import QuestionDistribution from '../components/QuestionDistribution';
 
 interface Question {
     id: string | number;
@@ -16,6 +17,15 @@ interface Question {
         explanation?: string;
     }[];
     taxonomyLevel?: string;
+    taxonomies?: { 
+        id?: number;
+        taxonomy: { 
+            id?: number;
+            name: string;
+            levels?: string[];
+        }; 
+        level: string;
+    }[];
     difficulty?: 'easy' | 'medium' | 'hard';
     explanation?: string;
 }
@@ -41,6 +51,51 @@ interface QuestionBank {
     name: string;
     questions: Question[];
 }
+
+interface TagProps {
+    value: string;
+    type: 'difficulty' | 'taxonomy';
+}
+
+const Tag = ({ value, type }: TagProps) => {
+    const getColor = () => {
+        if (type === 'difficulty') {
+            switch (value.toLowerCase()) {
+                case 'easy':
+                    return 'bg-[#E7F6EC] text-[#1B9C85] border border-[#1B9C85]';
+                case 'medium':
+                    return 'bg-[#FFF4E5] text-[#FF9F29] border border-[#FF9F29]';
+                case 'hard':
+                    return 'bg-[#FFE7E7] text-[#FF0060] border border-[#FF0060]';
+                default:
+                    return 'bg-gray-100 text-gray-600 border border-gray-400';
+            }
+        } else {
+            switch (value.toLowerCase()) {
+                case 'remember':
+                    return 'bg-[#E5F3FF] text-[#0079FF] border border-[#0079FF]';
+                case 'understand':
+                    return 'bg-[#E5F6FF] text-[#00A9FF] border border-[#00A9FF]';
+                case 'apply':
+                    return 'bg-[#E7F6EC] text-[#1B9C85] border border-[#1B9C85]';
+                case 'analyze':
+                    return 'bg-[#FFF4E5] text-[#FF9F29] border border-[#FF9F29]';
+                case 'evaluate':
+                    return 'bg-[#FFE7E7] text-[#FF0060] border border-[#FF0060]';
+                case 'create':
+                    return 'bg-[#F3E5FF] text-[#9C1AFF] border border-[#9C1AFF]';
+                default:
+                    return 'bg-gray-100 text-gray-600 border border-gray-400';
+            }
+        }
+    };
+
+    return (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getColor()}`}>
+            {value}
+        </span>
+    );
+};
 
 const EditTest = () => {
     const { courseId, testId } = useParams();
@@ -77,8 +132,16 @@ const EditTest = () => {
     useEffect(() => {
         const filtered = availableQuestions.filter(question => {
             const matchesSearch = question.question_text.toLowerCase().includes(searchQuery.toLowerCase());
+            
+            // Check both taxonomyLevel and taxonomies
+            const taxonomyLevel = question.taxonomyLevel || 
+                question.taxonomies?.find(tax => 
+                    tax.taxonomy.name === "Bloom's Taxonomy"
+                )?.level || '';
+            
             const matchesLevel = selectedLevels.length === 0 ||
-                selectedLevels.includes(question.taxonomyLevel?.toLowerCase() || '');
+                selectedLevels.includes(taxonomyLevel.toLowerCase());
+            
             const matchesBank = !selectedBankId || question.id.toString().startsWith(selectedBankId);
             return matchesSearch && matchesLevel && matchesBank;
         });
@@ -179,23 +242,43 @@ const EditTest = () => {
 
         if (test.questions.some(q => q.id === Number(question.id))) {
             // Remove question
-            setTest(prev => {
-                if (!prev) return null;
-                return {
-                    ...prev,
-                    questions: prev.questions.filter(q => q.id !== Number(question.id))
-                };
+            setTest({
+                ...test,
+                questions: test.questions.filter(q => q.id !== Number(question.id))
             });
         } else {
-            // Add question
-            setTest(prev => {
-                if (!prev) return null;
-                return {
-                    ...prev,
-                    questions: [...prev.questions, { id: Number(question.id), question: Number(question.id), question_data: question }]
-                };
+            // Add question with all its data
+            setTest({
+                ...test,
+                questions: [
+                    ...test.questions,
+                    {
+                        id: Number(question.id),
+                        question: Number(question.id),
+                        question_data: question
+                    }
+                ]
             });
         }
+    };
+
+    const getTaxonomyLevel = (question: Question): string => {
+        // First check taxonomies array
+        if (question.taxonomies && question.taxonomies.length > 0) {
+            const bloomsTaxonomy = question.taxonomies.find(
+                tax => tax.taxonomy.name === "Bloom's Taxonomy"
+            );
+            if (bloomsTaxonomy) {
+                return bloomsTaxonomy.level;
+            }
+        }
+        
+        // Then check taxonomyLevel property
+        if (question.taxonomyLevel) {
+            return question.taxonomyLevel;
+        }
+        
+        return 'N/A';
     };
 
     if (loading) return <div>Loading...</div>;
@@ -338,25 +421,38 @@ const EditTest = () => {
                             </div>
 
                             {/* Available Questions List */}
-                            {filteredQuestions
-                                .filter(q => !test.questions.some(tq => tq.id === Number(q.id)))
-                                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                                .map((question, index) => (
-                                    <QuestionDisplay
-                                        key={question.id}
-                                        question={question}
-                                        index={index}
-                                        onQuestionClick={handleQuestionClick}
-                                        actionButton={
+                            {filteredQuestions.map((question, index) => (
+                                <div 
+                                    key={question.id}
+                                    className="flex justify-between items-center px-4 py-3 rounded-sm border border-stroke dark:border-strokedark hover:bg-gray-50 dark:hover:bg-meta-4 cursor-pointer"
+                                    onClick={() => toggleQuestionSelection(question)}
+                                >
+                                    <div className="flex-1 pr-4">
+                                        <span className="text-sm">{index + 1}. {truncateText(question.question_text)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-8">
+                                        <div className="w-24 text-center">
+                                            {question.difficulty && (
+                                                <Tag value={question.difficulty} type="difficulty" />
+                                            )}
+                                        </div>
+                                        <div className="w-24 text-center">
+                                            <Tag value={getTaxonomyLevel(question)} type="taxonomy" />
+                                        </div>
+                                        <div className="w-12 text-center">
                                             <button
-                                                onClick={() => toggleQuestionSelection(question)}
-                                                className="text-success hover:text-meta-3 w-12"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleQuestionSelection(question);
+                                                }}
+                                                className="text-primary hover:text-primary-dark"
                                             >
                                                 Add
                                             </button>
-                                        }
-                                    />
-                                ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
@@ -379,114 +475,64 @@ const EditTest = () => {
                             </div>
 
                             {/* Selected Questions List */}
-                            {test.questions.map((questionWrapper, index) => (
-                                <QuestionDisplay
-                                    key={questionWrapper.id}
-                                    question={questionWrapper.question_data}
-                                    index={index}
-                                    onQuestionClick={() => handleQuestionClick(questionWrapper.question_data)}
-                                    className="border-primary bg-primary/5"
-                                    actionButton={
-                                        <button
-                                            onClick={() => toggleQuestionSelection(questionWrapper.question_data)}
-                                            className="text-danger hover:text-meta-1 w-12"
-                                        >
-                                            Remove
-                                        </button>
-                                    }
-                                />
-                            ))}
+                            {test && test.questions.map((questionWrapper, index) => {
+                                const question = questionWrapper.question_data;
+                                return (
+                                    <div 
+                                        key={questionWrapper.id}
+                                        className="flex justify-between items-center px-4 py-3 rounded-sm border border-stroke dark:border-strokedark hover:bg-gray-50 dark:hover:bg-meta-4 cursor-pointer"
+                                        onClick={() => handleQuestionClick(question)}
+                                    >
+                                        <div className="flex-1 pr-4">
+                                            <span className="text-sm">{index + 1}. {truncateText(question.question_text)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-8">
+                                            <div className="w-24 text-center">
+                                                {question.difficulty && (
+                                                    <Tag value={question.difficulty} type="difficulty" />
+                                                )}
+                                            </div>
+                                            <div className="w-24 text-center">
+                                                <Tag value={getTaxonomyLevel(question)} type="taxonomy" />
+                                            </div>
+                                            <div className="w-12 text-center">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleQuestionSelection(question);
+                                                    }}
+                                                    className="text-danger hover:text-danger-dark"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Summary Section */}
-            <div className="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark mb-6">
-                <div className="border-b border-stroke px-6.5 py-4 dark:border-strokedark">
-                    <h3 className="font-medium text-black dark:text-white">
-                        Summary
-                    </h3>
-                </div>
-                <div className="p-6.5">
-                    <div className="grid grid-cols-1 gap-6">
-                        {/* Distribution Table */}
-                        <div className="bg-gray-50 dark:bg-meta-4 p-4 rounded-sm overflow-x-auto">
-                            <h5 className="font-medium text-black dark:text-white mb-3">
-                                Question Distribution
-                            </h5>
-                            <table className="w-full">
-                                <thead>
-                                    <tr className="bg-gray-2 dark:bg-meta-4">
-                                        <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                            Taxonomy Level
-                                        </th>
-                                        <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                            Easy
-                                        </th>
-                                        <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                            Medium
-                                        </th>
-                                        <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                            Hard
-                                        </th>
-                                        <th className="py-4 px-4 font-medium text-black dark:text-white border-b border-[#eee] dark:border-strokedark">
-                                            Total
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].map(taxonomy => {
-                                        const questions = test.questions.filter(q =>
-                                            q.question_data.taxonomyLevel?.toLowerCase() === taxonomy.toLowerCase()
-                                        );
-                                        const easy = questions.filter(q => q.question_data.difficulty === 'easy').length;
-                                        const medium = questions.filter(q => q.question_data.difficulty === 'medium').length;
-                                        const hard = questions.filter(q => q.question_data.difficulty === 'hard').length;
-                                        const total = easy + medium + hard;
-
-                                        return (
-                                            <tr key={taxonomy}>
-                                                <td className="py-3 px-4 border-b border-[#eee] dark:border-strokedark">
-                                                    {taxonomy}
-                                                </td>
-                                                <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
-                                                    {easy}
-                                                </td>
-                                                <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
-                                                    {medium}
-                                                </td>
-                                                <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark">
-                                                    {hard}
-                                                </td>
-                                                <td className="py-3 px-4 text-center border-b border-[#eee] dark:border-strokedark font-medium">
-                                                    {total}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                    {/* Total Row */}
-                                    <tr className="bg-gray-2 dark:bg-meta-4">
-                                        <td className="py-3 px-4 font-medium">Total</td>
-                                        <td className="py-3 px-4 text-center font-medium">
-                                            {test.questions.filter(q => q.question_data.difficulty === 'easy').length}
-                                        </td>
-                                        <td className="py-3 px-4 text-center font-medium">
-                                            {test.questions.filter(q => q.question_data.difficulty === 'medium').length}
-                                        </td>
-                                        <td className="py-3 px-4 text-center font-medium">
-                                            {test.questions.filter(q => q.question_data.difficulty === 'hard').length}
-                                        </td>
-                                        <td className="py-3 px-4 text-center font-medium">
-                                            {test.questions.length}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+            {/* Question Distribution */}
+            {test && test.questions.length > 0 && (
+                <div className="col-span-12 xl:col-span-12 mt-4">
+                    <div className="rounded-sm border border-stroke bg-white px-5 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
+                        <h4 className="mb-6 text-xl font-semibold text-black dark:text-white">
+                            Question Distribution
+                        </h4>
+                        <QuestionDistribution 
+                            selectedQuestions={test.questions.map(q => ({
+                                ...q.question_data,
+                                // Ensure taxonomyLevel is set if it's in taxonomies but not directly
+                                taxonomyLevel: getTaxonomyLevel(q.question_data)
+                            }))} 
+                            editedQuestions={{}}
+                        />
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-4 mb-6">
@@ -608,15 +654,27 @@ const EditTest = () => {
                                             Taxonomy Level
                                         </label>
                                         <select
-                                            value={selectedQuestion.taxonomyLevel}
-                                            onChange={(e) => setSelectedQuestion({
-                                                ...selectedQuestion,
-                                                taxonomyLevel: e.target.value
-                                            })}
+                                            value={selectedQuestion.taxonomyLevel || getTaxonomyLevel(selectedQuestion)}
+                                            onChange={(e) => {
+                                                const newTaxonomyLevel = e.target.value;
+                                                // Update both taxonomyLevel and taxonomies for compatibility
+                                                setSelectedQuestion({
+                                                    ...selectedQuestion,
+                                                    taxonomyLevel: newTaxonomyLevel,
+                                                    taxonomies: [
+                                                        {
+                                                            taxonomy: {
+                                                                name: "Bloom's Taxonomy"
+                                                            },
+                                                            level: newTaxonomyLevel
+                                                        }
+                                                    ]
+                                                });
+                                            }}
                                             className="w-full rounded border-[1.5px] border-stroke bg-transparent py-3 px-5 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input"
                                         >
                                             {['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'].map(level => (
-                                                <option key={level} value={level.toLowerCase()}>
+                                                <option key={level} value={level}>
                                                     {level}
                                                 </option>
                                             ))}
@@ -651,13 +709,27 @@ const EditTest = () => {
                                     </button>
                                     <button
                                         onClick={() => {
+                                            // Ensure both taxonomyLevel and taxonomies are set
+                                            const updatedQuestion = {
+                                                ...selectedQuestion,
+                                                taxonomyLevel: selectedQuestion.taxonomyLevel || getTaxonomyLevel(selectedQuestion),
+                                                taxonomies: [
+                                                    {
+                                                        taxonomy: {
+                                                            name: "Bloom's Taxonomy"
+                                                        },
+                                                        level: selectedQuestion.taxonomyLevel || getTaxonomyLevel(selectedQuestion)
+                                                    }
+                                                ]
+                                            };
+                                            
                                             setTest(prev => {
                                                 if (!prev) return null;
                                                 return {
                                                     ...prev,
                                                     questions: prev.questions.map(q =>
-                                                        q.id === selectedQuestion.id
-                                                            ? { id: Number(selectedQuestion.id), question: Number(selectedQuestion.id), question_data: selectedQuestion }
+                                                        q.id === updatedQuestion.id
+                                                            ? { id: Number(updatedQuestion.id), question: Number(updatedQuestion.id), question_data: updatedQuestion }
                                                             : q
                                                     )
                                                 };
